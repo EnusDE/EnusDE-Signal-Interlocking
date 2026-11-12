@@ -1,0 +1,160 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using Game.State;
+using Game.AccessControl;
+using KeyValue.Runtime;
+using Railroader.Modding;
+using Newtonsoft.Json;
+using UnityEngine;
+
+namespace EnusDE.Signaltechnik {
+    public sealed class SharedRouteStatus {
+        public string Id,Reason,FaultReason,ChainId;
+        public bool ChainReady=true;
+        public RouteStage Stage;
+        public bool Entered,HeadKnown;
+        public List<string> ReleasedSections=new List<string>(),ReleasedSwitches=new List<string>(),PassedSignals=new List<string>();
+        public Dictionary<string,string> PointStates=new Dictionary<string,string>();
+        public static SharedRouteStatus From(RouteRun run)=>new SharedRouteStatus{Id=run.Route.Id,Reason=run.Reason,FaultReason=run.FaultReason,ChainId=run.ChainId,ChainReady=run.ChainReady,Stage=run.Stage,Entered=run.Entered,HeadKnown=run.HeadKnown,ReleasedSections=run.ReleasedSections.ToList(),ReleasedSwitches=run.ReleasedSwitches.ToList(),PassedSignals=run.PassedSignals.ToList(),PointStates=new Dictionary<string,string>(run.PointStates)};
+        public RouteRun ToRun(RouteDefinition route) {
+            if(!Enum.IsDefined(typeof(RouteStage),Stage)||Reason?.Length>1024||FaultReason?.Length>1024||ReleasedSections==null||ReleasedSections.Count>128||ReleasedSwitches==null||ReleasedSwitches.Count>64||PassedSignals==null||PassedSignals.Count>128||PointStates==null||PointStates.Count>64||ReleasedSections.Any(k=>!route.Sections.Any(s=>s.Key==k))||ReleasedSwitches.Any(k=>!route.Switches.Any(s=>s.Node==k)))throw new InvalidDataException("Fahrstraßenanzeige ungültig.");
+            var run=new RouteRun{Route=route,Stage=Stage,Reason=Reason,FaultReason=FaultReason,ChainId=ChainId,ChainReady=ChainReady,Entered=Entered,HeadKnown=HeadKnown};foreach(string id in ReleasedSections)run.ReleasedSections.Add(id);foreach(string id in ReleasedSwitches)run.ReleasedSwitches.Add(id);foreach(string id in PassedSignals)run.PassedSignals.Add(id);foreach(var item in PointStates)run.PointStates[item.Key]=item.Value;return run;
+        }
+    }
+    public sealed class SharedLiveFrame {
+        public string Epoch;
+        public long Sequence;
+        public Dictionary<string,LocalSignalAspect> Aspects=new Dictionary<string,LocalSignalAspect>();
+        public List<SharedRouteStatus> Runs=new List<SharedRouteStatus>();
+        public void Validate(){Guid id;if(!Guid.TryParseExact(Epoch,"N",out id)||Sequence<1||Aspects==null||Aspects.Count>384||Runs==null||Runs.Count>16||Aspects.Any(p=>!Guid.TryParseExact(p.Key,"N",out id)||!Enum.IsDefined(typeof(LocalSignalAspect),p.Value))||Runs.Any(r=>r==null))throw new InvalidDataException("Gemeinsame Betriebsanzeige ungültig.");}
+    }
+    public sealed partial class SharedRuntime : MonoBehaviour,ISharedProperties {
+        public const string ObjectId="enusde.signaltechnik.shared.v1";
+        const int InstallLimit=1024*1024,DeskLimit=16*1024*1024,RouteLimit=4*1024*1024,FrameLimit=256*1024;
+        KeyValueObject properties;
+        SharedDocuments documents;
+        IDisposable observer;
+        IModLogger log;
+        string directory;
+        readonly HashSet<string> changed=new HashSet<string>();
+        readonly LiveLease lease=new LiveLease();
+        readonly string epoch=Guid.NewGuid().ToString("N");
+        long sequence;
+        double next,nextFrame;
+        bool stopped;
+        InstallationDocument installation;
+        DeskLibrary sharedDesks;
+        List<RouteDefinition> sharedRoutes;
+        public SharedLiveFrame Live {get;private set;}
+        public bool Ready=>!stopped&&installation!=null;
+        public bool ConfigurationReady=>Ready&&sharedDesks!=null&&sharedRoutes!=null;
+        public long InstallationVersion {get;private set;}
+        public long ConfigurationVersion {get;private set;}
+        public string Error {get;private set;}
+        public string WorldKey=>installation?.WorldKey;
+        public string LegacyKey {get;private set;}
+        public bool LiveFresh=>Ready&&lease.Fresh(Time.realtimeSinceStartup);
+        public bool EconomyEnabled=>installation?.Economy.Enabled??false;
+        public double EconomyFactor=>installation?.Economy.Factor??1;
+        public bool DefaultRightSide=>installation?.Placement.RightSide??true;
+        public bool FollowView=>installation?.Placement.FollowView??true;
+        public void ApplyPlacementDefaults(MarkerOptions value){installation?.Placement.Apply(value);}
+        public bool PlacementMatches(MarkerOptions value)=>installation?.Placement.Matches(value)??true;
+        public void Initialize(IModLogger logger,string path) {
+            log=logger;directory=path;properties=gameObject.AddComponent<KeyValueObject>();documents=new SharedDocuments(this);
+            StateManager.Shared.RegisterPropertyObject(ObjectId,properties,AuthorizationRequirement.HostOnly,null);
+            // Host mutations already update the validated in-memory documents below. Only
+            // initial restore or remote client commits need decompression/deserialization.
+            observer=properties.ObserveKeyChanges((key,kind)=>{if(key.EndsWith(".commit",StringComparison.Ordinal)&&(!StateManager.IsHost||installation==null))changed.Add(key.Substring(0,key.Length-7));});
+            changed.UnionWith(new[]{"install","desks","routes","live"});
+        }
+        public string Read(string key){var value=properties.Get(key);return value.IsNull?null:value.StringValue;}
+        public void Write(string key,string value){RequireHost();properties.Set(key,value==null?Value.Null():Value.String(value),SetValueOrigin.Local);}
+        void RequireHost(){if(stopped||StateManager.IsUnloading||!StateManager.IsHost||properties==null)throw new InvalidOperationException("Gemeinsame Anlage nur vom Host änderbar.");}
+        void Update() {
+            if(stopped||StateManager.IsUnloading||Time.realtimeSinceStartup<next||StateManager.Shared==null||!StateManager.Shared.IsSessionReady||!StateManager.Shared.HasRestoredProperties)return;next=Time.realtimeSinceStartup+.25;
+            foreach(string channel in changed.ToArray())try{ReadChannel(channel);changed.Remove(channel);Error=null;}catch(Exception e){if(Error!=e.Message){Error=e.Message;log?.Warning("Anlagensynchronisation: "+e.Message);}}
+        }
+        void ReadChannel(string channel) {
+            if(channel=="install") {var value=documents.Read<InstallationDocument>(channel,InstallLimit);if(value==null)return;CircuitIdentity.Fill(value.Objects);value.Validate();if(value.Map!=StateManager.Shared.CurrentMapIdentifier)throw new InvalidDataException("Gemeinsame Anlage gehört zu einer anderen Karte.");installation=value;InstallationVersion++;}
+            else if(channel=="desks"){var value=documents.Read<DeskLibrary>(channel,DeskLimit);if(value!=null){if(WorldKey==null)throw new InvalidDataException("Anlagenkennung wird noch übertragen.");value.Validate(WorldKey);sharedDesks=value;ConfigurationVersion++;}}
+            else if(channel=="routes"){var value=documents.Read<InterlockingDocument>(channel,RouteLimit);if(value!=null){if(WorldKey==null)throw new InvalidDataException("Anlagenkennung wird noch übertragen.");ValidateRoutes(value);sharedRoutes=value.Routes;ConfigurationVersion++;}}
+            else if(channel=="live"&&!StateManager.IsHost){var value=documents.Read<SharedLiveFrame>(channel,FrameLimit);if(value!=null){value.Validate();if(lease.Accept(value.Epoch,value.Sequence,Time.realtimeSinceStartup))Live=value;}}
+        }
+        void ValidateRoutes(InterlockingDocument value){if(value.Schema!=1||value.WorldKey!=WorldKey||value.Routes==null||value.Routes.Count>128)throw new InvalidDataException("Gemeinsame Fahrstraßen ungültig.");foreach(var route in value.Routes)route.Validate();if(value.Routes.Select(r=>r.Id).Distinct().Count()!=value.Routes.Count||value.Routes.Select(r=>r.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=value.Routes.Count)throw new InvalidDataException("Doppelte gemeinsame Fahrstraße.");}
+        public void ImportIfNeeded() {
+            RequireHost();if(Ready)return;if(!StateManager.Shared.HasRestoredProperties||!StateManager.Shared.IsSessionReady)return;
+            // Read a committed snapshot first. Never replace corrupt/unfinished shared data by legacy files.
+            if(documents.Header("install")!=null){ReadChannel("install");return;}
+            string path=StateManager.Shared.SaveManager?.RailroadPath,map=StateManager.Shared.CurrentMapIdentifier;if(string.IsNullOrWhiteSpace(path)||string.IsNullOrWhiteSpace(map))return;
+            LegacyKey=MarkerRepository.Key(path,map);var legacy=new MarkerRepository(Path.Combine(directory,"Markers"),LegacyKey,map).Snapshot();
+            string key=SharedDocuments.Hash(System.Text.Encoding.UTF8.GetBytes(Guid.NewGuid().ToString("N")));legacy.WorldKey=key;
+            var initial=new InstallationDocument{WorldKey=key,Map=map,Objects=legacy};foreach(var row in legacy.Markers)initial.Economy.Built[row.Id]=new BuiltMaterial{Budget=MaterialEconomy.Cost(row)};
+            var oldDesksPath=new DeskStore(Path.Combine(directory,"Desks"),LegacyKey);DeskLibrary desks;
+            if(File.Exists(oldDesksPath.FilePath))desks=oldDesksPath.Load(null);else {var panel=new PanelStore(Path.Combine(directory,"Panels"),LegacyKey).Load();desks=new DeskLibrary{WorldKey=LegacyKey,Desks=new List<DeskDefinition>{new DeskDefinition{Global=true,Code="ESTW",Name="Übergeordnetes ESTW",Panel=panel}}};}
+            desks.WorldKey=key;foreach(var desk in desks.Desks)desk.Panel.WorldKey=key;desks.Validate(key);
+            var routes=new InterlockingStore(Path.Combine(directory,"Interlocking"),LegacyKey).Load();initial.Economy.ConnectedPoints=desks.Desks.SelectMany(d=>d.Panel.Tiles).Where(t=>t.Kind==PanelTileKind.Switch&&!string.IsNullOrWhiteSpace(t.Reference)).Select(t=>t.Reference).Concat(routes.SelectMany(r=>r.Switches.Select(p=>p.Node))).Distinct().ToList();
+            var defaults=Entry.SettingsSnapshot().Markers;initial.Economy.Enabled=defaults.EconomyEnabled;initial.Economy.Factor=defaults.MaterialFactor;initial.Placement=ServerPlacement.From(defaults);initial.Validate();
+            Atomic(()=>{documents.Write("desks",desks,DeskLimit);documents.Write("routes",new InterlockingDocument{WorldKey=key,Routes=routes},RouteLimit);CommitInstall(initial);sharedDesks=desks;sharedRoutes=routes;ConfigurationVersion++;});
+        }
+        public MarkerDocument Objects()=>installation==null?null:JsonConvert.DeserializeObject<MarkerDocument>(JsonConvert.SerializeObject(installation.Objects));
+        public InstallationDocument Snapshot()=>installation?.Clone();
+        public DeskLibrary Desks()=>sharedDesks?.Clone();
+        public List<RouteDefinition> Routes()=>sharedRoutes?.Select(r=>r.Clone()).ToList();
+        public IReadOnlyDictionary<string,string> NumberRegistry()=>installation?.TrainNumbers;
+
+        internal string FieldNumber(string signal) {
+            return installation!=null&&!string.IsNullOrEmpty(signal)&&installation.SignalNumberFields.TryGetValue(signal,out string number)?number:"";
+        }
+
+        internal (string[] fields,int cars) WriteFieldNumber(string signal,string prefix,string number) {
+            RequireReady();
+            if(!Guid.TryParseExact(signal,"N",out _))throw new InvalidOperationException("Zugnummernfeld zuerst einem Hauptsignal zuordnen.");
+            string value=TrainNumbers.Format(prefix,number);
+            var next=installation.Clone();
+            var previous=TrainNumbers.RemoveNumber(next.SignalNumberFields,value,new HashSet<string>{signal});
+            int cars=TrainNumbers.RemoveNumber(next.TrainNumbers,value,new HashSet<string>()).Length;
+            bool changed=FieldNumber(signal)!=value||previous.Length>0||cars>0;
+            if(value=="")next.SignalNumberFields.Remove(signal);else next.SignalNumberFields[signal]=value;
+            if(changed)CommitInstall(next);
+            return (previous,cars);
+        }
+
+        internal void AdvanceFieldNumbers(IReadOnlyList<RouteRun> movements,Func<string,string> fieldFor) {
+            RequireReady();
+            var numbers=new Dictionary<string,string>(installation.SignalNumberFields);
+            if(TrainNumbers.AdvanceSignalNumbers(numbers,movements,fieldFor)) {
+                var next=installation.Clone();
+                next.SignalNumberFields=numbers;
+                CommitInstall(next);
+            }
+        }
+        public int AssignNumber(Model.Car selected,string prefix,string number) {
+            RequireReady();if(selected==null)throw new InvalidOperationException("Zug oder Fahrzeug im Spiel auswählen.");string formatted=TrainNumbers.Format(prefix,number);var ids=new HashSet<string>();var queue=new Queue<Model.Car>();queue.Enqueue(selected);
+            while(queue.Count>0){var car=queue.Dequeue();if(car==null||ids.Contains(car.id))continue;if(ids.Count>=256||car.IsDerailed)throw new InvalidOperationException("Zugverband nicht vollständig zuordenbar.");ids.Add(car.id);foreach(var end in new[]{Model.Car.LogicalEnd.A,Model.Car.LogicalEnd.B}){var other=car.CoupledTo(end);if(other!=null)queue.Enqueue(other);}}
+            var next=installation.Clone();var present=new HashSet<string>(TrainController.Shared.Cars.Where(c=>c!=null).Select(c=>c.id));foreach(string old in next.TrainNumbers.Keys.Where(id=>!present.Contains(id)).ToArray())next.TrainNumbers.Remove(old);int transferred=TrainNumbers.RemoveNumber(next.SignalNumberFields,formatted,new HashSet<string>()).Length+
+                TrainNumbers.RemoveNumber(next.TrainNumbers,formatted,ids).Length;
+            foreach(string id in ids)if(formatted=="")next.TrainNumbers.Remove(id);else next.TrainNumbers[id]=formatted;
+            CommitInstall(next);
+            return transferred;
+        }
+        void CommitInstall(InstallationDocument value){RequireHost();CircuitIdentity.Fill(value.Objects);value.Validate();documents.Write("install",value,InstallLimit);installation=value;InstallationVersion++;}
+        void Atomic(Action action,Action rollback=null) {
+            RequireHost();var heads=new[]{"install","desks","routes"}.ToDictionary(k=>k,k=>documents.Header(k));var old=installation;var oldDesks=sharedDesks;var oldRoutes=sharedRoutes;long iv=InstallationVersion,cv=ConfigurationVersion;
+            using(StateManager.TransactionScope())try{action();}catch{foreach(var head in heads)Write(head.Key+".commit",head.Value);installation=old;sharedDesks=oldDesks;sharedRoutes=oldRoutes;InstallationVersion=iv;ConfigurationVersion=cv;rollback?.Invoke();throw;}
+        }
+        public void PutObjects(MarkerDocument next){RequireHost();var value=MaterialEconomy.Markers(installation,next);CommitInstall(value);next.Markers=value.Objects.Markers.Select(m=>m.Clone()).ToList();}
+        public void PutDesks(DeskLibrary next){RequireHost();next.Validate(WorldKey);Atomic(()=>{documents.Write("desks",next,DeskLimit);sharedDesks=next.Clone();ConfigurationVersion++;});}
+        public void PutRoutes(IEnumerable<RouteDefinition> next){RequireHost();var doc=new InterlockingDocument{WorldKey=WorldKey,Routes=next.Select(r=>r.Clone()).ToList()};ValidateRoutes(doc);var value=MaterialEconomy.Connect(installation,doc.Routes.SelectMany(r=>r.Switches.Select(p=>p.Node)),DepotForPoint);Atomic(()=>{documents.Write("routes",doc,RouteLimit);CommitInstall(value);sharedRoutes=doc.Routes;ConfigurationVersion++;});}
+        public void ApplyEconomy(bool enabled,double factor){RequireHost();if(!Ready||EconomyEnabled==enabled&&EconomyFactor==factor)return;var value=installation.Clone();value.Economy.Enabled=enabled;value.Economy.Factor=factor;value.Validate();CommitInstall(value);}
+        public void ApplyPlacement(MarkerOptions options){RequireHost();if(!Ready||installation.Placement.Size!=null&&PlacementMatches(options))return;var value=installation.Clone();value.Placement=ServerPlacement.From(options);CommitInstall(value);}
+        public LocalSignalAspect ClientAspect(string id){LocalSignalAspect aspect;return LiveFresh&&Live!=null&&Live.Aspects.TryGetValue(id,out aspect)?aspect:LocalSignalAspect.Stop;}
+        public void Publish(SignalRuntime signals) {
+            if(!Ready||!StateManager.IsHost||Time.realtimeSinceStartup<nextFrame)return;nextFrame=Time.realtimeSinceStartup+1;
+            var frame=new SharedLiveFrame{Epoch=epoch,Sequence=++sequence};foreach(var row in signals.SignalObjects.Where(s=>s.IsSignal))frame.Aspects[row.Id]=signals.Aspect(row.Id);frame.Runs=signals.Engine.Active.Select(SharedRouteStatus.From).ToList();frame.Validate();documents.Write("live",frame,FrameLimit);
+        }
+        public void Shutdown(){if(stopped)return;stopped=true;observer?.Dispose();observer=null;try{if(StateManager.Shared!=null)StateManager.Shared.UnregisterPropertyObject(ObjectId);}finally{if(properties!=null)Destroy(properties);properties=null;changed.Clear();installation=null;sharedDesks=null;sharedRoutes=null;Live=null;}}
+    }
+}

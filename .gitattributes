@@ -1,0 +1,3 @@
+# Keep exact runtime-source and bundled licence bytes for independent rebuilds.
+*.cs -text
+*.txt -text

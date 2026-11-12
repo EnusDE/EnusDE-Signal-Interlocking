@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable>
+  </PropertyGroup>
+  <PropertyGroup><GameDirectory Condition="'$(GameDirectory)' == ''">$(RAILROADER_DIR)</GameDirectory></PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Relay"><HintPath>$(GameDirectory)\Railroader_Data\Managed\Relay.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(GameDirectory)\Railroader_Data\Managed\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Railroader"><HintPath>$(GameDirectory)\Railroader_Data\Managed\Railroader.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Railroader.Modding"><HintPath>$(GameDirectory)\Railroader_Data\Managed\Railroader.Modding.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="EnusDE.Signaltechnik"><HintPath>..\..\build\recorder\EnusDE.Signaltechnik.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

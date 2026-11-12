@@ -1,0 +1,14 @@
+{
+  "objects": [
+    {
+      "identifier": "enusde/signal-building",
+      "metadata": {"name": "Signalbaumaterial", "description": "Baupakete mit Mastteilen, Fertigfundamenten, Haltern und Kabelmaterial."},
+      "definition": {"kind": "Load", "description": "Signalbaumaterial", "units": "Quantity", "density": 30, "unitWeightInPounds": 5000, "importable": true, "costPerUnit": 250, "carTypeFilter": "FM"}
+    },
+    {
+      "identifier": "enusde/signal-technology",
+      "metadata": {"name": "Signaltechnik", "description": "Geschützte Baupakete mit Signalköpfen, Relais, Schaltkästen und Antrieben."},
+      "definition": {"kind": "Load", "description": "Signaltechnik", "units": "Quantity", "density": 20, "unitWeightInPounds": 1000, "importable": true, "costPerUnit": 500, "carTypeFilter": "XM"}
+    }
+  ]
+}
