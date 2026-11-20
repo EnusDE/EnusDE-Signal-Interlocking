@@ -21,15 +21,17 @@ namespace UI.Builder {
         public void AddLabel(string value){}
     }
     public sealed class UITabbedPanelBuilder {
-        public int Tabs;
-        public void AddTab(string title,string id,Action<UIPanelBuilder> draw){Tabs++;draw(new UIPanelBuilder());}
+        public int Tabs;public readonly List<string> Titles=new List<string>(),Ids=new List<string>();
+        public void AddTab(string title,string id,Action<UIPanelBuilder> draw){Tabs++;Titles.Add(title);Ids.Add(id);draw(new UIPanelBuilder());}
     }
 }
 namespace UI.PreferencesWindow { public static class PreferencesBuilder {public static void BuildTabs(UI.Builder.UITabbedPanelBuilder builder){}} }
 public static class PreferencesFixture {
     static void Check(bool ok,string text){if(!ok)throw new Exception("FAIL: "+text);Console.WriteLine("PASS: "+text);}
     static void Draw(UI.Builder.UITabbedPanelBuilder builder){foreach(var patch in HarmonyLib.Harmony.Patches.Values.ToArray())patch.Invoke(null,new object[]{builder});}
+    static void ForeignPostfix(UI.Builder.UITabbedPanelBuilder builder){builder.AddTab("Rusty Rails","foreign.fixture",_=>{});}
     public static void Main() {
+        EnusDE.Signaltechnik.LocalText.Configure(()=>"de");
         const string slot=ModsPreferencesRegistration.SlotKey;
         int ours=0,foreign=0,warnings=0;
         var contribution=ModsPreferencesRegistration.Register(b=>ours++,m=>warnings++);
@@ -56,5 +58,28 @@ public static class PreferencesFixture {
         try{ModsPreferencesRegistration.Register(b=>{},m=>{});}catch(InvalidOperationException){rejected=true;}
         Check(rejected&&(string)AppDomain.CurrentDomain.GetData(slot)=="incompatible","incompatible registry data is preserved instead of overwritten");
         AppDomain.CurrentDomain.SetData(slot,null);
+        var untouched=new List<Action<UI.Builder.UIPanelBuilder>>{_=>{}};AppDomain.CurrentDomain.SetData(slot,untouched);
+        var foreignPatch=new HarmonyLib.Harmony("fixture.foreign");foreignPatch.Patch(typeof(UI.PreferencesWindow.PreferencesBuilder).GetMethod("BuildTabs"),new HarmonyLib.HarmonyMethod(typeof(PreferencesFixture),nameof(ForeignPostfix)));
+        int ownDraws=0,ownWarnings=0;
+        var own=SignalPreferencesRegistration.Register(_=>ownDraws++,_=>ownWarnings++);
+        tab=new UI.Builder.UITabbedPanelBuilder();Draw(tab);
+        Check(tab.Titles.SequenceEqual(new[]{"Rusty Rails","Signaltechnik"})&&tab.Ids.Contains("enusde.signaltechnik.settings")&&ownDraws==1,
+            "dedicated Signaltechnik settings tab coexists with a foreign native tab");
+        Check(ReferenceEquals(AppDomain.CurrentDomain.GetData(slot),untouched)&&untouched.Count==1,
+            "dedicated settings never add, remove or replace a foreign shared Mods registry");
+        own.Dispose();tab=new UI.Builder.UITabbedPanelBuilder();Draw(tab);
+        Check(tab.Titles.SequenceEqual(new[]{"Rusty Rails"})&&HarmonyLib.Harmony.Patches.Count==1,
+            "unloading dedicated settings removes only its own tab hook");
+        var oldOwn=SignalPreferencesRegistration.Register(_=>ownDraws++,_=>ownWarnings++);
+        var latestOwn=SignalPreferencesRegistration.Register(_=>ownDraws++,_=>ownWarnings++);oldOwn.Dispose();
+        tab=new UI.Builder.UITabbedPanelBuilder();Draw(tab);
+        Check(tab.Titles.Count(t=>t=="Signaltechnik")==1&&ownDraws==2,
+            "an old registration token cannot remove a newer dedicated settings tab");
+        latestOwn.Dispose();own=SignalPreferencesRegistration.Register(_=>throw new Exception("own page failed"),_=>ownWarnings++);
+        tab=new UI.Builder.UITabbedPanelBuilder();Draw(tab);Draw(new UI.Builder.UITabbedPanelBuilder());
+        Check(ownWarnings==1&&tab.Titles.Contains("Rusty Rails"),
+            "a failed Signaltechnik page reports once and leaves foreign preference tabs available");
+        own.Dispose();foreignPatch.UnpatchAll("fixture.foreign");AppDomain.CurrentDomain.SetData(slot,null);
+
     }
 }

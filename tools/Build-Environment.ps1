@@ -18,7 +18,7 @@ function Get-BuildSdk {
 
 function Get-RailroaderManagedDirectory([string]$GameDirectory) {
     if ([string]::IsNullOrWhiteSpace($GameDirectory)) {
-        throw 'Set -GameDirectory or RAILROADER_DIR to the Railroader 0.6.2 installation directory.'
+        throw 'Set -GameDirectory or RAILROADER_DIR to the Railroader 0.6.3 installation directory.'
     }
     $managed = Join-Path $GameDirectory 'Railroader_Data/Managed'
     if (!(Test-Path -LiteralPath (Join-Path $managed 'Railroader.dll') -PathType Leaf)) {

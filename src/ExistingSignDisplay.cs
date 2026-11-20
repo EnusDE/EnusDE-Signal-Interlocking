@@ -18,7 +18,7 @@ namespace EnusDE.Signaltechnik {
         public void Refresh(bool enabled,string mode) {
             Error=null;
             if(!enabled||mode=="original"){Dispose();Status=enabled?"Originalbeschriftung (mph).":"Anpassung vorhandener Schilder aus.";return;}
-            try{baked.Refresh(enabled,mode);}catch(Exception e){baked.Dispose();Error=e.Message;}
+            try{baked.Refresh(enabled,mode);Error=baked.Error;}catch(Exception e){baked.Dispose();Error=e.Message;}
             var controller=SignController.Shared;
             var rows=controller==null?null:instances?.GetValue(controller) as IDictionary<string,GameObject>;
             if(rows==null){Status="Spielerschilderverwaltung nicht verfügbar; "+baked.Count+" Kartenschilder angepasst.";return;}
@@ -43,7 +43,7 @@ namespace EnusDE.Signaltechnik {
             }
             var removed=new List<string>();foreach(var pair in bindings)if(!live.Contains(pair.Key)){Restore(pair.Value);removed.Add(pair.Key);}
             foreach(string key in removed)bindings.Remove(key);
-            Status=bindings.Count+" Spieler- und "+baked.Count+" erkannte Karten-Geschwindigkeitsschilder angepasst.";
+            Status=bindings.Count+" Spieler- und "+baked.Count+" Kartenschilder umgerechnet ("+baked.ConvertedFaces+" Kartenschildseiten). Originalfarben bleiben erhalten."+(baked.UnchangedFaces==0?"":" "+baked.UnchangedFaces+" Seiten ohne sicher erkannte Zahl unverändert.")+(Error==null?"":" "+Error);
         }
         static void Restore(Binding value){if(value.Text!=null&&value.Applied!=null&&value.Text.text==value.Applied){value.Text.text=value.Original;value.Text.ApplyText();}}
         public void Dispose(){foreach(var row in bindings.Values)Restore(row);bindings.Clear();baked.Dispose();}

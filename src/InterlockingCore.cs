@@ -21,6 +21,8 @@ namespace EnusDE.Signaltechnik {
     public sealed class RouteDefinition {
         public string Id=Guid.NewGuid().ToString("N"),Code,Entry,Exit;
         public string EntryAnchor,ExitAnchor;
+        [JsonProperty(NullValueHandling=NullValueHandling.Ignore)] public string LineTarget;
+        [JsonProperty(NullValueHandling=NullValueHandling.Ignore)] public string LineTargetSignature;
         public string Topology;
         public string ProgressTopology;
         public bool Shunting,Reduced;
@@ -35,11 +37,18 @@ namespace EnusDE.Signaltechnik {
         public List<DirectedRouteSection> ExitContinuation;
         public List<TrackSection> OccupiedTarget;
         public List<RouteFlank> Flanks;
+        [JsonProperty(DefaultValueHandling=DefaultValueHandling.Ignore)]
+        public int FlankCalculationVersion;
+        [JsonProperty(NullValueHandling=NullValueHandling.Ignore)]
+        public string PointGuardSignature;
         public void Validate() {
             Guid id;
+            if(LineTarget!=null&&!Guid.TryParseExact(LineTarget,"N",out _))throw new InvalidDataException(LocalText.Select("Invalid route line-destination binding.","Ungültige Streckenzielbindung der Fahrstraße."));
+            if(LineTargetSignature!=null&&(LineTarget==null||LineTargetSignature.Length!=64||LineTargetSignature.Any(c=>!Uri.IsHexDigit(c))))throw new InvalidDataException(LocalText.Select("Invalid line-destination signature.","Ungültige Kennung der Streckenzielbindung."));
             if(!Guid.TryParseExact(Id,"N",out id)||string.IsNullOrWhiteSpace(Code)||Code.Length>48||Entry==Exit||string.IsNullOrWhiteSpace(Entry)||string.IsNullOrWhiteSpace(Exit)||Sections==null||Sections.Count==0||Sections.Count>128||Approach==null||Approach.Count==0||Approach.Count>128||Switches==null||Switches.Count>64)throw new InvalidDataException("Unvollständige Fahrstraßendefinition.");
             foreach(var s in Sections.Concat(Approach)){if(s==null)throw new InvalidDataException("Leerer Gleisabschnitt.");s.Validate();}
             if(Switches.Any(s=>s==null||string.IsNullOrWhiteSpace(s.Node))||Switches.Select(s=>s.Node).Distinct().Count()!=Switches.Count)throw new InvalidDataException("Ungültige Weichendefinition.");
+            if(PointGuardSignature!=null&&(PointGuardSignature.Length!=64||PointGuardSignature.Any(c=>!Uri.IsHexDigit(c))))throw new InvalidDataException(LocalText.Select("Invalid point protection signature.","Ungültige Kennung der Weichenschutzberechnung."));
             if(AuxiliaryExit&&(Path==null||string.IsNullOrEmpty(ExitAnchor)))throw new InvalidDataException("Hilfsfahrstraße benötigt einen vollständigen gerichteten Fahrweg.");
             RouteSignals.Validate(this);
             FlankProtection.Validate(this);
@@ -83,8 +92,10 @@ namespace EnusDE.Signaltechnik {
         bool CaptureTrain(RouteDefinition route,out string[] cars);
         bool TrainProgress(RouteDefinition route,string[] cars,out double head,out double tail);
     }
+    public interface IVehicleOccupancyWorld {TrackOccupancy SectionWithCars(TrackSection section,out string[] cars);}
     public interface ISwitchFeedbackWorld {bool SwitchSettled(string node,bool thrown,out string detail);}
     public interface ITrainStopWorld {bool TrainStopped(string[] cars);}
+    public interface ISignalPassageWorld {double EntryPassageOffset(RouteDefinition route,double normal);}
     public sealed class RouteRun {
         public int ApproachStopChecks;
         public string ApproachStopIdentity;
@@ -103,6 +114,7 @@ namespace EnusDE.Signaltechnik {
         public string[] TrainCars;
         public double? TailProgress;
         public bool HeadKnown;
+        public string NumberPassageNumber;
         public string FaultReason;
         public string ChainId;
         public bool ChainReady=true;
@@ -113,17 +125,30 @@ namespace EnusDE.Signaltechnik {
         public string[] WithdrawnRoutes;
         public string ReleaseSelection,ReleaseStatus;
         public double ReleaseAt;
+        public bool ReleaseWaitCompleted;
+        [JsonIgnore] public double? ReportedWaitRemaining;
         public IEnumerable<TrackSection> HeldSections=>Route.Sections.Where(s=>!ReleasedSections.Contains(s.Key));
         public bool EntryReleased=>Route.Path!=null&&ReleasedSections.Contains(Route.Path[0].Section.Key);
         public bool Permitted=>Stage==RouteStage.Set&&!Entered&&ChainReady;
         public bool PermitsVia(string id)=>ChainReady&&(Stage==RouteStage.Set||Stage==RouteStage.Running)&&(!Entered||HeadKnown)&&!PassedSignals.Contains(id)&&Route.ViaSignals!=null&&Route.ViaSignals.Any(s=>s.Id==id);
     }
     // State is independent of Unity, UI and passive diagnostics.
+    public sealed class RouteConflictException:InvalidOperationException {
+        public static string State(RouteStage stage)=>stage==RouteStage.Preparing?"läuft ein":stage==RouteStage.Set?"festgelegt":
+            stage==RouteStage.Running?"befahren":stage==RouteStage.WaitingProtection?"Schutzwartezeit":stage==RouteStage.Fault?"Störung / Restverschluss":"Halt / Restverschluss";
+        public readonly string[] BlockingRouteIds;
+        public RouteConflictException(IEnumerable<RouteRun> blockers):this(blockers.ToArray()){}
+        RouteConflictException(RouteRun[] blockers):base("Widersprechende Festlegung: "+string.Join(", ",blockers.Select(r=>r.Route.Code+" ["+State(r.Stage)+"]"))+". Unter Festlegungen prüfen und sicher auflösen.") {
+            BlockingRouteIds=blockers.Select(r=>r.Route.Id).ToArray();
+        }
+    }
     public sealed partial class InterlockingEngine {
+        public IRouteAdmission Admission {get;set;}
+        public double SignalPassageMeters;
         readonly Dictionary<string,RouteRun> active=new Dictionary<string,RouteRun>();
         public IReadOnlyCollection<RouteRun> Active=>active.Values.ToArray();
         static IEnumerable<string> Controlled(RouteDefinition r)=>new[]{r.Entry}.Concat(r.ViaSignals?.Select(s=>s.Id)??Enumerable.Empty<string>());
-        static bool Conflict(RouteDefinition a,RouteRun b)=>Controlled(a).Intersect(Controlled(b.Route).Where(id=>id==b.Route.Entry?!b.EntryReleased:!b.PassedSignals.Contains(id))).Any()||Controlled(a).Intersect(HeldFlankSignals(b.Route,b.ReleasedSwitches).Select(s=>s.Id)).Any()||HeldFlankSignals(a).Select(s=>s.Id).Intersect(Controlled(b.Route).Where(id=>id==b.Route.Entry?!b.EntryReleased:!b.PassedSignals.Contains(id))).Any()||a.Sections.Any(s=>b.HeldSections.Any(s.Overlaps))||a.Switches.Any(s=>b.Route.Switches.Any(t=>s.Node==t.Node&&!b.ReleasedSwitches.Contains(t.Node)));
+        static bool Conflict(RouteDefinition a,RouteRun b)=>Controlled(a).Intersect(Controlled(b.Route).Where(id=>id==b.Route.Entry?!b.EntryReleased:!b.PassedSignals.Contains(id))).Any()||Controlled(a).Intersect(HeldFlankSignals(b.Route,b.ReleasedSwitches).Select(s=>s.Id)).Any()||HeldFlankSignals(a).Select(s=>s.Id).Intersect(Controlled(b.Route).Where(id=>id==b.Route.Entry?!b.EntryReleased:!b.PassedSignals.Contains(id))).Any()||a.Sections.Any(s=>b.HeldSections.Any(t=>RouteCompatibility.SectionConflict(a,s,b.Route,t)))||a.Switches.Any(s=>b.Route.Switches.Any(t=>!b.ReleasedSwitches.Contains(t.Node)&&RouteCompatibility.SwitchConflict(s,t)));
         static TrackOccupancy Read(IEnumerable<TrackSection> sections,IInterlockingWorld world) {
             bool occupied=false;foreach(var s in sections){var result=world.Occupancy(s);if(result==TrackOccupancy.Unknown)return result;occupied|=result==TrackOccupancy.Occupied;}return occupied?TrackOccupancy.Occupied:TrackOccupancy.Clear;
         }
@@ -131,9 +156,33 @@ namespace EnusDE.Signaltechnik {
         public bool UsesSignal(string id)=>active.Values.Any(r=>r.Route.Entry==id||r.Route.Exit==id||r.Route.ViaSignals!=null&&r.Route.ViaSignals.Any(s=>s.Id==id)||HeldFlankSignals(r.Route).Any(s=>s.Id==id));
         public RouteRun ForSignal(string id)=>active.Values.FirstOrDefault(r=>r.Route.Entry==id&&r.Permitted)??active.Values.FirstOrDefault(r=>r.Route.Entry==id);
         public RouteRun ForViaSignal(string id)=>active.Values.FirstOrDefault(r=>r.PermitsVia(id))??active.Values.FirstOrDefault(r=>r.Route.ViaSignals!=null&&r.Route.ViaSignals.Any(s=>s.Id==id));
-        static bool Accepts(TrackSection section,RouteDefinition route,TrackOccupancy occupancy)=>occupancy==TrackOccupancy.Clear||occupancy==TrackOccupancy.Occupied&&RouteSignals.TargetContains(route,section);
-        static bool RequestClear(RouteDefinition route,IInterlockingWorld world)=>route.Sections.All(s=>Accepts(s,route,world.Occupancy(s)))&&route.Switches.All(s=>s.Protection==null||s.Protection.All(p=>world.Occupancy(p)==TrackOccupancy.Clear));
-        public void Request(RouteDefinition definition,IInterlockingWorld world,double protectionWait=15)=>BeginRequest(definition,world,protectionWait);
+        static bool Accepts(TrackSection section,RouteDefinition route,TrackOccupancy occupancy)=>occupancy==TrackOccupancy.Clear||occupancy==TrackOccupancy.Occupied&&RouteSignals.ShuntOccupationAllowed(route,section);
+        static bool RequestClear(RouteDefinition route,IInterlockingWorld world)=>RequestObstruction(route,world)==null;
+        static string DescribeSection(RouteDefinition route,TrackSection section,IInterlockingWorld world)=>world is ISectionCaptionWorld captions?captions.SectionCaption(route,section):section.Key;
+        public static string RequestObstruction(RouteDefinition route,IInterlockingWorld world) {
+            foreach(var section in route.Sections) {
+                var state=world.Occupancy(section);
+                if(Accepts(section,route,state))continue;
+                var flank=route.Flanks?.FirstOrDefault(f=>f.Sections.Any(s=>s.Overlaps(section)));
+                var point=route.Switches.FirstOrDefault(p=>p.Protection?.Any(s=>s.Overlaps(section))==true);
+                string role=flank!=null?LocalText.Select("Flank corridor ","Flankenbereich "):point!=null?LocalText.Select("Point protection ","Weichenschutz "):LocalText.Select("Track section ","Gleisabschnitt ");
+                return (route.Shunting?LocalText.Select("Shunt route · ","Rangierfahrt · "):LocalText.Select("Train route · ","Zugfahrt · "))+role+DescribeSection(route,section,world)+": "+OccupancyReason(state);
+            }
+            foreach(var point in route.Switches) {
+                // A protecting point already diverting away is held in that position. Its other
+                // legs need a clear check only when it must move; the threat corridor stays watched.
+                if(point.FlankOf!=null&&world.SwitchPosition(point.Node,out bool actual)&&actual==point.Thrown)continue;
+                foreach(var section in point.Protection??Enumerable.Empty<TrackSection>()) {
+                    var state=world.Occupancy(section);
+                    if(state!=TrackOccupancy.Clear)return LocalText.Select("Point ","Weiche ")+(world is ISectionCaptionWorld?DescribeSection(route,section,world):point.Node+" / "+section.Key)+": "+OccupancyReason(state);
+                }
+            }
+            return null;
+        }
+        static string OccupancyReason(TrackOccupancy state)=>state==TrackOccupancy.Occupied?LocalText.Select("occupied","belegt"):LocalText.Select("unreadable / unknown","nicht lesbar / unbekannt");
+        public void Request(RouteDefinition definition,IInterlockingWorld world,double protectionWait=15) {
+            ObserveRequest(new[]{definition},world,()=>{using(var admission=Admission?.Reserve(new[]{definition})){BeginRequest(definition,world,protectionWait);admission?.Commit();}});
+        }
         public void Tick(IInterlockingWorld world) {
             var done=new List<string>();
             foreach(var run in active.Values.ToArray()) {
@@ -156,18 +205,26 @@ namespace EnusDE.Signaltechnik {
                         run.HeadKnown=!double.IsNaN(head);
                         if(run.TrainCars!=null&&!run.HeadKnown)throw new InvalidOperationException("Zuordnung oder Position des eingefahrenen Zuges nicht mehr sicher lesbar.");
                         run.TailProgress=progress?(double?)tail:null;
-                        if(head>.1) {
+                        double offset=Math.Max(.1,Math.Min(SignalPassageMeters,run.Route.Path.Sum(p=>p.Section.To-p.Section.From)/2));
+                        if(world is ISignalPassageWorld passage)offset=passage.EntryPassageOffset(run.Route,offset);
+                        if(head>offset) {
                             run.Entered=true;
                             if(run.ChainReady&&(run.Stage==RouteStage.Set||run.Stage==RouteStage.Running))
                                 run.StartPassageVerified=true;
                         }
-                        if(run.Route.ViaSignals!=null)foreach(var via in run.Route.ViaSignals)if(head>via.Distance+.1)run.PassedSignals.Add(via.Id);
+                        if(run.Route.ViaSignals!=null)foreach(var via in run.Route.ViaSignals)if(head>via.Distance+Math.Max(.1,Math.Min(SignalPassageMeters,via.Downstream.Sum(s=>s.To-s.From)/2)))run.PassedSignals.Add(via.Id);
                     } else if(run.Route.ViaSignals!=null)foreach(var via in run.Route.ViaSignals) {
                         var beyond=Read(via.Downstream,world);if(beyond==TrackOccupancy.Unknown)throw new InvalidOperationException("Belegung hinter Rangiersignal nicht verfügbar: "+via.Id);
                         if(beyond==TrackOccupancy.Occupied)run.PassedSignals.Add(via.Id);
                     }
-                    if(!run.Route.Shunting&&occupied==TrackOccupancy.Occupied)run.Entered=true;
-                    if(run.Entered&&run.Stage==RouteStage.Set){run.Stage=RouteStage.Running;run.Reason="Startsignal Halt; geschützte Abschnitte bis zum Zugschluss verschlossen";}
+                    if(!run.Route.Shunting&&occupied==TrackOccupancy.Occupied) {
+                        if(sectional==null||run.Route.Path==null)run.Entered=true;
+                        else if(world is IVehicleOccupancyWorld identity)foreach(var section in run.HeldSections) {
+                            if(identity.SectionWithCars(section,out var cars)!=TrackOccupancy.Occupied)continue;
+                            if(run.TrainCars==null||cars==null||cars.Length==0||cars.Any(id=>!run.TrainCars.Contains(id)))throw new InvalidOperationException(LocalText.Select("Occupied route without verified passage by the assigned train: ","Fahrweg belegt ohne nachgewiesene Passage des zugeordneten Zuges: ")+DescribeSection(run.Route,section,world));
+                        }
+                    }
+                    if(run.Entered&&run.Stage==RouteStage.Set){run.Stage=RouteStage.Running;run.Reason=LocalText.Get("Startsignal Halt; geschützte Abschnitte bis zum Zugschluss verschlossen");}
                     if(run.Entered&&progress&&run.Route.Path!=null){ReleaseBehind(run,world,tail);ReleaseDestination(run,world,head,tail);}else if(!progress){run.ReleaseChecks.Clear();run.DestinationChecks=0;}
                     if(run.Entered&&run.Route.Path!=null&&!run.HeldSections.Any())done.Add(run.Route.Id);
                     else if(run.Entered&&run.Stage==RouteStage.Running&&run.Route.Path==null&&occupied==TrackOccupancy.Clear){if(++run.ClearChecks>=2)done.Add(run.Route.Id);}
@@ -179,9 +236,9 @@ namespace EnusDE.Signaltechnik {
         }
         public void Cancel(string id,IInterlockingWorld world) {
             RouteRun run;if(!active.TryGetValue(id,out run))return;
-            run.Stage=RouteStage.Cancelled;run.Reason="Halt; Auflösung angefordert";
-            if(!world.PathValid(run.Route)){run.Reason="Halt gesetzt. Verschluss bleibt: Fahrwegzuordnung nicht mehr prüfbar.";throw new InvalidOperationException(run.Reason);}
-            if(!run.HeldSections.All(s=>Accepts(s,run.Route,world.Occupancy(s)))||Read(run.Route.Approach,world)!=TrackOccupancy.Clear){run.Reason="Halt gesetzt. Verschluss bleibt: "+BlockingReason(run,world);throw new InvalidOperationException(run.Reason);}
+            run.Stage=RouteStage.Cancelled;run.Reason=LocalText.Get("Halt; Auflösung angefordert");
+            if(!world.PathValid(run.Route)){run.Reason=LocalText.Get("Halt gesetzt. Verschluss bleibt: Fahrwegzuordnung nicht mehr prüfbar.");throw new InvalidOperationException(run.Reason);}
+            if(!run.HeldSections.All(s=>Accepts(s,run.Route,world.Occupancy(s)))||Read(run.Route.Approach,world)!=TrackOccupancy.Clear){run.Reason=LocalText.Get("Halt gesetzt. Verschluss bleibt: ")+BlockingReason(run,world);throw new InvalidOperationException(run.Reason);}
             active.Remove(id);
         }
         public void HaltAll(){foreach(var r in active.Values)Fault(r,"Alle Signale Halt; Verschlüsse bleiben bis zur sicheren Auflösung.");RefreshChains();}

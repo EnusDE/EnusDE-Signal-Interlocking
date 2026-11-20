@@ -11,7 +11,9 @@ namespace EnusDE.Signaltechnik {
         TrackOccupancy ReadPanelKey(string key)=>Time.realtimeSinceStartup-panelReadTime<5&&
             panelReadings.TryGetValue(key,out var read)?read:TrackOccupancy.Unknown;
 
+        bool DisplayMonitored(string id)=>CircuitDisplayPolicy.Monitored(desks,id);
         Color RailColor(string blockId) {
+            if(!DisplayMonitored(blockId))return unknownRail;
             var state=ReadPanelKey("block:"+blockId);
             return state==TrackOccupancy.Occupied?Color.red:state==TrackOccupancy.Clear&&routeBlocks.Contains(blockId)?Color.green:
                 state==TrackOccupancy.Clear?freeRail:unknownRail;
@@ -31,6 +33,7 @@ namespace EnusDE.Signaltechnik {
         }
 
         static int RailPorts(PanelTile tile) {
+            if(NumberMirrors.IsMirror(tile))return 0;
             int mask=PanelConnections.Ports(tile);
             if(mask==0&&tile.Kind==PanelTileKind.TrainNumber)
                 mask=PanelConnections.Transform(17,tile.Rotation,tile.Mirror);
@@ -39,7 +42,7 @@ namespace EnusDE.Signaltechnik {
 
         void ReadSymbolRail(PanelTile tile,ref PanelVisual view) {
             int ports=RailPorts(tile);
-            if(tile.Kind==PanelTileKind.Signal||tile.Kind==PanelTileKind.TrainNumber) {
+            if(tile.Kind==PanelTileKind.Signal||tile.Kind==PanelTileKind.TrainNumber||tile.CircuitRails!=null&&CircuitDiagramAssignment.RailField(tile)) {
                 view.RailPorts=ports;
                 view.PortColors=new Dictionary<int,Color>();
                 if(tile.Kind==PanelTileKind.Signal) {
@@ -71,10 +74,16 @@ namespace EnusDE.Signaltechnik {
                     else view.PortColors[i]=RailColor(next.BlockId);
                 }
             } else if(tile.Kind==PanelTileKind.Switch&&tile.Reference!="") {
+                if(!PointCircuitVisibility.Enabled(desks,tile.Reference)) {
+                    view.RailPorts=ports;view.PortColors=new Dictionary<int,Color>();view.Unknown=true;view.Rail=unknownRail;
+                    for(int i=0;i<8;i++)if((ports&(1<<i))!=0)view.PortColors[i]=unknownRail;
+                    return;
+                }
                 var graph=Graph.Shared;
                 var node=graph?.GetNode(tile.Reference);
                 if(node==null||!desks.Blocks.TryGetValue("p:"+tile.Reference,out var block)||
                     !graph.DecodeSwitchAt(node,out var common,out var normal,out var branch))return;
+                try{block=ReadPointDefinition(block);}catch{view.RailPorts=ports;view.PortColors=new Dictionary<int,Color>();view.Unknown=true;for(int p=0;p<8;p++)if((ports&(1<<p))!=0)view.PortColors[p]=unknownRail;return;}
                 if(tile.Ports==0) {
                     view.RailPorts=ports;
                 } else view.RailPorts=PanelConnections.Ports(tile);
@@ -91,21 +100,23 @@ namespace EnusDE.Signaltechnik {
                     bool active=i==0||view.PointKnown&&(view.Thrown?i==2:i==1);
                     Color color=occupied==TrackOccupancy.Occupied?Color.red:!active?new Color(.18f,.2f,.21f):
                         occupied==TrackOccupancy.Unknown?unknownRail:routePoints.Contains(tile.Reference)?Color.green:freeRail;
-                    for(int port=0;port<8;port++)if((worldPort&(1<<port))!=0)view.PortColors[port]=color;
+                    for(int port=0;port<8;port++)if((worldPort&(1<<port))!=0) {
+                    view.PortColors[port]=color;
+                    }
                 }
             }
 
             view.Terminal=TerminalField(tile);
-            if(!editingWorkspace)return;
             string boundary=tile.CircuitBoundary;
-            if(boundary==null&&tile.Kind==PanelTileKind.Signal) {
+            if(boundary==null&&tile.Kind==PanelTileKind.Signal&&!tile.ProjectedMastFace) {
                 var signal=Object(tile.Reference);
                 var shunt=Object(tile.AlternateSignal);
                 if(CircuitIdentity.Enabled(signal))boundary=signal.PhysicalId??signal.Id;
                 if(CircuitIdentity.Enabled(shunt)&&(shunt.PhysicalId??shunt.Id)!=boundary)
                     view.OtherBoundary=BoundaryCaption(shunt.PhysicalId??shunt.Id);
             }
-            if(boundary!=null)view.Boundary=BoundaryCaption(boundary);
+            if(boundary!=null&&(editingWorkspace||CircuitEndpoint(boundary) is MarkerRecord end&&CircuitIdentity.Variant(end)==3))view.Boundary=BoundaryCaption(boundary);
+            if(!editingWorkspace)view.OtherBoundary=null;
         }
     }
 }

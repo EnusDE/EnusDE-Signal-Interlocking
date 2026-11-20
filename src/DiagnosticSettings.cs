@@ -13,6 +13,8 @@ namespace EnusDE.Signaltechnik {
     }
     public sealed class DiagnosticSettings {
         public static readonly string[] Categories={"vehicles","signals","blocks","switches","signs","game_log","performance"};
+        public string Language="auto";
+        public string DiagnosticExportDirectory="";
         public bool Recording=true,LocomotivesOnly=true,VehicleControls=false,ShowSpeed=true,ShowPositions=true,ShowRecorder=true;
         public bool RecordOnClients;
         public static readonly string[] SearchCloseKeys={"Backspace","PageUp","PageDown","Home","End","Insert","None"};
@@ -29,6 +31,9 @@ namespace EnusDE.Signaltechnik {
         public CategoryOptions this[string key]=>Groups[key];
         public DiagnosticSettings Clone()=>JsonConvert.DeserializeObject<DiagnosticSettings>(JsonConvert.SerializeObject(this)).Normalize();
         public DiagnosticSettings Normalize() {
+            DiagnosticExportDirectory=(DiagnosticExportDirectory??"").Trim();
+            if(DiagnosticExportDirectory.Length>1024||DiagnosticExportDirectory!=""&&!Path.IsPathRooted(DiagnosticExportDirectory))throw new InvalidDataException(LocalText.Select("Use an absolute export folder, or leave it empty for the default.","Einen absoluten Exportordner angeben oder für den Standard leer lassen."));
+            if(Language!="auto"&&Language!="en"&&Language!="de")Language="auto";
             if(!SearchCloseKeys.Contains(SearchCloseKey))SearchCloseKey="Backspace";
             Markers=(Markers??new MarkerOptions()).Normalize();
             var defaults=Defaults();

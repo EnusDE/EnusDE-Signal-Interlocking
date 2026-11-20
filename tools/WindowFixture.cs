@@ -72,6 +72,9 @@ namespace EnusDE.Signaltechnik {
     public static class SettingsMenu {public static string Caption(string key)=>key;}
     public static class Entry {
         public const string Version="fixture";public static bool IsRecording=true;public static int Value;
+        public static string RecordingsDirectory=>"diagnostics/"+Value;
+        public static string DiagnosticExportStatus=>"export/"+Value;
+        public static void ExportDiagnostics(){}
         public static DiagnosticSettings SettingsSnapshot()=>new DiagnosticSettings();
         public static string RecorderCommand(string command)=>command;
         public static Dictionary<string,string> DisplayData(string id)=>new Dictionary<string,string>{{"vehicle_status","ready"},{"name","name "+Value},{"kmh",Value.ToString()}};
@@ -84,13 +87,14 @@ public static class WindowFixture {
     static void Check(bool ok,string text){if(!ok)throw new Exception("FAIL: "+text);Console.WriteLine("PASS: "+text);}
     static readonly MethodInfo update=typeof(DiagnosticWindow).GetMethod("Update",BindingFlags.NonPublic|BindingFlags.Instance);
     static void Tick(DiagnosticWindow window,int i){UnityEngine.Time.realtimeSinceStartup=i;update.Invoke(window,null);}
-    public static void Main() {
+    public static void Main() {EnusDE.Signaltechnik.LocalText.Configure(()=>"de");
         var window=new DiagnosticWindow();window.Initialize(null);Tick(window,0);
         Check(window.Builds==0&&Game.Scripting.Modules.Railroader.World.Reads==0,"closed native window creates no UI hierarchy and makes no selection reads");
         window.Command("toggle");int elements=Elements;ScrollPosition=.65;
         for(int i=1;i<=1200;i++){Entry.Value=i;Tick(window,i);foreach(var getter in Fields.Values)getter();}
         Check(window.Builds==1&&ScrollViews==1&&Elements==elements&&ScrollPosition==.65,"1200 timed updates change no UI hierarchy, bindings or scroll position");
         Check(Fields["Geschwindigkeit (km/h)"]()=="1200"&&Fields["Name"]()=="name 1200","existing text bindings display new cached values without rebuilding");
+        Check(Fields["Aufzeichnungsordner"]()=="diagnostics/1200","the diagnostic window displays the current recording folder through a live binding");
         Game.Scripting.Modules.Railroader.World.Fail=true;Tick(window,1201);
         bool cleared=Fields["Name"]()=="—"&&Fields["Messstatus"]().Contains("nicht verfügbar");
         Game.Scripting.Modules.Railroader.World.Fail=false;Tick(window,1202);

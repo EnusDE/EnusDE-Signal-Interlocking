@@ -13,8 +13,12 @@ public static class EditorTests {
     static bool Linked(PanelDocument doc){foreach(var t in doc.Tiles)foreach(int i in Enumerable.Range(0,8))if((PanelConnections.Ports(t)&(1<<i))!=0){var neighbor=doc.At(t.X+PanelConnections.Dx[i],t.Y+PanelConnections.Dy[i]);if(neighbor!=null&&(PanelConnections.Ports(neighbor)&(1<<((i+4)%8)))==0)return false;}return true;}
     public static void Run(string root) {
         TestRouteProposals();
+        TestAutomaticRouting();
         TestAuxiliaryTargets();
+        TestShuntAuxiliaryField();
         TestCircuitAndDispatcherChanges(root);
+        TestCompleteCircuitAssignment();
+        TestAutomaticCircuitDiscovery();
         TestCircuitIdentities();
         var split=Blank();
         var pending=PanelEditing.PreviewField(split,1,1,PanelTileKind.Signal);
@@ -42,7 +46,7 @@ public static class EditorTests {
         var diagonal=new PanelTile{Kind=PanelTileKind.Curve,Ports=(1<<0)|(1<<3),Rotation=1,Mirror=true};bool endpoints=true;foreach(var line in PanelConnections.Lines(diagonal)){var p=PanelGeometry.World(line.B,diagonal.Rotation,diagonal.Mirror,0,0);int dir=PanelConnections.Direction((int)Math.Sign(p.X),-(int)Math.Sign(p.Y));endpoints&=(PanelConnections.Ports(diagonal)&(1<<dir))!=0;}Check(endpoints,"rendered custom connections use the same rotated and mirrored grid ports as the drawing model");
         doc=Blank();doc.Put(new PanelTile{X=2,Y=2,Kind=PanelTileKind.Signal,Reference="A",Label="P1"});doc.Put(new PanelTile{X=4,Y=5,Kind=PanelTileKind.Switch,Reference="W1",Ports=19});doc.Put(new PanelTile{X=1,Y=8,Section=new TrackSection{Segment="S1",From=0,To=25}});PanelEditing.Insert(doc,true,4);Check(doc.Rows==13&&doc.At(2,2).Reference=="A"&&doc.At(4,6).Reference=="W1"&&doc.At(1,9).Section.To==25&&doc.Tiles.All(t=>t.Y!=4),"inserting a middle row shifts only subsequent rows and preserves signal, turnout and occupancy bindings");
         PanelEditing.Insert(doc,false,3);Check(doc.Columns==25&&doc.At(5,6).Reference=="W1"&&doc.At(2,2).Label=="P1"&&doc.Tiles.All(t=>t.X!=3),"inserting a middle column preserves earlier fields and moves subsequent columns intact");
-        doc.Rows=320;original=Data(doc);Check(Reject(()=>PanelEditing.Insert(doc,true,50))&&Data(doc)==original,"row insertion at the canvas limit rejects transactionally without clipping the last row");doc.Columns=512;original=Data(doc);Check(Reject(()=>PanelEditing.Insert(doc,false,70))&&Data(doc)==original,"column insertion at the canvas limit cannot truncate the existing diagram");
+        doc.Rows=PanelDocument.MaxRows;original=Data(doc);Check(Reject(()=>PanelEditing.Insert(doc,true,50))&&Data(doc)==original,"row insertion at the canvas limit rejects transactionally without clipping the last row");doc.Columns=PanelDocument.MaxColumns;original=Data(doc);Check(Reject(()=>PanelEditing.Insert(doc,false,70))&&Data(doc)==original,"column insertion at the canvas limit cannot truncate the existing diagram");
         var local=Blank();local.Put(new PanelTile{X=1,Y=1,Kind=PanelTileKind.Signal,Reference="A",Label="Einfahrt"});var global=new PanelDocument{WorldKey="editor",Columns=96,Rows=48};original=Data(local);PanelEditing.Paste(global,local,20,10);Check(global.At(21,11).Reference=="A"&&Data(local)==original,"a locally built panel can be merged into the global ESTW without changing the local geometry or its stable signal ID");
         string before=Data(global);Check(Reject(()=>PanelEditing.Paste(global,local,20,10))&&Data(global)==before,"merging onto existing ESTW fields rejects the entire paste instead of overwriting them");
         var foreign=local.Clone();foreign.WorldKey="other";Check(Reject(()=>PanelEditing.Paste(global,foreign,30,10))&&Data(global)==before,"clipboard content from another railroad cannot be pasted into the current ESTW");
@@ -105,6 +109,71 @@ public static class EditorTests {
             "the compact scrolling picker can reach and filter all candidates beyond the old first twelve");
     }
 
+    static void TestAutomaticRouting() {
+        var graph=new NetworkInput{Nodes=new List<PlanNode>{new PlanNode{Id="a"},new PlanNode{Id="b"}},
+            Edges=new List<PlanEdge>{new PlanEdge{Id="s",A="a",B="b",Length=200}}};
+        MarkerRecord Signal(string id,double meters,string kind=MarkerRecord.Main,bool reverse=false)=>new MarkerRecord{
+            Id=id,Name=id,Kind=kind,FacingReverse=reverse,AllowHp1=true,AllowHp2=true,AllowSh1=true,Anchor=new MarkerAnchor{Segment="s",Meters=meters}};
+        var start=Signal("A",10);var r1=Signal("R1",40,MarkerRecord.Shunt);var r2=Signal("R2",60,MarkerRecord.Shunt);
+        var middle=Signal("B",100);var target=Signal("C",150);var opposite=Signal("opposite",50,reverse:true);
+        var signals=new[]{start,r1,r2,middle,target,opposite};
+        var train=AutomaticRoutePlanner.Find(graph,signals,start,target,RouteKind.Train).Single();
+        Check(train.Count==2&&train[0].Entry=="A"&&train[0].Exit=="B"&&train[1].Exit=="C"&&
+            RouteSignals.Bind(train[0].Path,signals,"A","B").Select(s=>s.Id).SequenceEqual(new[]{"R1","R2"}),
+            "automatic train planning chains at intermediate main signals while retaining the two same-direction shunt signals as through signals");
+        var slow=AutomaticRoutePlanner.Find(graph,signals,start,target,RouteKind.Slow).Single();
+        Check(slow[0].Kind==RouteKind.Slow&&slow[1].Kind==RouteKind.Train,
+            "the requested slow aspect applies at the selected start and subsequent mains use their supported default movement");
+        var auxiliary=new AuxiliaryTarget{Name="Z",Anchor=new MarkerAnchor{Segment="s",Meters=180},Train=true,Shunt=true};
+        var yard=AutomaticRoutePlanner.Find(graph,signals,start,auxiliary.Endpoint(),RouteKind.Shunt).Single();
+        Check(yard.Count==5&&yard.All(p=>p.Kind==RouteKind.Shunt)&&yard.Last().Exit==auxiliary.Id&&
+            AutomaticRoutePlanner.Find(graph,signals,start,auxiliary.Endpoint(),RouteKind.Train).Single().Count==3,
+            "target-only auxiliary buttons accept automatic train and shunt plans without requiring pre-saved definitions");
+        Check(Reject(()=>AutomaticRoutePlanner.Find(graph,signals,auxiliary.Endpoint(),target,RouteKind.Train)),
+            "automatic routing never promotes an auxiliary destination into a start signal");
+        auxiliary.Shunt=false;
+        Check(Reject(()=>AutomaticRoutePlanner.Find(graph,signals,start,auxiliary.Endpoint(),RouteKind.Shunt)),
+            "automatic routing preserves the configured movement restrictions of an auxiliary destination");
+        start.AllowHp2=false;
+        Check(Reject(()=>AutomaticRoutePlanner.Find(graph,signals,start,target,RouteKind.Slow))&&RouteMovement.Default(start)==RouteKind.Train,
+            "unsupported slow movement cannot be manufactured by automatic planning");
+        start.AllowHp1=false;start.AllowHp2=true;
+        Check(RouteMovement.Default(start)==RouteKind.Slow&&RouteMovement.Default(r1)==RouteKind.Shunt,
+            "default movement comes from actual signal capability rather than the previously selected editor mode");
+        start.AllowHp1=true;
+        var definition=new RouteDefinition{Code="F1",Entry="A",Exit="B",Path=train[0].Path.Select(p=>p.Clone()).ToList(),ViaSignals=new List<RouteViaSignal>()};
+        var duplicate=definition.Clone();duplicate.Id=Guid.NewGuid().ToString("N");duplicate.Code="F2";
+        Check(RouteIdentity.Unique(new[]{definition,duplicate}).Length==1&&
+            RouteChains.ToTarget(new[]{definition,duplicate},"A","B",false,false).Routes.Count==1,
+            "duplicate definitions with different codes no longer create a false ambiguous route choice");
+        duplicate.ProtectionWaitSeconds=3;
+        Check(RouteIdentity.Unique(new[]{definition,duplicate}).Length==2&&Reject(()=>RouteChains.ToTarget(new[]{definition,duplicate},"A","B",false,false)),
+            "different protection settings remain distinct instead of being silently merged as duplicates");
+        var split=definition.Clone();split.Path=new List<DirectedRouteSection>{
+            new DirectedRouteSection{Section=new TrackSection{Segment="s",From=10,To=50}},new DirectedRouteSection{Section=new TrackSection{Segment="s",From=50,To=100}}};
+        Check(RouteIdentity.Matches(split,train[0]),
+            "stored occupancy splits do not prevent reusing the same directed physical route");
+        var net=new NetworkInput{Nodes=new List<PlanNode>{new PlanNode{Id="a"},new PlanNode{Id="p",Point=true,Common="stem",Normal="upper"},
+            new PlanNode{Id="u"},new PlanNode{Id="l"},new PlanNode{Id="q",Point=true,Common="tail",Normal="upper2"},new PlanNode{Id="z"}},
+            Edges=new List<PlanEdge>{new PlanEdge{Id="stem",A="a",B="p",Length=10},new PlanEdge{Id="upper",A="p",B="u",Length=10},
+                new PlanEdge{Id="upper2",A="u",B="q",Length=10},new PlanEdge{Id="lower",A="p",B="l",Length=10},
+                new PlanEdge{Id="lower2",A="l",B="q",Length=10},new PlanEdge{Id="tail",A="q",B="z",Length=10}}};
+        var origin=Signal("origin",2);origin.Anchor.Segment="stem";
+        var goal=Signal("goal",8);goal.Anchor.Segment="tail";
+        var alternatives=AutomaticRoutePlanner.Find(net,new[]{origin,goal},origin,goal,RouteKind.Train);
+        Check(alternatives.Count==2&&alternatives.All(p=>p.Count==1&&p[0].Switches.Count==2),
+            "genuine alternative turnout paths are returned for selection rather than discarded as a failed discovery");
+        var choices=alternatives.Select(p=>new RouteChainPlan{Routes=p.Select(r=>new RouteDefinition{Switches=r.Switches}).ToList()}).ToList();
+        Check(AutomaticRoutePlanner.PreferCurrent(choices,_=>false).Count==1&&
+            AutomaticRoutePlanner.PreferCurrent(choices,_=>null).Count==2&&
+            AutomaticRoutePlanner.PreferCurrent(choices,id=>id=="p").Count==2,
+            "only a uniquely matching complete point alignment is preferred; unknown or incompatible feedback never picks an arbitrary route");
+        Check(PanelSignalSymbols.Screen(false).Length!=PanelSignalSymbols.Screen(true).Length&&
+            PanelSignalSymbols.Lamps(true,false).Length==2&&PanelSignalSymbols.Lamps(true,false)[0].Y==PanelSignalSymbols.Lamps(true,false)[1].Y&&
+            PanelSignalSymbols.Lamps(true,true)[0].Y<PanelSignalSymbols.Lamps(true,true)[1].Y&&PanelSignalSymbols.TargetMark().Length==3,
+            "main, shunt and target glyphs have distinct tested screen and lamp geometry with an explicit target marker");
+    }
+
     static void TestRouteProposals() {
         var graph=new NetworkInput{
             Nodes=new List<PlanNode>{new PlanNode{Id="a"},new PlanNode{Id="p",Point=true,Common="stem",Normal="main"},
@@ -156,8 +225,72 @@ public static class EditorTests {
         buttons.Clear();
         buttons.Press("shared",_=>true);
         Check(!buttons.StartHalf(tile,false)&&buttons.StartHalf(tile,true),"train route selection uses the opposite half of the same signal");
+        Check(PanelSignalSymbols.HeadSide(false,false)== -1&&PanelSignalSymbols.HeadSide(true,false)== -1&&
+            PanelSignalSymbols.HeadSide(false,true)==1&&PanelSignalSymbols.HeadSide(true,true)==1,
+            "main and shunt heads share one track side and mirroring moves both together without reversing the direction button");
+        var oppositeHeads=new PanelTile{Kind=PanelTileKind.Signal,AlternateSignal="yard",MainSignalDirection=2,ShuntSignalDirection=0};
+        var offset=PanelSignalSymbols.HeadOffset(SignalCellLayout.HeadSideDirection(oppositeHeads),false);
+        var mirrorOffset=PanelSignalSymbols.HeadOffset(SignalCellLayout.HeadSideDirection(oppositeHeads),true);
+        Check(offset.X==0&&offset.Y==11&&mirrorOffset.Y== -11&&
+            SignalCellLayout.MainDirection(oppositeHeads)==2&&SignalCellLayout.ShuntDirection(oppositeHeads)==0,
+            "split main and shunt screens share the chosen track side even when their independent direction arrows face opposite ways");
+        var defaultSignal=new PanelTile{Kind=PanelTileKind.Signal};
+        Check(PanelSignalSymbols.HeadOffset(SignalCellLayout.MainDirection(defaultSignal),defaultSignal.Mirror).Y<0&&
+            PanelSignalSymbols.Caption(defaultSignal).Y>0,
+            "new eastbound signal defaults below the track with its caption above, matching right-hand placement");
+        bool rightHand=true;
+        for(int direction=0;direction<4;direction++) {
+            var head=PanelSignalSymbols.HeadOffset(direction,false);
+            var opposite=PanelSignalSymbols.HeadOffset(direction,true);
+            float rightX=direction==1?-1:direction==3?1:0;
+            float rightY=direction==0?-1:direction==2?1:0;
+            rightHand&=head.X*rightX+head.Y*rightY>0&&opposite.X==-head.X&&opposite.Y==-head.Y;
+        }
+        Check(rightHand,"rotated signal heads remain on the right of their travel direction and mirroring selects the opposite side");
+        bool clearLabels=true;
+        for(int rotation=0;rotation<4;rotation++)foreach(bool mirrored in new[]{false,true}) {
+            var glyph=new PanelTile{Kind=PanelTileKind.Signal,Rotation=rotation,Mirror=mirrored};
+            var head=PanelSignalSymbols.HeadOffset(rotation,mirrored);var box=PanelSignalSymbols.Caption(glyph);
+            clearLabels&=head.Y!=0?box.Y*head.Y<0:box.X*head.X<0;
+            clearLabels&=Math.Abs(box.X)+box.Width/2<=36&&Math.Abs(box.Y)+box.Height/2<=24;
+        }
+        Check(clearLabels,"signal labels stay inside the field on the side opposite the screen across all rotations and mirrors");
+        var vertical=new PanelTile{Kind=PanelTileKind.AuxiliaryTarget,Rotation=1,Target=new AuxiliaryTarget{Train=true,Shunt=true}};
+        var targetBox=PanelSignalSymbols.Caption(vertical);
+        Check(targetBox.X>0&&targetBox.Y>0&&targetBox.Height<=14,
+            "paired vertical target labels avoid both screens and the central track instead of crossing a head");
+        bool boundaryLabelsClear=true;
+        foreach(var kind in new[]{PanelTileKind.Signal,PanelTileKind.AuxiliaryTarget})
+        for(int rotation=0;rotation<4;rotation++)foreach(bool mirrored in new[]{false,true})
+        foreach(bool split in new[]{false,true})foreach(bool shared in new[]{false,true}) {
+            var glyph=new PanelTile{Kind=kind,Rotation=rotation,Mirror=mirrored,
+                Target=kind==PanelTileKind.AuxiliaryTarget?new AuxiliaryTarget{Train=true,Shunt=split}:null};
+            var boundary=PanelSignalSymbols.BoundaryCaption(glyph,split);
+            var mark=PanelSignalSymbols.BoundaryMark(glyph,split);
+            foreach(bool alternate in new[]{false,true}) {
+                if(alternate&&(!split||shared))continue;
+                var name=PanelSignalSymbols.Caption(glyph,split,shared,alternate,true);
+                boundaryLabelsClear&=Math.Abs(name.X-boundary.X)>=(name.Width+boundary.Width)/2+1||
+                    Math.Abs(name.Y-boundary.Y)>=(name.Height+boundary.Height)/2+1;
+                boundaryLabelsClear&=Math.Abs(name.X-mark.X)>=name.Width/2+2.5f||Math.Abs(name.Y-mark.Y)>=name.Height/2+2.5f;
+                boundaryLabelsClear&=Math.Abs(name.X)+name.Width/2<=36&&Math.Abs(name.Y)+name.Height/2<=24;
+            }
+            boundaryLabelsClear&=Math.Abs(boundary.X)+boundary.Width/2<=36&&Math.Abs(boundary.Y)+boundary.Height/2<=24;
+            boundaryLabelsClear&=Math.Abs(boundary.X-mark.X)>=boundary.Width/2+2.5f||Math.Abs(boundary.Y-mark.Y)>=boundary.Height/2+2.5f;
+        }
+        Check(boundaryLabelsClear,"signal and GFM names reserve distinct in-cell rows clear of the GFM cross across rotations, mirrors and split heads");
+        var sharedBoundary=new PanelTile{Kind=PanelTileKind.Signal,Rotation=2};
+        var signalRow=PanelSignalSymbols.Caption(sharedBoundary,boundary:true);
+        var circuitRow=PanelSignalSymbols.BoundaryCaption(sharedBoundary);
+        Check(signalRow.Y<0&&signalRow.Y-circuitRow.Y>(signalRow.Height+circuitRow.Height)/2&&
+            PanelSignalSymbols.BoundaryMark(sharedBoundary).X< -30,
+            "left-facing signal keeps its name below the track and places GFM text and cross in a separate outer row");
+        var customSignal=new PanelTile{Kind=PanelTileKind.Signal,Ports=17};
+        Check(PanelConnections.RailLineCount(customSignal)==2&&PanelConnections.RailLineCount(new PanelTile{Kind=PanelTileKind.Signal})==1&&
+            PanelConnections.Lines(customSignal).Take(PanelConnections.RailLineCount(customSignal)).All(l=>l.A.Y==0&&l.B.Y==0),
+            "new signal rendering keeps actual track strokes and excludes the two obsolete mast strokes for custom and legacy fields");
         var aux=new PanelTile{Kind=PanelTileKind.AuxiliaryTarget,Rotation=3,Target=new AuxiliaryTarget{Reverse=true}};
-        Check(SignalCellLayout.TargetDirection(aux)==1,"auxiliary direction arrow combines the diagram rotation and actual travel direction");
+        Check(SignalCellLayout.TargetDirection(aux)==3,"auxiliary direction arrow follows the diagram rotation independently of the real track direction");
 
         var numbers=new Dictionary<string,string>{{"ESTW","100145"},{"WHB","00145"},{"Sylva","00200"},{"new","200145"}};
         var old=TrainNumbers.RemoveNumber(numbers,"200145",new HashSet<string>{"new"});
@@ -211,7 +344,7 @@ public static class EditorTests {
         var doc=new MarkerDocument{Markers=new List<MarkerRecord>{oldA,oldB,signal}};
         CircuitIdentity.Fill(doc);
         var ids=new[]{oldA.Id,oldB.Id,signal.Id};
-        Check(CircuitIdentity.Caption(oldA)=="GFM-A-001"&&CircuitIdentity.Caption(oldB)=="GFM-B-002"&&
+        Check(CircuitIdentity.Caption(oldA)=="GFM-B-001"&&CircuitIdentity.Caption(oldB)=="GFM-B-002"&&
             CircuitIdentity.Caption(signal)=="GFM-A-003"&&ids.SequenceEqual(doc.Markers.Select(m=>m.Id)),
             "legacy A and B boxes and signal attachments share one numbering stream without changing world anchor identities");
         signal.CircuitVariant=0;
@@ -221,14 +354,88 @@ public static class EditorTests {
         signal.CircuitVariant=2;
         var restored=JsonConvert.DeserializeObject<MarkerDocument>(JsonConvert.SerializeObject(doc));
         CircuitIdentity.Validate(restored);
-        Check(CircuitIdentity.Caption(restored.Markers.Last())=="GFM-B-003"&&restored.NextCircuitNumber==4,
-            "a reattached B box has the original entity number after replication");
+        Check(CircuitIdentity.Caption(restored.Markers.Last())=="GFM-A-003"&&restored.NextCircuitNumber==4,
+            "a legacy signal attachment is presented as A with its original entity number after replication");
         restored.Markers[1].CircuitNumber=1;
         Check(Reject(()=>CircuitIdentity.Validate(restored)),"identical GFM entity numbers are rejected across A and B variants");
 
         string port=TrackCircuit.PointId("switch-1",2);
         Check(TrackCircuit.ValidId(port)&&TrackCircuit.TryPointId(port,out var point,out int arm)&&point=="switch-1"&&arm==2&&
             !TrackCircuit.ValidId(TrackCircuit.PointId("switch-1",3)),"turnout boundary ID identifies its exact stable arm");
+        var armAnchors=new[]{new MarkerAnchor{Segment="stem",Meters=25},new MarkerAnchor{Segment="normal",Meters=75},new MarkerAnchor{Segment="branch",Meters=25}};
+        var pointBoxes=PointCircuitBoxes.Create("switch-1","W283",armAnchors,0,3);
+        Check(pointBoxes.Select(b=>b.Name).SequenceEqual(new[]{"GFM-B-W283-S","GFM-B-W283-L","GFM-B-W283-R"})&&
+            pointBoxes.Select(b=>b.Id).SequenceEqual(Enumerable.Range(0,3).Select(i=>TrackCircuit.PointId("switch-1",i)))&&
+            pointBoxes.All(b=>TrackCircuit.IsBoundary(b)&&CircuitIdentity.Enabled(b)&&b.Anchor.GroundSupport&&b.CircuitNumber==0),
+            "automatic turnout boxes have one S/L/R code per stable arm and retain existing circuit endpoint identities without allocating manual GFM numbers");
+        var mirrored=PointCircuitBoxes.Create("switch-1","W283",armAnchors,0,-3);
+        Check(mirrored.Select(b=>b.Name).SequenceEqual(new[]{"GFM-B-W283-S","GFM-B-W283-R","GFM-B-W283-L"})&&
+            mirrored.Select(b=>b.Id).SequenceEqual(pointBoxes.Select(b=>b.Id)),
+            "mirrored turnout geometry swaps left and right viewed from the tip without changing common/normal/branch endpoint IDs");
+        var renamed=PointCircuitBoxes.Create("switch-1","W900",armAnchors,0,3);
+        Check(renamed[1].Name=="GFM-B-W900-L"&&renamed[1].Id==pointBoxes[1].Id&&renamed[1].Anchor.Segment=="normal"&&
+            renamed[1].Anchor.Meters==75&&!ReferenceEquals(renamed[1].Anchor,armAnchors[1])&&armAnchors[1].Height==-.15,
+            "renaming a turnout changes its visible box codes while preserving boundary geometry and leaving source anchors untouched");
+        Check(PointCircuitBoxes.Create("switch-1","W283",armAnchors,0,0).Length==0&&
+            PointCircuitBoxes.Create("switch-1","W283",armAnchors,double.NaN,3).Length==0&&
+            PointCircuitBoxes.Create("switch-1","W283",new[]{armAnchors[0],null,armAnchors[2]},0,3).Length==0&&
+            PointCircuitBoxes.Create("switch-1","Weiche",armAnchors,0,3).Length==0,
+            "incomplete or ambiguous turnout geometry never creates guessed left/right box labels");
+        var roundTrip=JsonConvert.DeserializeObject<MarkerAnchor[]>(JsonConvert.SerializeObject(armAnchors));
+        Check(PointCircuitBoxes.Create("switch-1","W283",roundTrip,0,3).Select(b=>b.Name+"|"+b.Id)
+            .SequenceEqual(pointBoxes.Select(b=>b.Name+"|"+b.Id)),
+            "replicated turnout geometry derives the same three codes and identities without saving duplicate placement objects");
+        var placement=new PointBoxPlacement{Along=2.5,Lateral=-3.2,Height=.4,GroundSupport=true};
+        var visual=placement.Apply(pointBoxes[1]);
+        Check(visual.Id==pointBoxes[1].Id&&visual.Name==pointBoxes[1].Name&&visual.Anchor.Meters==pointBoxes[1].Anchor.Meters+2.5&&
+            visual.Anchor.Lateral== -3.2&&visual.CircuitAnchor.Meters==pointBoxes[1].Anchor.Meters&&
+            pointBoxes[1].Anchor.Meters==75&&pointBoxes[1].CircuitAnchor==null,
+            "moving an automatic box changes only its visual anchor and retains its original circuit and cable contact location");
+        var rotated=new PointBoxPlacement{Variant=2,Yaw=90,Lateral=-2.3,GroundSupport=true}.Apply(pointBoxes[1]);
+        var rotatedCopy=JsonConvert.DeserializeObject<PointBoxPlacement>(JsonConvert.SerializeObject(new PointBoxPlacement{Variant=2,Yaw=90}));
+        Check(rotated.Kind==MarkerRecord.CircuitB&&rotated.Name=="GFM-B-W283-L"&&rotated.Id==pointBoxes[1].Id&&
+            rotated.Anchor.Meters==pointBoxes[1].Anchor.Meters&&rotated.CircuitAnchor.Meters==pointBoxes[1].Anchor.Meters&&
+            rotated.CircuitYaw==90&&rotatedCopy.Variant==2&&rotatedCopy.Yaw==90&&rotated.VisualRevision!=pointBoxes[1].VisualRevision,
+            "turnout A/B model and yaw changes persist, rebuild the visible variant and preserve logical boundary identity and meters");
+        Check(JsonConvert.DeserializeObject<PointBoxPlacement>("{}").Variant==2&&
+            Reject(()=>new PointBoxPlacement{Yaw=double.NaN}.Validate())&&Reject(()=>new PointBoxPlacement{Variant=4}.Validate()),
+            "legacy turnout placements default to B and reject unsupported variants and nonfinite rotation");
+        var visualClone=visual.Clone();visualClone.CircuitAnchor.Meters=1;
+        Check(visual.CircuitAnchor.Meters==75&&visualClone.Anchor.Meters==77.5&&
+            !JsonConvert.SerializeObject(visual).Contains("CircuitAnchor"),
+            "temporary cable contact anchors clone independently and are not added to persisted marker data");
+        var positionLibrary=new DeskLibrary{WorldKey="editor",Desks=new List<DeskDefinition>{new DeskDefinition{Global=true,Code="ESTW",Name="Test",Panel=Blank()}}};
+        positionLibrary.Points["switch-1"]=new PointAssignment{Code="W283",Desk=positionLibrary.Desks[0].Id};
+        positionLibrary.PointBoxes[pointBoxes[1].Id]=placement;
+        positionLibrary.Validate("editor");
+        Check(!positionLibrary.Points["switch-1"].ShowCircuit&&!PointCircuitVisibility.VisibleIds(positionLibrary).Any(),
+            "automatic turnout boxes default to hidden without disabling existing logical boundary data");
+        positionLibrary.Points["switch-1"].ShowCircuit=true;positionLibrary.Points["switch-1"].ElectricStand=true;
+        var enabledCopy=JsonConvert.DeserializeObject<DeskLibrary>(JsonConvert.SerializeObject(positionLibrary));
+        var renamedPoint=PointAssignments.Put(enabledCopy,"switch-1","W999",enabledCopy.Desks[0].Id);
+        Check(PointCircuitVisibility.VisibleIds(renamedPoint).SequenceEqual(new[]{"switch-1"})&&renamedPoint.Points["switch-1"].ShowCircuit&&renamedPoint.Points["switch-1"].ElectricStand&&
+            renamedPoint.PointBoxes[pointBoxes[1].Id].Along==2.5,
+            "turnout visibility survives shared save/reload and renaming while retaining individual box offsets");
+        var hiddenCopy=renamedPoint.Clone();hiddenCopy.Points["switch-1"].ShowCircuit=false;
+        Check(!PointCircuitVisibility.VisibleIds(hiddenCopy).Any()&&renamedPoint.Points["switch-1"].ShowCircuit&&renamedPoint.Points["switch-1"].ElectricStand&&hiddenCopy.PointBoxes.Count==1,
+            "hiding turnout boxes changes only the copied visibility flag and preserves saved offsets");
+
+        var positionCopy=positionLibrary.Clone();positionCopy.PointBoxes[pointBoxes[1].Id].Lateral=4;
+        var positionReload=JsonConvert.DeserializeObject<DeskLibrary>(JsonConvert.SerializeObject(positionLibrary));positionReload.Validate("editor");
+        Check(positionLibrary.PointBoxes[pointBoxes[1].Id].Lateral== -3.2&&positionReload.PointBoxes[pointBoxes[1].Id].Along==2.5&&
+            positionReload.PointBoxes[pointBoxes[1].Id].Apply(pointBoxes[1]).CircuitAnchor.Meters==75,
+            "individual automatic box offsets clone safely and survive shared desk JSON save and reload");
+        var legacyPositionJson=Newtonsoft.Json.Linq.JObject.Parse(JsonConvert.SerializeObject(positionLibrary));legacyPositionJson.Remove("PointBoxes");
+        var legacyPositions=legacyPositionJson.ToObject<DeskLibrary>();legacyPositions.Validate("editor");
+        Check(legacyPositions.PointBoxes.Count==0&&PointBoxPlacement.Default(pointBoxes[1]).Along==0,
+            "old desk libraries default to automatic box placement without requiring a migration");
+        positionCopy.PointBoxes["not-a-boundary"]=placement.Clone();
+        Check(Reject(()=>positionCopy.Validate("editor"))&&Reject(()=>new PointBoxPlacement{Lateral=6}.Validate())&&
+            Reject(()=>new PointBoxPlacement{Along=double.NaN}.Validate())&&Reject(()=>new PointBoxPlacement{Height=double.PositiveInfinity}.Validate()),
+            "automatic box overrides reject invalid boundary IDs and nonfinite or excessive placement parameters");
+        positionReload.PointBoxes.Remove(pointBoxes[1].Id);
+        Check(positionReload.PointBoxes.Count==0&&pointBoxes[1].Anchor.Meters==75&&pointBoxes[1].Id==TrackCircuit.PointId("switch-1",1),
+            "resetting a visual override preserves the original logical boundary and stable arm identity");
         var board=Blank();
         board.Put(new PanelTile{Kind=PanelTileKind.Straight,Ports=1,X=1,Y=1,CircuitBoundary=oldA.Id});
         var loaded=JsonConvert.DeserializeObject<PanelDocument>(Data(board));
@@ -249,6 +456,127 @@ public static class EditorTests {
         Check(foot.Vertices.Min(v=>v[1])<0&&foot.Vertices.Max(v=>v[1])>.1f,"the mast foundation spans the local ground plane");
     }
 
+    static void TestAutomaticCircuitDiscovery() {
+        var doc=Blank();PanelEditing.Draw(doc,1,3,9,3);
+        doc.Put(new PanelTile{X=1,Y=3,Kind=PanelTileKind.Signal,Reference="signal",Ports=17});
+        doc.Put(new PanelTile{X=4,Y=3,Kind=PanelTileKind.TrainNumber});
+        doc.Put(new PanelTile{X=9,Y=3,Kind=PanelTileKind.Switch,Reference="point",Ports=19,Stem=16,Normal=1});
+        bool enabled=true;
+        string Boundary(PanelTile tile,int? port)=>tile.Reference=="signal"?"signal":tile.Kind==PanelTileKind.Switch&&enabled&&port.HasValue?
+            TrackCircuit.PointId("point",CircuitDiagramAssignment.PointArm(tile,port.Value).Value):null;
+        var middle=CircuitDiagramDiscovery.Find(doc,6,3,Boundary);
+        Check(middle.Length==1&&TrackCircuit.Pair(middle[0].A,middle[0].B)==TrackCircuit.Pair("signal","w:point:0"),
+            "automatic section discovery proposes the signal and exact enabled turnout arm across a train-number display");
+        var atSignal=CircuitDiagramDiscovery.Find(doc,1,3,Boundary);
+        Check(atSignal.Length==1&&atSignal[0].B=="w:point:0",
+            "clicking a signal offers the nearest enabled turnout boundary and stops before its branching center");
+        enabled=false;
+        Check(CircuitDiagramDiscovery.Find(doc,6,3,Boundary).Length==0&&CircuitDiagramDiscovery.Find(doc,1,3,Boundary).Length==0,
+            "disabled turnout GFM supplies no boundary proposal and does not permit discovery beyond the turnout");
+        enabled=true;
+        bool Match(PanelTile t,string id)=>t.Reference==id||id.StartsWith("w:point:")&&t.Reference=="point";
+        Check(CircuitDiagramAssignment.Find(doc,6,3,"signal","w:point:0",Match).Length==9&&
+            Reject(()=>CircuitDiagramAssignment.Find(doc,6,3,"signal","w:point:1",Match)),
+            "whole-section assignment validates the selected turnout arm instead of accepting another arm at the same diagram cell");
+        var library=new DeskLibrary();library.Points["point"]=new PointAssignment();
+        library.Blocks["p:point"]=new TrackBlock{Id="p:point",Point="point"};
+        library.Blocks["b:auto"]=new TrackBlock{Id="b:auto"};
+        library.Blocks["c:defined"]=new TrackBlock{Id="c:defined",BoundaryA="a",BoundaryB="b"};
+        Check(!CircuitDisplayPolicy.Monitored(library,"p:point")&&!CircuitDisplayPolicy.Monitored(library,"b:auto")&&
+            CircuitDisplayPolicy.Monitored(library,"c:defined")&&!CircuitDisplayPolicy.Monitored(library,null),
+            "undefined automatic areas and disabled turnout circuits are unmonitored while explicit GFM sections remain monitored");
+        library.Points["point"].ShowCircuit=true;
+        Check(CircuitDisplayPolicy.Monitored(library,"p:point")&&library.Blocks.ContainsKey("p:point"),
+            "enabling GFM changes turnout display monitoring without deleting native point protection data");
+    }
+    static void TestCompleteCircuitAssignment() {
+        var doc=Blank();PanelEditing.Draw(doc,1,3,9,3);
+        doc.Put(new PanelTile{X=1,Y=3,Kind=PanelTileKind.Signal,Reference="a",Ports=17,CircuitRails=new Dictionary<int,string>{{4,"outside"}}});
+        doc.Put(new PanelTile{X=9,Y=3,Kind=PanelTileKind.Signal,Reference="b",Ports=17});
+        // Old number fields have no explicit ports but still carry the same continuous rail.
+        doc.Put(new PanelTile{X=4,Y=3,Kind=PanelTileKind.TrainNumber,Reference="a"});
+        bool Boundary(PanelTile tile,string id)=>tile.Reference==id&&tile.Kind==PanelTileKind.Signal||tile.CircuitBoundary==id;
+        var block=new TrackBlock{Id="c:test",BoundaryA="a",BoundaryB="b"};
+        Check(CircuitDiagramAssignment.Find(doc,6,3,"a","b",Boundary).Length==9,
+            "one middle field identifies the complete connected section across a legacy train-number field");
+        CircuitDiagramAssignment.Assign(doc,6,3,block,Boundary);
+        Check(doc.Tiles.Where(t=>t.X>1&&t.X<9).All(t=>t.BlockId==block.Id)&&doc.At(4,3).BlockId==block.Id&&
+            doc.At(1,3).CircuitRails[0]==block.Id&&doc.At(1,3).CircuitRails[4]=="outside"&&doc.At(9,3).CircuitRails[4]==block.Id,
+            "complete circuit assignment includes the train-number display and only inner signal rails while retaining the outside binding");
+        doc.Validate("editor");
+        var broken=doc.Clone();broken.Tiles.RemoveAll(t=>t.X==5);string before=Data(broken);
+        Check(Reject(()=>CircuitDiagramAssignment.Assign(broken,6,3,block,Boundary))&&Data(broken)==before,
+            "a missing drawing connection rejects whole-section assignment without leaving partially bound fields");
+        var fork=doc.Clone();fork.Put(new PanelTile{X=5,Y=3,Kind=PanelTileKind.Switch,Ports=19});
+        Check(Reject(()=>CircuitDiagramAssignment.Find(fork,6,3,"a","b",Boundary)),
+            "whole-section inference stops at an unresolved turnout instead of guessing an unselected branch");
+        var intervening=doc.Clone();intervening.At(5,3).CircuitBoundary=Guid.NewGuid().ToString("N");
+        Check(Reject(()=>CircuitDiagramAssignment.Find(intervening,6,3,"a","b",Boundary)),
+            "an intervening GFM boundary prevents silently merging two diagram sections");
+        var numberSeed=doc.Clone();
+        Check(CircuitDiagramAssignment.Assign(numberSeed,4,3,block,Boundary)==9&&numberSeed.At(4,3).Kind==PanelTileKind.TrainNumber,
+            "the train-number field itself can select the complete section without changing its symbol or signal links");
+        var markerEnds=Blank();PanelEditing.Draw(markerEnds,1,3,5,3);
+        var markerBlock=new TrackBlock{Id=block.Id,BoundaryA=Guid.NewGuid().ToString("N"),BoundaryB=Guid.NewGuid().ToString("N")};
+        markerEnds.At(1,3).CircuitBoundary=markerBlock.BoundaryA;markerEnds.At(5,3).CircuitBoundary=markerBlock.BoundaryB;
+        CircuitDiagramAssignment.Assign(markerEnds,3,3,markerBlock,Boundary);markerEnds.Validate("editor");
+        Check(markerEnds.At(1,3).BlockId==""&&markerEnds.At(1,3).CircuitRails[0]==block.Id&&markerEnds.At(5,3).CircuitRails[4]==block.Id,
+            "drawn GFM boundary fields bind only the rail halves inside the selected section");
+    }
+    static void TestShuntAuxiliaryField() {
+        var stop=new MarkerRecord{Id="stop",Name="RS-010",Kind=MarkerRecord.Shunt,FacingReverse=true,Anchor=new MarkerAnchor{Segment="S",Meters=78}};
+        var target=new AuxiliaryTarget{Name="Ziel RS-010",Train=false,Shunt=true,Reverse=false,Anchor=stop.Anchor.Clone()};
+        var field=new PanelTile{X=3,Y=3,Kind=PanelTileKind.Signal,Reference=stop.Id,Rotation=2,Ports=17,Target=target};
+        var document=Blank();document.Put(field);
+        var received=JsonConvert.DeserializeObject<PanelDocument>(Data(document));received.Validate("editor");
+        Check(received.At(3,3).SameContent(field)&&AuxiliaryTarget.Index(received.Tiles)[target.Id].SamePath(target)&&
+            received.At(3,3).Target.Id!=stop.Id&&!target.Endpoint().IsSignal,
+            "a pure-shunt field stores an independent target-only endpoint with its own identity and survives shared JSON");
+        received.At(3,3).Target.Anchor.Meters=82;
+        Check(field.Target.Anchor.Meters==78&&stop.Anchor.Meters==78,
+            "editing an embedded shunt target cannot move the actual signal or mutate a source panel clone");
+        bool layout=true;
+        for(int direction=0;direction<4;direction++)foreach(bool mirror in new[]{false,true})foreach(float zoom in new[]{.75f,1f,2f}) {
+            field.MainSignalDirection=direction;field.Mirror=mirror;
+            var start=SignalCellLayout.HalfPoint(field,false);var end=SignalCellLayout.HalfPoint(field,true);
+            bool StartHit(PanelPoint p)=>PanelPicking.SecondHalf(field,field.X,field.Y,zoom,
+                ((field.X+.5f)*PanelGeometry.CellWidth+p.X)*zoom,(-(field.Y+.5f)*PanelGeometry.CellHeight+p.Y)*zoom);
+            layout&=!SignalCellLayout.AuxiliaryAt(field,StartHit(start))&&SignalCellLayout.AuxiliaryAt(field,StartHit(end))&&
+                SignalCellLayout.SignalAt(field,StartHit(start))==stop.Id&&SignalCellLayout.SignalAt(field,StartHit(end))==null&&
+                SignalCellLayout.ShuntHalf(field,StartHit(start))&&SignalCellLayout.AuxiliaryDirection(field)==(direction+2)%4;
+            foreach(bool boundary in new[]{false,true}) {
+                var a=PanelSignalSymbols.Caption(field,true,false,false,boundary);
+                var b=PanelSignalSymbols.Caption(field,true,false,true,boundary);
+                layout&=Math.Abs(a.X-b.X)>=(a.Width+b.Width)/2||Math.Abs(a.Y-b.Y)>=(a.Height+b.Height)/2;
+                if(boundary)foreach(var box in new[]{a,b}) {
+                    var gfm=PanelSignalSymbols.BoundaryCaption(field,true);
+                    layout&=Math.Abs(box.X-gfm.X)>=(box.Width+gfm.Width)/2+1||Math.Abs(box.Y-gfm.Y)>=(box.Height+gfm.Height)/2+1;
+                }
+            }
+        }
+        Check(layout,"embedded shunt target stays behind its start with separate caption and hit area across all directions, mirrors and zooms");
+        field.MainSignalDirection=2;
+        Check(SignalCellLayout.HalfPoint(field,false).X<0&&SignalCellLayout.HalfPoint(field,true).X>0,
+            "a left-facing shunt start occupies the left half and its opposing destination occupies the right half");
+        var turned=field.Clone();SignalCellLayout.RotateAuxiliaryField(turned);
+        Check(turned.Rotation==3&&SignalCellLayout.MainDirection(turned)==3&&SignalCellLayout.HalfPoint(turned,true).Y<0,
+            "rotating an embedded field also rotates an explicitly chosen signal direction and moves its target behind the new start direction");
+        var buttons=new PanelButtons();Func<string,bool> valid=id=>id==stop.Id||id=="other"||id==target.Id;
+        Check(Reject(()=>target.SelectDestination(buttons,true,valid))&&buttons.Start==null,
+            "pressing the embedded destination first cannot create a virtual start signal");
+        buttons.Press("other",valid,true);target.SelectDestination(buttons,true,valid);
+        Check(buttons.Start=="other"&&buttons.End==target.Id&&buttons.StartShunt&&Reject(()=>target.SelectDestination(buttons,false,valid)),
+            "embedded destination accepts the chosen shunt start and rejects train-route use");
+        var startSignal=new MarkerRecord{Id="other",Kind=MarkerRecord.Shunt,Anchor=new MarkerAnchor{Segment="S",Meters=10}};
+        var net=new NetworkInput{Nodes=new List<PlanNode>{new PlanNode{Id="a"},new PlanNode{Id="b"}},
+            Edges=new List<PlanEdge>{new PlanEdge{Id="S",A="a",B="b",Length=100}}};
+        Check(new RouteDiscovery(net,new[]{startSignal,stop},target.Endpoint()).Find(startSignal,RouteKind.Shunt,new HashSet<string>{target.Id}).Single().Exit==target.Id,
+            "normal shunt discovery reaches an embedded opposing target without treating its real signal as a same-direction boundary");
+        var invalid=document.Clone();invalid.At(3,3).AlternateSignal="another";
+        var train=document.Clone();train.At(3,3).Target.Train=true;
+        Check(Reject(()=>invalid.Validate("editor"))&&Reject(()=>train.Validate("editor")),
+            "embedded shunt fields reject simultaneous second signal heads and train-destination configuration");
+    }
     static void TestAuxiliaryTargets() {
         var target=new AuxiliaryTarget{Name="Ausziehgleis",Anchor=new MarkerAnchor{Segment="S",Meters=78},Train=true,Shunt=true};
         var document=Blank();
@@ -265,6 +593,21 @@ public static class EditorTests {
             Reject(()=>AuxiliaryTarget.Index(document.Tiles.Concat(clone.Tiles)))&&
             AuxiliaryTarget.Index(document.Tiles.Concat(restored.Tiles)).Count==1,
             "mirrored target copies agree on one definition and divergent geometry is rejected");
+        var buttons=new PanelButtons();
+        Func<string,bool> valid=id=>id=="start"||id=="old-target"||id==target.Id;
+        Check(Reject(()=>target.SelectDestination(buttons,false,valid))&&buttons.Start==null&&buttons.End==null,
+            "an auxiliary destination cannot become a start when pressed first");
+        buttons.Press("start",valid);buttons.Press("old-target",valid);
+        target.SelectDestination(buttons,false,valid);
+        Check(buttons.Start=="start"&&buttons.End==target.Id&&!buttons.StartShunt,
+            "selecting an auxiliary destination replaces the previous end without changing the start or train movement");
+        buttons.Clear();buttons.Press("start",valid,true);
+        target.SelectDestination(buttons,true,valid);
+        Check(buttons.Start=="start"&&buttons.End==target.Id&&buttons.StartShunt,
+            "the same auxiliary destination accepts the shunting movement selected at the start");
+        var onlyTrain=target.Clone();onlyTrain.Shunt=false;
+        Check(Reject(()=>onlyTrain.SelectDestination(buttons,true,valid))&&buttons.Start=="start"&&buttons.End==target.Id&&buttons.StartShunt,
+            "unsupported auxiliary movement is rejected without discarding the selected start or destination");
         var endpoint=target.Endpoint();
         Check(!endpoint.IsSignal&&!SignalCatalogue.Supports(endpoint,false,false)&&
             AuxiliaryTarget.Accepts(endpoint,false)&&AuxiliaryTarget.Accepts(endpoint,true)&&

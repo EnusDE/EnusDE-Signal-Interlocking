@@ -5,6 +5,21 @@ static class SignalGlowTests {
     static void Check(bool ok,string text){if(!ok)throw new Exception("FAIL: "+text);System.Console.WriteLine("PASS: "+text);}
     static SignalLensColor[] L(string kind,LocalSignalAspect aspect)=>SignalLensPlan.For(kind,aspect);
     public static void Run() {
+        var hv=HvSignalGeometry.Lamps(MarkerRecord.Main);
+        Check(hv.Length==3&&hv[0][0]>hv[2][0]&&hv[1][0]>hv[2][0]&&hv[0][1]>hv[2][1]&&hv[2][1]>hv[1][1]&&
+            L(MarkerRecord.Main,LocalSignalAspect.Stop)[2]==SignalLensColor.Red&&
+            L(MarkerRecord.Main,LocalSignalAspect.Slow)[0]==SignalLensColor.Green&&L(MarkerRecord.Main,LocalSignalAspect.Slow)[1]==SignalLensColor.Yellow,
+            "H/V main places green upper right, red on the left and yellow lower right without changing Hp0/Hp1/Hp2 optical indices");
+        var sh=HvSignalGeometry.Lamps(MarkerRecord.Shunt);
+        Check(sh[0][1]==sh[1][1]&&sh[2][0]<sh[3][0]&&sh[2][1]<sh[3][1]&&HvSignalGeometry.LensScale(MarkerRecord.Shunt)<1,
+            "H/V shunting head keeps horizontal red stop lights and rising diagonal white Sh1 lights with separated smaller lenses");
+        var lattice=MarkerMeshData.CreateMast();
+        Check(lattice.Vertices.Count<1000&&lattice.Vertices.Any(v=>v[0]>.09f)&&lattice.Vertices.Any(v=>v[0]<-.09f)&&
+            lattice.Triangles.All(t=>t.Count%3==0&&t.All(i=>i>=0&&i<lattice.Vertices.Count)),
+            "the original H/V lattice mast has bounded bracing geometry and valid triangle indices");
+        var mastSign=MarkerMeshData.CreateMastSign();
+        Check(mastSign.Triangles[0].Count==72&&mastSign.Triangles[1].Count==36&&mastSign.Vertices.All(v=>v[1]>=3&&v[1]<=3.8f),
+            "main mast sign carries distinct white top and bottom bands and one red center band");
         var plate=MarkerMeshData.CreateSignalPlate();
         Check(plate.Vertices.Count==8&&plate.Triangles[0].Count==36&&
             plate.Vertices.All(v=>Math.Abs(v[0])<=.39f&&Math.Abs(v[1])<=.105f)&&

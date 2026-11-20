@@ -42,15 +42,21 @@ namespace EnusDE.Signaltechnik {
         public static bool IsNumberPassage(RouteRun run)=>run.StartPassageVerified&&run.ChainReady&&
             run.Stage==RouteStage.Running&&run.ReleaseSelection==null&&!run.Route.Shunting&&!run.NumberPassageHandled&&run.TrainCars?.Length>0;
 
+        public static string DisplayFieldNumber(IReadOnlyDictionary<string,string> numbers,string field) {
+            if(numbers==null||string.IsNullOrEmpty(field)||!numbers.TryGetValue(field,out var number))return "";
+            return numbers.Any(p=>p.Key!=field&&SameNumber(p.Value,number))?"?":number;
+        }
+
         public static bool MoveSignalNumber(IDictionary<string,string> numbers,string start,string end) {
             if(start==end||!numbers.TryGetValue(start,out string number))return false;
-            if(numbers.TryGetValue(end,out string existing)&&existing!=number)return false;
+            if(numbers.TryGetValue(end,out string existing)&&!SameNumber(existing,number))return false;
+            RemoveNumber(numbers,number,new HashSet<string>{start,end});
             numbers[end]=number;
             numbers.Remove(start);
             return true;
         }
 
-        public static bool AdvanceSignalNumbers(IDictionary<string,string> numbers,IEnumerable<RouteRun> passages,Func<string,string> fieldFor=null) {
+        public static bool AdvanceSignalNumbers(IDictionary<string,string> numbers,IEnumerable<RouteRun> passages,Func<string,string> fieldFor=null,ISet<string> completed=null) {
             fieldFor=fieldFor??(id=>id);
             var pending=passages.Where(IsNumberPassage).ToList();
             var movedBy=new Dictionary<string,HashSet<string>>(StringComparer.Ordinal);
@@ -61,14 +67,24 @@ namespace EnusDE.Signaltechnik {
                     var run=pending[i];
                     string start=fieldFor(run.Route.Entry),end=fieldFor(run.Route.Exit);
                     if(string.IsNullOrEmpty(start)||string.IsNullOrEmpty(end))continue;
+                    if(start==end){completed?.Add(run.Route.Id);pending.RemoveAt(i--);continue;}
+                    if(run.NumberPassageNumber!=null&&(!numbers.TryGetValue(start,out var current)||!SameNumber(current,run.NumberPassageNumber)))continue;
                     if(movedBy.TryGetValue(start,out var previous)&&!previous.SetEquals(run.TrainCars))continue;
+                    if(run.NumberPassageNumber==null&&numbers.TryGetValue(start,out var sourceNumber))run.NumberPassageNumber=sourceNumber;
                     if(!MoveSignalNumber(numbers,start,end))continue;
                     movedBy[end]=new HashSet<string>(run.TrainCars,StringComparer.Ordinal);
                     movedBy.Remove(start);
                     pending.RemoveAt(i--);
+                    completed?.Add(run.Route.Id);
                     advanced=changed=true;
                 }
             } while(advanced&&pending.Count>0);
+            // Resolve a chain before declaring an empty source a no-op: an earlier movement
+            // in this very batch may supply its number, even when passages arrived in reverse order.
+            foreach(var run in pending) {
+                string start=fieldFor(run.Route.Entry),end=fieldFor(run.Route.Exit);
+                if(!string.IsNullOrEmpty(start)&&!string.IsNullOrEmpty(end)&&run.NumberPassageNumber==null&&!numbers.ContainsKey(start))completed?.Add(run.Route.Id);
+            }
             return changed;
         }
 

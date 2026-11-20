@@ -69,11 +69,13 @@ namespace EnusDE.Signaltechnik {
             if(font==null)return;
             var face=new GameObject("EnusDE track circuit letter"){layer=2};
             face.transform.SetParent(root.transform,false);
-            face.transform.localPosition=new Vector3(0,.18f,-.17f);
-            face.transform.localScale=Vector3.one*.1f;
+            face.transform.localPosition=new Vector3(0,.214f,-.17f);
+            face.transform.localScale=Vector3.one*.075f;
             var text=face.AddComponent<TextMeshPro>();
             text.font=font;
             text.fontSize=13;
+            text.enableAutoSizing=true;text.fontSizeMin=6;text.fontSizeMax=13;
+            text.textWrappingMode=TextWrappingModes.NoWrap;
             text.alignment=TextAlignmentOptions.Center;
             text.rectTransform.sizeDelta=new Vector2(3,1.5f);
             text.color=new Color(.83f,.82f,.78f);
@@ -81,21 +83,23 @@ namespace EnusDE.Signaltechnik {
             text.renderer.shadowCastingMode=ShadowCastingMode.Off;
         }
 
-        public void LabelCircuitCode(GameObject root,string code) {
+        public TextMeshPro LabelCircuitCode(GameObject root,string code) {
             var font=TMP_Settings.defaultFontAsset;
-            if(font==null)return;
+            if(font==null)return null;
             var face=new GameObject("EnusDE GFM Kennung"){layer=2};
             face.transform.SetParent(root.transform,false);
-            face.transform.localPosition=new Vector3(0,.085f,-.17f);
+            face.transform.localPosition=new Vector3(0,.135f,-.17f);
             face.transform.localScale=Vector3.one*.04f;
             var text=face.AddComponent<TextMeshPro>();
             text.font=font;
-            text.fontSize=7;
+            text.fontSize=7;text.enableAutoSizing=true;text.fontSizeMin=3.5f;text.fontSizeMax=7;
+            text.rectTransform.sizeDelta=new Vector2(8,1.2f);text.overflowMode=TextOverflowModes.Ellipsis;
             text.textWrappingMode=TextWrappingModes.NoWrap;
             text.alignment=TextAlignmentOptions.Center;
             text.color=new Color(.92f,.92f,.88f);
             text.text=code;
             text.renderer.shadowCastingMode=ShadowCastingMode.Off;
+            return text;
         }
 
         void UpdateNameplate(SignalNameplate plate,string text) {

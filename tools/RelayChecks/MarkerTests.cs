@@ -12,8 +12,24 @@ public static class MarkerTests {
         string world=MarkerRepository.Key(Path.Combine(directory,"a.railroad"),"map/a");
         string other=MarkerRepository.Key(Path.Combine(directory,"b.railroad"),"map/a");
         Check(world.Length==64&&world!=other&&world!=MarkerRepository.Key(Path.Combine(directory,"a.railroad"),"map/b"),"marker storage is isolated by railroad path and map, not only by map name");
+        Check(Math.Abs(MarkerGroundPlacement.Level(100,.4,99.2,false)-99.6)<1e-9&&
+            Math.Abs(MarkerGroundPlacement.Level(100,.4,99.2,true)-100.4)<1e-9&&
+            MarkerGroundPlacement.Level(100,.4,null,true)==100.4,
+            "fixed placement remains relative to the track bed regardless of terrain availability or slope");
+        Check(Math.Abs(MarkerGroundPlacement.Level(100,1,98.8,false)-99.8)<1e-9&&
+            MarkerGroundPlacement.Level(100,1,97,false)==101&&MarkerGroundPlacement.Level(100,1,double.NaN,false)==101,
+            "terrain eligibility is measured before the height correction and distant or invalid terrain keeps the track reference");
+        Check(Math.Abs(MarkerGroundPlacement.SupportDepth(100,99)-1.08)<1e-9&&
+            MarkerGroundPlacement.SupportDepth(100,101)==0&&MarkerGroundPlacement.SupportDepth(100,null)==0&&
+            MarkerGroundPlacement.SupportDepth(100,90)==0,
+            "support fills a bounded gap below the base and refuses terrain above the object or missing terrain");
         var repository=new MarkerRepository(directory,world,"map/a");
         var anchor=new MarkerAnchor{Segment="track/curve-Ä",Meters=42.5,Lateral=1.8};
+        var fixedAnchor=anchor.Clone();fixedAnchor.FixedHeight=true;fixedAnchor.GroundSupport=true;
+        var groundCopy=JsonConvert.DeserializeObject<MarkerAnchor>(JsonConvert.SerializeObject(fixedAnchor));
+        Check(groundCopy.FixedHeight&&groundCopy.GroundSupport&&fixedAnchor.Clone().FixedHeight&&fixedAnchor.Clone().GroundSupport&&
+            !JsonConvert.DeserializeObject<MarkerAnchor>("{\"Segment\":\"s\",\"Meters\":1}").FixedHeight,
+            "ground placement flags survive clone and JSON transfer while old anchors keep automatic terrain placement");
         var placed=repository.Put(anchor);
         Check(placed.Name=="GZ-001"&&placed.Id.Length==32&&File.Exists(repository.FilePath),"placing a marker assigns a stable ID and atomically persists its track anchor");
         anchor.Meters=99;Check(repository.Records[0].Anchor.Meters==42.5,"stored anchor does not alias the caller's mutable preview");
@@ -37,16 +53,56 @@ public static class MarkerTests {
         string blocked=Path.Combine(directory,"blocked");File.WriteAllText(blocked,"file");var blockedRepo=new MarkerRepository(blocked,world,"map/a");
         session.Start(new MarkerOptions());session.Offer(new MarkerAnchor{Segment="s",Meters=1});
         Check(Reject(()=>session.Commit(blockedRepo,a=>true))&&blockedRepo.Records.Count==0&&session.Candidate!=null,"failed persistence neither commits the marker in memory nor discards the preview");
+        var groundSession=new MarkerEditSession();
+        groundSession.Edit(new MarkerRecord{Id="preview",Anchor=fixedAnchor});groundSession.Aim();groundSession.Offer(null);
+        groundSession.Offer(new MarkerAnchor{Segment="other",Meters=5});
+        Check(groundSession.Candidate.FixedHeight&&groundSession.Candidate.GroundSupport,
+            "moving a fixed-height object through a temporarily missing mouse target retains the support and height mode");
+        var groundDirectory=Path.Combine(directory,"ground");
+        var groundRepository=new MarkerRepository(groundDirectory,world,"map/a");
+        var groundObject=groundRepository.Put(anchor);
+        groundRepository.ConfigurePlacement(groundObject.Id,2.3,.5,1,false,true,true);
+        var configured=new MarkerRepository(groundDirectory,world,"map/a").Records.Single();
+        Check(configured.Anchor.FixedHeight&&configured.Anchor.GroundSupport&&configured.Anchor.Height==.5,
+            "saved ground support and fixed height are restored from the marker repository");
+        var supportMesh=MarkerMeshData.CreateGroundSupport();
+        Check(supportMesh.Vertices.Count==8&&supportMesh.Vertices.All(v=>v[1]>=-1&&v[1]<=0)&&
+            supportMesh.Triangles.All(t=>t.All(i=>i>=0&&i<supportMesh.Vertices.Count)),
+            "adjustable procedural support has bounded valid geometry entirely below its top surface");
         var mesh=MarkerMeshData.Create();
         Check(mesh.Vertices.Count<300&&mesh.Triangles.All(t=>t.Count>0&&t.Count%3==0&&t.All(i=>i>=0&&i<mesh.Vertices.Count))&&mesh.Vertices.All(v=>v.Length==3&&v.All(f=>!float.IsNaN(f)&&!float.IsInfinity(f))),"original procedural marker mesh has bounded finite geometry and valid white/red/base submeshes");
         foreach(var board in new[]{MarkerMeshData.CreateSpeedBoard(),MarkerMeshData.CreateSignal(false,false),MarkerMeshData.CreateSignal(false,true),MarkerMeshData.CreateSignal(true,false)})
             if(board.Vertices.Count>100||board.Triangles.Any(t=>t.Count%3!=0||t.Any(i=>i<0||i>=board.Vertices.Count)))throw new Exception("Invalid signal mesh");
         Check(true,"all original speed/main/distant/shunt model meshes have bounded valid triangle indices");
+        var box=reloaded.Put(new MarkerAnchor{Segment="s",Meters=5},null,MarkerRecord.CircuitA);
+        reloaded.ConfigureCircuit(box.Id,2,0,90,true);
+        var boxCopy=new MarkerRepository(directory,world,"map/a").Records.Single(r=>r.Id==box.Id);
+        Check(boxCopy.Kind==MarkerRecord.CircuitB&&boxCopy.CircuitYaw==90&&boxCopy.CircuitSupport&&boxCopy.Anchor.GroundSupport&&
+            boxCopy.Clone().CircuitYaw==90&&CircuitIdentity.Caption(boxCopy).StartsWith("GFM-B-"),
+            "standalone box type, rotation and support survive repository save without changing its ID or number");
+        Check(JsonConvert.DeserializeObject<MarkerRecord>("{}").CircuitSupport&&
+            CircuitIdentity.FacingDegrees(new MarkerRecord{FacingReverse=true})==180&&
+            CircuitIdentity.FacingDegrees(new MarkerRecord{FacingReverse=true,CircuitYaw=-90})==90,
+            "signal-attached boxes follow reversed signal facing by default and preserve an independent yaw correction");
+        var dwarf=reloaded.Put(new MarkerAnchor{Segment="s",Meters=7,Lateral=-2.3,Height=.4,GroundSupport=true},null,MarkerRecord.Shunt,null,false,true);
+        reloaded.ConfigureCircuit(dwarf.Id,2,.5,90,true);dwarf=reloaded.Records.Single(r=>r.Id==dwarf.Id);
+        reloaded.PromoteShunt(dwarf.Id);var promoted=reloaded.Records.Single(r=>r.Id==dwarf.Id);
+        var lowFace=SignalCatalogue.Expand(new[]{promoted}).Single();
+        Check(promoted.LowMain&&promoted.Kind==MarkerRecord.Main&&promoted.Id==dwarf.Id&&promoted.Name.StartsWith("HS-")&&promoted.PreviousCode==dwarf.Name&&promoted.FacingReverse&&promoted.Anchor.Lateral==-2.3&&promoted.Anchor.Height==.4&&promoted.Anchor.GroundSupport&&promoted.CircuitNumber==dwarf.CircuitNumber&&promoted.CircuitYaw==90,"shunt upgrade preserves identity, facing, placement, ground support and GFM attachment");
+        Check(lowFace.Id==dwarf.Id&&lowFace.LowMain&&SignalCatalogue.Supports(lowFace,false,false)&&SignalCatalogue.Supports(lowFace,false,true)&&SignalCatalogue.Supports(lowFace,true,false),"low main signal supports Hp 1, Hp 2 and Sh 1 through the existing authority catalogue");
+        Check(Reject(()=>reloaded.PromoteShunt(dwarf.Id)),"repeated upgrade cannot duplicate or replace an existing main signal");
+        var shape=MarkerMeshData.CreateLowMain(true);
+        Check(shape.Vertices.All(v=>v[1]>=0&&v[1]<=LowMainGeometry.Height+.001)&&shape.Triangles.All(t=>t.Count%3==0&&t.All(i=>i>=0&&i<shape.Vertices.Count)),"compact low-main screen has bounded finite valid geometry below 1.74 metres");
+        var beforeUpgrade=new InstallationDocument{WorldKey=world,Map="map/a",Objects=new MarkerDocument{WorldKey=world,Map="map/a",NextCircuitNumber=1000,Markers=new(){dwarf}}};
+        beforeUpgrade.Economy.Enabled=true;beforeUpgrade.Economy.Built[dwarf.Id]=new BuiltMaterial{Budget=MaterialEconomy.Cost(dwarf)};
+        var upgrade=MaterialEconomy.Markers(beforeUpgrade,new MarkerDocument{WorldKey=world,Map="map/a",NextCircuitNumber=1000,Markers=new(){promoted}});
+        Check(upgrade.Objects.Markers.Single().Planned&&MaterialEconomy.Missing(upgrade,promoted).T==2&&upgrade.Economy.Built[dwarf.Id].Budget.T==1,"economy upgrade keeps paid shunt budget and only schedules the additional main-signal material");
+        reloaded.ConfigureLowMain(dwarf.Id,false);Check(!reloaded.Records.Single(r=>r.Id==dwarf.Id).LowMain,"main signal can change to a high mast while keeping its signal ID");
         var main=reloaded.Put(new MarkerAnchor{Segment="s",Meters=10},null,MarkerRecord.Main);
         var distant=reloaded.Put(new MarkerAnchor{Segment="s",Meters=1},null,MarkerRecord.Distant);
-        reloaded.ConfigureSignal(distant.Id,true,main.Id);reloaded.Rename(main.Id,"A 1");
+        reloaded.ConfigureSignal(distant.Id,true,main.Id);Check(Reject(()=>reloaded.Rename(main.Id,"A 1")),"technical signal codes cannot be changed manually");
         var signalReload=new MarkerRepository(directory,world,"map/a");
-        Check(signalReload.Records.Single(r=>r.Id==distant.Id).LinkedSignal==main.Id&&signalReload.Records.Single(r=>r.Id==distant.Id).FacingReverse&&signalReload.Records.Single(r=>r.Id==main.Id).Name=="A 1","renaming a signal preserves its fixed ID and distant-signal linkage and direction across reload");
+        Check(signalReload.Records.Single(r=>r.Id==distant.Id).LinkedSignal==main.Id&&signalReload.Records.Single(r=>r.Id==distant.Id).FacingReverse&&signalReload.Records.Single(r=>r.Id==main.Id).Name==main.Name,"rejecting a technical-code edit preserves its fixed code, ID and distant-signal linkage across reload");
         Check(Reject(()=>reloaded.Rename(distant.Id,"a 1")),"human-readable signal codes remain unique regardless of case");
         var speed=reloaded.Put(new MarkerAnchor{Segment="s",Meters=20},null,MarkerRecord.Speed,SignUnits.Input("40",true));
         session.Edit(speed);session.Candidate.Meters=21;var movedSpeed=session.Commit(reloaded,a=>true);

@@ -24,6 +24,29 @@ public static class ApproachReleaseTests {
         now=0;w=new World();e=new InterlockingEngine(()=>now);route=Route();Ready(e,route,w);w.Unknown=true;w.Occupied=true;e.RequestRelease(route.Id,"all",15);e.ConfirmOperatorRelease(route.Id);now=14;e.Tick(w);Check(e.Active.Count==1&&!e.ForSignal("A").Permitted,"explicit dispatcher-confirmed auxiliary release still holds signals at stop until the protection wait expires");now=15;e.Tick(w);Check(e.Active.Count==0&&w.Unknown&&w.Occupied,"dispatcher confirmation releases only own locks despite an incorrect/unknown reading and never rewrites physical occupancy");
         now=0;w=new World();e=new InterlockingEngine(()=>now);route=Route();route.Switches.AddRange(new[]{new RouteSwitch{Node="W1"},new RouteSwitch{Node="W2"}});Ready(e,route,w);e.RequestRelease(route.Id,"point:W1",0);e.ConfirmOperatorRelease(route.Id);e.Tick(w);Check(e.Active.Count==1&&e.Active.Single().ReleasedSwitches.Contains("W1")&&!e.Active.Single().ReleasedSwitches.Contains("W2")&&e.Locked("W2",true),"dispatcher-confirmed individual release leaves every unselected point and track lock intact");
         Incorporation();
+        ReleaseDisplay();
+    }
+    static void ReleaseDisplay() {
+        double now=0;var w=new World();var e=new InterlockingEngine(()=>now);var route=Route();Ready(e,route,w);
+        w.Approach=true;try{e.Cancel(route.Id,w);}catch(InvalidOperationException){}
+        var run=e.Active.Single();
+        Check(e.RemainingWait(run)==0&&RouteReleaseDisplay.Caption(run,0).Contains("countdown"),"blocked normal cancellation reports no countdown and does not invent a timed release");
+        e.RequestRelease(route.Id,"all",15);now=.1;
+        Check(RouteReleaseDisplay.Caption(run,e.RemainingWait(run)).Contains("15 s")&&!run.Permitted,"release display rounds remaining protection time up while authority stays withdrawn");
+        now=14;e.Tick(w);now=15;
+        var boundary=RouteReleaseDisplay.Caption(run,e.RemainingWait(run));
+        Check(boundary.Contains("elapsed")&&boundary.Contains("checks pending")&&!boundary.Contains("Noch"),"at countdown expiry display waits for an actual release check instead of retaining an obsolete seconds message");
+        e.Tick(w);
+        Check(e.Active.Count==1&&run.ReleaseWaitCompleted&&RouteReleaseDisplay.Caption(run,0).Contains(run.ReleaseStatus),"expired timer still shows the moving-approach obstruction and keeps all route locks");
+        var state=SharedRouteStatus.From(run,e.RemainingWait(run));
+        var received=Newtonsoft.Json.JsonConvert.DeserializeObject<SharedRouteStatus>(Newtonsoft.Json.JsonConvert.SerializeObject(state)).ToRun(route);
+        Check(received.ReleaseSelection=="all"&&received.ReleaseWaitCompleted&&received.ReportedWaitRemaining==0&&received.ReleaseStatus==run.ReleaseStatus&&!received.Permitted,"client live display receives release phase and obstruction without gaining authority");
+        now=0;w=new World();e=new InterlockingEngine(()=>now);route=Route();Ready(e,route,w);e.RequestRelease(route.Id,"all",15);now=3.5;
+        state=SharedRouteStatus.From(e.Active.Single(),e.RemainingWait(e.Active.Single()));received=state.ToRun(route);
+        Check(received.ReportedWaitRemaining==11.5&&RouteReleaseDisplay.Caption(received,received.ReportedWaitRemaining.Value).Contains("12 s"),"client countdown uses the host remaining duration rather than comparing unrelated machine clocks");
+        foreach(double invalid in new[]{double.NaN,double.PositiveInfinity,-1d,301d}){state.WaitRemaining=invalid;bool rejected=false;try{state.ToRun(route);}catch(System.IO.InvalidDataException){rejected=true;}Check(rejected,"invalid shared countdown rejected: "+invalid);}
+        LocalText.Configure(()=>"de");try{Check(RouteReleaseDisplay.Caption(e.Active.Single(),11.5).Contains("Schutzwartezeit noch: 12 s"),"German release display includes the remaining protection time");}finally{LocalText.Configure(()=>"auto");}
+        now=15;e.Tick(w);Check(e.Active.Count==0,"adding release feedback does not delay or prevent an otherwise fully proved auxiliary release");
     }
     static Tuple<RouteDefinition,RouteDefinition> Pair(){var shunt=Route(true);shunt.Entry="RS";shunt.Exit="RS2";shunt.Sections[0].From=20;shunt.Sections[0].To=80;shunt.Path=new List<DirectedRouteSection>{new DirectedRouteSection{Section=shunt.Sections[0]}};shunt.ViaSignals=new List<RouteViaSignal>();var main=Route();main.Path=new List<DirectedRouteSection>{new DirectedRouteSection{Section=main.Sections[0]}};main.ViaSignals=new List<RouteViaSignal>{new RouteViaSignal{Id="RS",Anchor="native",Distance=20,Downstream=new List<TrackSection>{shunt.Sections[0]}}};return Tuple.Create(shunt,main);}
     static void Incorporation(){double now=0;var pair=Pair();var w=new World();var e=new InterlockingEngine(()=>now);Ready(e,pair.Item1,w);e.Request(pair.Item2,w);Check(e.Active.Count==1&&e.Active.Single().Stage==RouteStage.Preparing&&e.Active.Single().IncorporatedFrom.SequenceEqual(new[]{pair.Item1.Id})&&!e.Active.Single().Permitted,"same-direction covered shunt route becomes one main-route resource set without a contradictory independent shunt authority");for(int i=0;i<8;i++)e.Tick(w);Check(e.Active.Single().Permitted&&e.Active.Single().PermitsVia("RS"),"incorporated main route authorizes its intermediate shunt signal after normal end-position and clear checks");

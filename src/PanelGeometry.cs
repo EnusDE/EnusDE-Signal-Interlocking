@@ -20,7 +20,7 @@ namespace EnusDE.Signaltechnik {
             new[]{new PanelLine(-1,0,0,0),new PanelLine(0,0,1,0),new PanelLine(0,0,1,1)},
             new[]{new PanelLine(-1,0,1,0),new PanelLine(0,-1,0,1)},
             new[]{new PanelLine(-1,0,1,0),new PanelLine(0,0,0,.375f),new PanelLine(0,.375f,.5f,.375f)},
-            new PanelLine[0],new PanelLine[0],new[]{new PanelLine(-1,0,1,0)}
+            new PanelLine[0],new PanelLine[0],new[]{new PanelLine(-1,0,1,0)},new PanelLine[0]
         };
         public static IReadOnlyList<PanelLine> Lines(PanelTileKind kind)=>shapes[(int)kind];
         public static PanelPoint World(PanelPoint point,int rotation,bool mirror,int x,int y) {

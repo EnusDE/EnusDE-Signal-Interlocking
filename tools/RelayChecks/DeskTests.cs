@@ -22,7 +22,7 @@ public static class DeskTests {
         var reload=store.Load(null);Check(reload.Desks.Count==2&&reload.Desks.Last().Code=="WIT2"&&reload.Desks.Single(d=>d.Global).Panel.At(2,2).Reference=="A","multiple boards reload without depending on the obsolete single-board file");
         reload.Points["W1"]=new PointAssignment{Code="W1",Desk=local.Id};
         PointAssignments.Boundaries(reload);
-        Check(Reject(()=>new DeskRemoval(reload,global)),"editor cannot remove the required global board");
+        Check(Reject(()=>new DeskRemoval(reload,global).Apply(reload,new[]{new RouteDefinition{Entry="A",Exit="B"}})),"removing the default master still rejects an active route using its signal");
         reload.Desks.Single(d=>d.Id==local.Id).Panel.At(0,0).AlternateSignal="RS-alternate";
         var removal=new DeskRemoval(reload,local.Id);
         Check(removal.RelatesTo(new RouteDefinition{Entry="RS-alternate",Exit="B"}),

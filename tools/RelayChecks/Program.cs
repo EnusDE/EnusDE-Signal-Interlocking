@@ -13,6 +13,7 @@ AssemblyLoadContext.Default.Resolving += (context, name) => {
     return File.Exists(path) ? context.LoadFromAssemblyPath(path) : null;
 };
 var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(managed, args[1]));
+if(args.Length>3&&args[2]=="worldsigns"){AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(Path.GetFullPath(args[3]),"build","recorder","EnusDE.Signaltechnik.dll"));Assembly.GetExecutingAssembly().GetType("WorldSignTextureTests").GetMethod("Run").Invoke(null,null);return;}
 if(args.Length>3&&args[2]=="flank"){AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(Path.GetFullPath(args[3]),"build","recorder","EnusDE.Signaltechnik.dll"));FlankTests.Run();return;}
 if(args.Length>3&&args[2]=="transfer"){AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(Path.GetFullPath(args[3]),"build","recorder","EnusDE.Signaltechnik.dll"));TransferTests.Run();return;}
 if(args.Length>4&&args[2]=="signature"){foreach(var method in assembly.GetType(args[3],true).GetMethods(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static).Where(m=>m.Name==args[4])){System.Console.WriteLine(method.Name+" public="+method.IsPublic+" static="+method.IsStatic);foreach(var p in method.GetParameters())System.Console.WriteLine(p.Name+": "+p.ParameterType.FullName);}return;}

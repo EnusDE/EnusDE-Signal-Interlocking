@@ -1,0 +1,13 @@
+# 0.7.37-P0 – Bahnhofsfahrt, GFM-Welteinrichtung und Diagnosezugang
+
+- Örtliche Hauptsignal-Zugfahrten ebenso wie Rangierfahrten von zusätzlichen, über den Fahrweg hinausreichenden GFM-Richtungsketten ausnehmen. Ein-/Ausfahrgrenzen und eingerichtete freie Strecken bleiben berücksichtigt. Gültige direkt überlappende Meldeabschnitte weiterhin prüfen und bei Ablehnung konkret benennen.
+- Manuelle Anforderungen bei fehlender GFM-Abdeckung als ausdrückliche Host-Einstellung zulassen, mit unbekannter/unüberwachter Anzeige und Diagnosehinweis statt einer erfundenen Freimeldung. Vorhandene Belegungs-, Weichen-, Flanken- und Verschlussprüfungen bleiben erhalten. Kontakt-Automatik benötigt weiterhin vollständige GFM.
+- Signatur der Blocktopologie auf tatsächliche Gleise, GFM-Grenzen, Abschnittswege und Ein-/Ausfahrgrenzen beschränken. Darstellung und unbeteiligte Versionsänderungen halten keine unveränderte Richtung mehr an.
+- Weichenschutzbereiche aus realen Gleisarmen und physischen Meldern neu ableiten. Ein Signal ohne GFM verkürzt keinen Schutzarm; eine alte erzeugte B-Grenze kann ihre falsche Lage nicht selbst im nächsten Scan festschreiben.
+- GFM nur aufheben, ohne danach sofort neu zu erkennen. Weichen-GFM und manuelle Grenzlinks im gewählten Umfang zurücksetzen, Hintergrundkatalog pausieren und ausstehende Ergebnisse verwerfen. Eigener vollständiger Neuscan bleibt vorhanden.
+- Weltwerkzeug von Anfangs- bis Endgrenze mit nacheinander auswählbaren Objekten, physischer Abschnittsspeicherung unabhängig vom fertigen Gleisbild und optionaler eindeutiger Zeichnungszuordnung.
+- Signal-A-/B-Kästen direkt mit nativen Weichenarmen auf demselben Segment verknüpfen, überwachten Bereich anpassen und gemeinsame A/B-Darstellung erhalten. C/fremde Gleise abweisen; ungültige Links werden nicht frei gelesen. Verknüpfungen bleiben bei Umbenennung erhalten und sind verschlussgeschützt.
+- Erkennungsfehler als anklickbare Abschnittsverweise, bestehende Vorschau beim Wechsel zur Prüfung erhalten. Aufzeichnungsordner in Einstellungen und Diagnosefenster anzeigen.
+- Gespeicherte Fahrstraßenplanung jederzeit im Editor anbieten; dynamische Berechnung und Hintergrundkatalog als experimentell kennzeichnen.
+
+[Einrichtung und gezielte Spieltests](../mod/EnusDE-Signaltechnik/Guides/TEST-0.7.37.de.md). Keine Veröffentlichung oder Installation. Der tatsächliche Spielstand ist nicht verfügbar; der Import der hochgeladenen Diagnostics.zip scheitert am schreibgeschützten Dateiimport. Keine daraus abgeleiteten Logbefunde behauptet. Öffentliche Erstversion und aktueller Teststand sind zu unterscheiden; Robin nutzt laut Autor noch die öffentliche Erstversion.

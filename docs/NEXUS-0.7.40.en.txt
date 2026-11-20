@@ -1,0 +1,104 @@
+FILE NAME
+EnusDE Signal and Interlocking - Early Alpha (0.7.40)
+
+DESCRIPTION
+Early alpha for Railroader 0.6.2. Signals, interlocking panels, train/shunting routes, GFM detection and initial automation. English/German. Use a test save; all players need the same version. Tutorial/user guide: work in progress.
+
+CHANGELOG — ONE ENTRY PER LINE
+Updated from 0.7.22 to 0.7.40. Railroader 0.6.2 is required. Host and clients must use the same mod version.
+IMPORTANT: Recalculate older saved routes containing points once to update their physical protection boundaries.
+Tutorial / user guide: WORK IN PROGRESS. Version-specific setup and test notes are included.
+[0.7.40] Train and shunting routes now use the same physical point-protection boundaries as GFM detection, replacing separately generated 25-metre route guards.
+[0.7.40] Diverting flank-protection points use the same shared boundary definitions; other point arms and threat corridors remain protected.
+[0.7.40] Route protection signatures detect obsolete point boundaries after detector or binding changes.
+[0.7.40] Rejection messages identify train versus shunting movement and distinguish track, point-protection and flank areas.
+[0.7.39] Added a shared directional passage point for signal return to Stop and train-number advancement: 5 metres by default, adjustable from 0 to 25 metres.
+[0.7.39] Occupancy alone no longer counts as a verified passage of the start signal when directional vehicle tracking is available.
+[0.7.39] Occupancy readers now use actual vehicle track-segment and metre intervals rather than projected world-position overlap.
+[0.7.39] Local route checks read only the requested portion of an extended A/B detection section.
+[0.7.39] Shunting routes can use known occupied intermediate track outside point-protection intervals.
+[0.7.39] Added installation refresh and configuration inspection while preserving saved settings and stable IDs.
+[0.7.39] Added direct section-manager access and more readable occupancy errors with signal, point, GFM and metre context.
+[0.7.38] Reduced excessive flank reservations beyond diverting protection points while retaining the actual threat corridor.
+[0.7.38] Improved linked auxiliary-destination handling independently of the last selected diagram cell.
+[0.7.38] Corrected train-number transfer completion, retry handling, stale duplicate entries and ordinary display ownership across overlapping sections.
+[0.7.38] Added GFM boundary-origin details, including source objects, track positions and diagram assignments.
+[0.7.38] Added manual diagnostic ZIP export with configuration, route attempts, occupancy readings, vehicle positions and number bindings.
+[0.7.38] Added an optional local export folder suitable for user-managed synchronization. No automatic upload or remote control is performed.
+[0.7.37] Separated local station movements from unrelated extended GFM direction chains.
+[0.7.37] Added an explicit host option for manual routes with incomplete configured GFM coverage; unmonitored areas remain marked accordingly.
+[0.7.37] Restricted block-topology invalidation to relevant track, detection and boundary changes.
+[0.7.37] Added clear-only GFM reset with background-catalogue pause and cancellation of outdated detection results.
+[0.7.37] Added world-object boundary-to-boundary section setup and explicit detector links to native point arms.
+[0.7.37] Added inspection links for detection problems and visible recording-folder information.
+[0.7.37] Native point-guard reconstruction no longer shortens at detector-free signals or perpetuates an old generated B boundary as its own location reference.
+[0.7.36] Added full GFM rescan previews for one interlocking or the complete installation.
+[0.7.36] Added point-arm calibration, manual correction and separate occupancy indication for individual point arms.
+[0.7.36] Added read-only section inspection, boundary highlighting and route-coverage tests showing exact gaps.
+[0.7.36] Detection resets preserve world objects and drawing geometry; previews and the required installation checkpoint guard replacement of assignments.
+[0.7.35] Added continuous signal placement without opening properties after every placement.
+[0.7.35] Signal type, model and construction defaults remain selected during placement; Escape or a mode change ends the series.
+[0.7.34] Improved saved GFM-path validation for native position rounding, equivalent path fragments and long sections.
+[0.7.34] Genuine gaps, skipped boundaries and point crossings remain rejected with more specific diagnostics.
+[0.7.33] Added one-click world assignment for signals, points and GFM boxes without an extra confirmation or unintended point movement.
+[0.7.33] Added assignment and dispatcher display of independent, directional C boundaries.
+[0.7.33] Quick actions now save directly; world-signal context menus provide Edit.
+[0.7.33] Improved detection through virtual destinations, detector-free intermediate signals, separate crossing rails and independently configured mast directions.
+[0.7.33] Connected shared A/B diagram boundaries to actual point protection.
+[0.7.33] Added a separate route-choice window with short/long labels and distinguishing signal or point names.
+[0.7.33] Added multiple departure/arrival signals per line direction, auxiliary arrival destinations and read-only neighbouring-signal displays.
+[0.7.33] Detection search length is a proposal filter rather than a limit on the physical occupancy section.
+[0.7.32] Added usable local line/permission-indicator placement and guided shared block/line setup.
+[0.7.32] Added explicit Test opt-in for Hl construction.
+[0.7.32] Automation contacts can be configured before construction, with initial direction and a first-main-signal proposal.
+[0.7.32] Added world selection for contact start and target signals, plus linked-contact information at signals.
+[0.7.32] Added a construction default for new signals with GFM boxes and GFM detection within an existing drawing.
+[0.7.32] Restricted bulk electric-point conversion to correctly assigned local points.
+[0.7.32] Improved target-directed route search, release countdowns and blocking feedback.
+[0.7.32] Shortened temporary backup filenames to address the reported Windows path-length failure.
+[0.7.32] Auxiliary-release waiting time and blocking reasons are visible to clients; normal cancellation does not silently start a timed auxiliary release.
+[0.7.31] Added map-dependent signalling unlock rules using native progression prerequisites without requiring a native CTC purchase.
+[0.7.31] Added optional map-author progression rules and host overrides.
+[0.7.31] Preserved existing unlocks and Sandbox access while enforcing construction access in locked saves.
+[0.7.31] The independent signalling programme retains its $7,500 base price with native discount calculation where a purchase is required; host policy is shared and backed up.
+[0.7.30] Added optional original Hl main/combined and distant signal test models.
+[0.7.30] Existing compatible signals can be converted between H/V and Hl while retaining IDs, positions and detection assignments.
+[0.7.30] Added selected live Hl aspects and a separate aspect preview. The 60/100 km/h combinations remain preview-only; native AI speed handling is unchanged.
+[0.7.29] Added invalidity crosses for unbound signals and identification lights for signals or interlockings taken out of service.
+[0.7.29] Added guarded signal/interlocking operating-state changes and selective native-AI bypass.
+[0.7.29] Added direct access to the clicked world's point configuration.
+[0.7.28] Added one shared A/B box at an exactly coincident signal/point detection boundary while preserving existing identities.
+[0.7.28] Shared boundaries are captured once; nearby separate boxes and directional C boundaries remain distinct.
+[0.7.28] Shared signal/point users can be inspected from the signal and point-GFM menus without manufacturing a separate zero-length section.
+[0.7.27] Added direct main-signal role selection: entry, intermediate, departure or block.
+[0.7.27] Roles can be configured separately for each mast direction without replacing signal identity.
+[0.7.27] Signal-role changes retain target-automation settings and respect active route/direction holds and configured line endpoint roles.
+[0.7.26] Added mouse movement and context editing of master-view modules.
+[0.7.26] Added direct point-GFM activation and station signal/boundary searches for existing diagrams.
+[0.7.26] Improved refresh of bound signal captions, main/shunting pairs and GFM references after signal conversion.
+[0.7.26] Improved the directional C marker's appearance.
+[0.7.25] Added schematic strand-based recognition, configurable drawing scope and a visible master-module workspace.
+[0.7.25] Expanded A/B/C detection tools, persistent boundary quick actions and attached-box placement checks.
+[0.7.25] Separated editable display names from stable technical signal identities.
+[0.7.25] Extended electric-point protection into native AI look-ahead and improved waypoint-compatible route selection.
+[0.7.25] Signal-attached A, independent/point B and one-sided C boundaries have separate roles; new signals default to A, while deleted technical numbers are not automatically recycled.
+[0.7.24] Added management of additional master views with independent module layouts over the shared installation.
+[0.7.24] Added explicit recognition previews, guarded application and archiving of replaced diagrams.
+[0.7.24] Moved settings to Company > Options > Mods while retaining existing settings.
+[0.7.24] Extended protection of electric points against native waypoint-AI commands.
+[0.7.24] Improved contact interaction and added an optional experimental axle-test display.
+[0.7.24] Contact route requests respect intermediate main signals and the current waypoint limit.
+[0.7.24] Master-view management includes guarded opening, renaming and removal with installation checkpoints; shared physical objects remain independent of their views.
+[0.7.23] Added route calculation on request from Dispatcher start/destination selection without growing the permanent route catalogue.
+[0.7.23] Retained the saved-route workflow as a selectable operating mode.
+[0.7.23] Added separate movable/resizable editor and vehicle-information windows.
+[0.7.23] Improved field-specific context menus and world/diagram point assignment.
+[0.7.23] Right-mouse camera control no longer cancels placement; Escape ends placement.
+[0.7.23] Incomplete start selections expire without cancelling established routes or pending automation.
+[0.7.23] Active calculated routes retain their own live protection data; clients receive bounded route snapshots, and connection/material costs remain enforced.
+[0.7.23] Master connection lists use configured line definitions independently of the saved route catalogue. Incomplete start selections expire after five seconds.
+Experimental features and known limitations remain: automatic recognition, Hl models, axle-test displays and parts of automation still require gameplay validation.
+Auxiliary destinations currently accept one configured approach direction per target.
+Automatic renumbering, the newly proposed GWB permission-module overhaul and complete AI shunting reversal beyond protecting signals are not included.
+Signals intentionally start at Stop after loading; previous live movement authorities are not restored.
+1,421 automated checks passed for 0.7.40. Actual gameplay and multiplayer validation remain ongoing.

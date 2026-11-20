@@ -28,8 +28,30 @@ namespace EnusDE.Signaltechnik {
         static bool Has(string value,string term)=>value.IndexOf(term,StringComparison.OrdinalIgnoreCase)>=0;
     }
 
+    public static class SearchChoiceFields {
+        public static void AddSearchChoice(this UIPanelBuilder c,string label,List<string> labels,int index,Action<int> selected) {
+            c.AddSection(label);
+            c.AddLabel(()=>index>=0&&index<labels.Count?labels[index]:"Keine Auswahl",UIPanelBuilder.Frequency.Periodic);
+            var input=c.AddInputField("",_=>{},"Kennung oder Bezeichnung suchen",128).GetComponent<TMP_InputField>();
+            var frame=c.VStack(_=>{});
+            var picker=frame.gameObject.AddComponent<SignalPickerList>();
+            var toggle=c.VStack(_=>{});
+            var size=toggle.GetComponent<LayoutElement>()??toggle.gameObject.AddComponent<LayoutElement>();
+            size.minHeight=size.preferredHeight=32;size.flexibleHeight=0;size.layoutPriority=10;
+            var fitter=toggle.GetComponent<ContentSizeFitter>();if(fitter!=null)fitter.enabled=false;
+            var button=EditorSurface.Button(toggle,"Liste öffnen / schließen",picker.Toggle);
+            (button.GetComponent<LayoutElement>()??button.gameObject.AddComponent<LayoutElement>()).ignoreLayout=true;
+            WorkspaceSurface.Fill(button.GetComponent<RectTransform>());
+            var entries=labels.Select((text,i)=>new SignalSearchEntry(i.ToString(System.Globalization.CultureInfo.InvariantCulture),text,"")).ToArray();
+            picker.Initialize(input,button.transform,entries,"Keine Treffer.",entry=>{
+                index=int.Parse(entry.Id,System.Globalization.CultureInfo.InvariantCulture);
+                selected(index);
+            },Key.Backspace);
+        }
+    }
+
     sealed class SignalPickerList:MonoBehaviour {
-        const int Height=148,RowHeight=29,RowCount=7;
+        const int Height=192,RowHeight=64,RowCount=4;
         readonly RectTransform[] rows=new RectTransform[RowCount];
         readonly TMP_Text[] captions=new TMP_Text[RowCount];
         readonly List<RaycastResult> hits=new List<RaycastResult>();
@@ -71,6 +93,9 @@ namespace EnusDE.Signaltechnik {
                 rows[i]=button.GetComponent<RectTransform>();
                 captions[i]=button.GetComponentInChildren<TMP_Text>();
                 captions[i].alignment=TextAlignmentOptions.MidlineLeft;
+                captions[i].fontSize=13;
+                captions[i].textWrappingMode=TextWrappingModes.Normal;
+
             }
             scroll.onValueChanged.AddListener(_=>RefreshRows());
             input.onSelect.AddListener(_=>Open());
@@ -154,7 +179,7 @@ namespace EnusDE.Signaltechnik {
                             draft.AlternateSignal=null;
                     }
                     status=id==null?"Zuordnung entfernt. Feld speichern.":"Auswahl: "+Code(id)+". Feld speichern, um die Zuordnung zu übernehmen.";
-                    panelView?.Refresh();
+                    RefreshWorkspaceFields();panelView?.Refresh();
                 });
             }
             c.AddSection(numberField?

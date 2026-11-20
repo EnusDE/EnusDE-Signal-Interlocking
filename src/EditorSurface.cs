@@ -17,13 +17,15 @@ namespace EnusDE.Signaltechnik {
         static readonly Color Active=new Color(.09f,.32f,.32f);
         static readonly Color Accent=new Color(.38f,.87f,.74f);
         readonly List<(Image Background,Func<bool> Selected)> tools=new List<(Image,Func<bool>)>();
-        RectTransform root,header,footer,toolRail,details,detailsBody,catalogue;
-        TMP_Text title,heading,notice;
+        RectTransform root,header,footer,toolRail,catalogue;
+        TMP_Text title,notice;
         Vector2 lastSize;
         float nextRead;
         bool catalogueMode,themeQueued;
+        public Action CloseDetails;
+        public void ShowDetails(bool value){} // Compatibility for callers; editing uses a separate window.
         public RectTransform ViewportFrame {get;private set;}
-        public RectTransform Content=>catalogueMode?catalogue:detailsBody;
+        public RectTransform Content=>catalogue;
         public RectTransform Header=>header;
         public Func<string> Title, Heading, Notice;
 
@@ -32,24 +34,18 @@ namespace EnusDE.Signaltechnik {
             root.gameObject.AddComponent<Image>().color=Back;
             header=Frame(root,"Editor header",out var headerBody);
             title=WorkspaceSurface.Text(headerBody,"Title","",18);
-            WorkspaceSurface.Fill(title.rectTransform,14,0,chooseDesk?14:280,0);
+            WorkspaceSurface.Fill(title.rectTransform,chooseDesk?14:110,0,chooseDesk?14:280,0);
             footer=Frame(root,"Editor guidance",out var footerBody);
             notice=WorkspaceSurface.Text(footerBody,"Guidance","",13);notice.color=Accent;
             if(chooseDesk) {
                 Frame(root,"Interlocking catalogue",out catalogue).gameObject.name="Editor catalogue";
                 return;
             }
-            toolRail=Frame(root,"Editor tools",out _);
+            toolRail=Frame(root,"Editor tools",out _);toolRail.gameObject.SetActive(false);
             Frame(root,"Editor diagram",out var diagramBody);
             ViewportFrame=WorkspaceSurface.Rect(diagramBody,"Editor viewport frame",Back);
             WorkspaceSurface.Fill(ViewportFrame,2,2,2,2);
-            details=Frame(root,"Editor properties",out var inner);
-            var titleBand=WorkspaceSurface.Rect(inner,"Properties header",Surface);
-            titleBand.anchorMin=new Vector2(0,1);titleBand.anchorMax=Vector2.one;
-            titleBand.offsetMin=new Vector2(0,-34);titleBand.offsetMax=Vector2.zero;
-            heading=WorkspaceSurface.Text(titleBand,"Heading","",14);
-            detailsBody=WorkspaceSurface.Rect(inner,"Properties content");
-            WorkspaceSurface.Fill(detailsBody,8,38,8,8);
+            // Editing controls are created only in the separate tools window.
         }
 
         static RectTransform Frame(Transform parent,string name,out RectTransform body) {
@@ -117,19 +113,18 @@ namespace EnusDE.Signaltechnik {
             var size=root.rect.size;
             if(size!=lastSize&&size.x>=640&&size.y>=420) {
                 lastSize=size;
-                var layout=EditorLayout.For(size.x,size.y);
+                var layout=EditorLayout.For(size.x,size.y,false,false);
                 WorkspaceSurface.Place(header,layout.Header);
                 WorkspaceSurface.Place(footer,layout.Footer);
                 if(catalogueMode)WorkspaceSurface.Place((RectTransform)catalogue.parent,layout.Catalogue);
                 else {
                     WorkspaceSurface.Place(toolRail,layout.Tools);
                     WorkspaceSurface.Place((RectTransform)ViewportFrame.parent.parent,layout.Diagram);
-                    WorkspaceSurface.Place(details,layout.Details);
                 }
             }
             if(Time.realtimeSinceStartup<nextRead)return;
             nextRead=Time.realtimeSinceStartup+.15f;
-            Set(title,Title?.Invoke());Set(heading,Heading?.Invoke());Set(notice,Notice?.Invoke());
+            Set(title,Title?.Invoke());Set(notice,Notice?.Invoke());
             foreach(var tool in tools)if(tool.Background!=null)tool.Background.color=tool.Selected?.Invoke()==true?Active:ButtonColor;
         }
 

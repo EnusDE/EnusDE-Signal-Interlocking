@@ -53,22 +53,22 @@ namespace EnusDE.Signaltechnik {
         public void OpenStockSignals(){RequireStockEdit();var camera=Camera.main;stockChoices=UnityEngine.Object.FindObjectsByType<CTCSignal>(FindObjectsSortMode.None).Where(s=>!(s is RuntimeSignalProxy)&&!string.IsNullOrEmpty(s.id)&&!s.id.StartsWith("enusde.",StringComparison.OrdinalIgnoreCase)).GroupBy(s=>s.id).Select(g=>g.First()).OrderBy(s=>camera==null?0:((s.modelController!=null?s.modelController.transform:s.transform).position-camera.transform.position).sqrMagnitude).Take(12).ToArray();if(!stockChoices.Any(s=>s.id==stockSelected))stockSelected=stockChoices.FirstOrDefault()?.id;page=Page.Stock;ShowTool();}
         void RequireStockEdit(){string reason;if(!CanEdit(out reason))throw new InvalidOperationException(reason);}
         void BuildStock(UIPanelBuilder c) {
-            c.AddTitle("Bestandssignale","Weißes Ungültigkeitskreuz mit schwarzem Rand");
-            c.AddLabel("Eines der zwölf nächsten Grundspielsignale wählen. Das Kreuz kennzeichnet dessen sichtbaren Kopf. Eigene Signaltechnik-Signale sind ausgeschlossen.");
-            if(stockChoices.Length==0){c.AddLabel("Keine Bestandssignale gefunden.");return;}
-            c.AddField("Signal in der Nähe",c.AddDropdown(stockChoices.Select(s=>s!=null?s.DisplayName+" · "+s.id:"Signal entladen").ToList(),Math.Max(0,Array.FindIndex(stockChoices,s=>s!=null&&s.id==stockSelected)),i=>{if(i>=0&&i<stockChoices.Length&&stockChoices[i]!=null){stockSelected=stockChoices[i].id;RebuildTool();}}));
-            c.AddButton("Kreuz setzen · Lampen aus",()=>StockAction(()=>PutCross(false,true)));
-            c.AddButton("Kreuz setzen · Lampen aus und KI-Ausnahme",()=>StockAction(()=>PutCross(true,true)));
-            c.AddButton("Nur Kreuz setzen",()=>StockAction(()=>PutCross(false,false)));
-            c.AddField("Ergebnis",()=>stockResultId==stockSelected?stockMessage:"Noch keine Aktion für dieses Signal.",UIPanelBuilder.Frequency.Periodic);
-            c.AddField("Kennzeichnung",()=>StockInvalidity.State(Entry.Shared?.Retired?.FirstOrDefault(s=>s.Id==stockSelected),StockSignalHooks.Available),UIPanelBuilder.Frequency.Periodic);
-            c.AddField("Kreuzdarstellung",()=>CrossState(),UIPanelBuilder.Frequency.Periodic);
-            c.AddField("Lampen",()=>Entry.Shared?.Retired?.Any(r=>r.Id==stockSelected&&r.Darken)==true?
+            c.AddTitle(LocalText.Get("Bestandssignale"),"Weißes Ungültigkeitskreuz mit schwarzem Rand");
+            c.AddLabel(LocalText.Get("Eines der zwölf nächsten Grundspielsignale wählen. Das Kreuz kennzeichnet dessen sichtbaren Kopf. Eigene Signaltechnik-Signale sind ausgeschlossen."));
+            if(stockChoices.Length==0){c.AddLabel(LocalText.Get("Keine Bestandssignale gefunden."));return;}
+            c.AddSearchChoice(LocalText.Get("Signal in der Nähe"),stockChoices.Select(s=>s!=null?s.DisplayName+" · "+s.id:"Signal entladen").ToList(),Math.Max(0,Array.FindIndex(stockChoices,s=>s!=null&&s.id==stockSelected)),i=>{if(i>=0&&i<stockChoices.Length&&stockChoices[i]!=null){stockSelected=stockChoices[i].id;RebuildTool();}});
+            c.AddButton(LocalText.Get("Kreuz setzen · Lampen aus"),()=>StockAction(()=>PutCross(false,true)));
+            c.AddButton(LocalText.Get("Kreuz setzen · Lampen aus und KI-Ausnahme"),()=>StockAction(()=>PutCross(true,true)));
+            c.AddButton(LocalText.Get("Nur Kreuz setzen"),()=>StockAction(()=>PutCross(false,false)));
+            c.AddField(LocalText.Get("Ergebnis"),()=>stockResultId==stockSelected?stockMessage:"Noch keine Aktion für dieses Signal.",UIPanelBuilder.Frequency.Periodic);
+            c.AddField(LocalText.Get("Kennzeichnung"),()=>StockInvalidity.State(Entry.Shared?.Retired?.FirstOrDefault(s=>s.Id==stockSelected),StockSignalHooks.Available),UIPanelBuilder.Frequency.Periodic);
+            c.AddField(LocalText.Get("Kreuzdarstellung"),()=>CrossState(),UIPanelBuilder.Frequency.Periodic);
+            c.AddField(LocalText.Get("Lampen"),()=>Entry.Shared?.Retired?.Any(r=>r.Id==stockSelected&&r.Darken)==true?
                 stockLamps.IsBound(stockSelected)?"Optisch ausgeschaltet":"Wartet auf unterstützten Signalkopf":
                 "Spielanzeige aktiv",UIPanelBuilder.Frequency.Periodic);
-            c.AddField("KI-Einbindung",()=>StockSignalHooks.Available?"Ausnahme in nativer AE-Signalsuche aktiv":"Nicht verfügbar · gespeicherte KI-Ausnahmen werden nicht angewendet",UIPanelBuilder.Frequency.Periodic);
-            c.AddButton("Kreuz entfernen / Signal wieder gültig",()=>StockAction(()=>{RequireStockEdit();Entry.Shared.RestoreStock(stockSelected);stockMessage="Markierung entfernt; Bestandssignal wieder gültig.";crossVersion=-1;nextCross=0;}));
-            c.AddLabel("Nur optisch lässt die KI-Wirkung unverändert. Die KI-Ausnahme betrifft die native AE-Signalsuche; native ABS-/CTC-Blöcke, Weichen, Kollisionen und andere Mods bleiben eigenständig. Eigene Signale und Fahrwege vor dem Stilllegen prüfen.");
+            c.AddField(LocalText.Get("KI-Einbindung"),()=>StockSignalHooks.Available?"Ausnahme in nativer AE-Signalsuche aktiv":"Nicht verfügbar · gespeicherte KI-Ausnahmen werden nicht angewendet",UIPanelBuilder.Frequency.Periodic);
+            c.AddButton(LocalText.Get("Kreuz entfernen / Signal wieder gültig"),()=>StockAction(()=>{RequireStockEdit();Entry.Shared.RestoreStock(stockSelected);stockMessage="Markierung entfernt; Bestandssignal wieder gültig.";crossVersion=-1;nextCross=0;}));
+            c.AddLabel(LocalText.Get("Nur optisch lässt die KI-Wirkung unverändert. Die KI-Ausnahme betrifft die native AE-Signalsuche; native ABS-/CTC-Blöcke, Weichen, Kollisionen und andere Mods bleiben eigenständig. Eigene Signale und Fahrwege vor dem Stilllegen prüfen."));
         }
         string CrossState(){var value=Entry.Shared?.Retired?.FirstOrDefault(s=>s.Id==stockSelected);GameObject root;string error;crossErrors.TryGetValue(stockSelected??"",out error);return value==null?"Kein Kreuz gespeichert":!value.Visual?"Kein optisches Kreuz angefordert":crosses.TryGetValue(stockSelected,out root)&&root!=null?"Kreuz im geladenen Signalmodell vorhanden":(error??crossError)!=null?"Darstellung ausstehend: "+(error??crossError):"Gespeichert · wartet auf geladenes Signalmodell";}
         void StockAction(Action action){stockResultId=stockSelected;bool ok=false;try{action();ok=true;}catch(Exception e){stockMessage="Nicht übernommen: "+e.Message;}finally{RebuildTool();}try{if(ok)log?.Info("Bestandssignal "+stockResultId+": "+stockMessage);else log?.Warning("Bestandssignal "+stockResultId+": "+stockMessage);Entry.RecordSignalEvent("stock_signal_invalidity",new{id=stockResultId,result=stockMessage,success=ok,stored=Entry.Shared?.Retired?.Any(r=>r.Id==stockResultId)==true,ai_hook=StockSignalHooks.Available});}catch{/* Optional reporting must not reverse a confirmed action result. */}}
@@ -127,7 +127,7 @@ namespace EnusDE.Signaltechnik {
         public static bool Available {get;private set;}
         public void Start(Action<string> warning){Dispose();try{harmony=new Harmony(PatchId);foreach(string name in new[]{"Search","DistanceToNextSignalAfter"}){var search=typeof(Model.AI.AutoEngineerPlanner).GetMethod(name,BindingFlags.Static|BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)??throw new MissingMethodException("AutoEngineerPlanner."+name);harmony.Patch(search,transpiler:new HarmonyMethod(typeof(StockSignalHooks),nameof(FilterSearch)));}Available=true;}catch(Exception e){Dispose();warning?.Invoke("Ungültigkeitskreuze nur optisch: "+e.Message);}}
         public static IEnumerable<CodeInstruction> FilterSearch(IEnumerable<CodeInstruction> input){var result=input.ToList();int matches=0;var original=typeof(NamedLocationExtensions).GetMethod("GetSignal",new[]{typeof(Graph.NamedLocation)});var replacement=typeof(StockSignalHooks).GetMethod(nameof(SignalForAi),BindingFlags.Static|BindingFlags.Public);foreach(var c in result)if((c.opcode==OpCodes.Call||c.opcode==OpCodes.Callvirt)&&Equals(c.operand,original)){c.opcode=OpCodes.Call;c.operand=replacement;matches++;}if(matches!=1)throw new InvalidOperationException("Unerwartete AE-Signalsuche: "+matches+" Fundstellen.");return result;}
-        public static CTCSignal SignalForAi(Graph.NamedLocation marker){var signal=marker.GetSignal();return signal!=null&&StockInvalidity.Ignore(StateManager.IsHost,signal is RuntimeSignalProxy,signal.id,Entry.Shared?.Ready==true?Entry.Shared.Retired:null)?null:signal;}
+        public static CTCSignal SignalForAi(Graph.NamedLocation marker){var signal=marker.GetSignal();if(signal is RuntimeSignalProxy own&&Entry.IgnoresOwnSignal(own.ObjectId))return null;return signal!=null&&StockInvalidity.Ignore(StateManager.IsHost,signal is RuntimeSignalProxy,signal.id,Entry.Shared?.Ready==true?Entry.Shared.Retired:null)?null:signal;}
         public void Dispose(){Available=false;if(harmony!=null){harmony.UnpatchAll(PatchId);harmony=null;}}
     }
 }

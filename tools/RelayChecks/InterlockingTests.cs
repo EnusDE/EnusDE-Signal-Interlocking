@@ -27,6 +27,20 @@ public static class InterlockingTests {
         var world=new World();var engine=new InterlockingEngine();var route=Route();
         Ready(engine,route,world);
         Check(engine.ForSignal("A").Permitted&&world.Switch&&world.Writes==1,"route is authorized only after confirmed native switch alignment and final clear checks");
+        RouteConflictException detail=null;
+        try{engine.Request(Route("CONFLICT","C",50,150),world);}catch(RouteConflictException error){detail=error;}
+        Check(detail!=null&&detail.BlockingRouteIds.SequenceEqual(new[]{route.Id})&&detail.Message.Contains(route.Code)&&
+            engine.Active.Count==1&&engine.ForSignal("A").Permitted,
+            "a rejected route names its actual blocking definition without releasing or changing the active authority");
+        var held=engine.Active.Single();var heldLibrary=new DeskLibrary();
+        var heldField=new PanelTile{Kind=PanelTileKind.Straight,Section=new TrackSection{Segment="S1",From=20,To=40}};
+        Check(!RetainedRouteDisplay.OnTile(heldField,heldLibrary,engine.Active),
+            "normally established routes are not mislabeled as retained fault locks");
+        held.Stage=RouteStage.Cancelled;
+        Check(RetainedRouteDisplay.OnTile(heldField,heldLibrary,engine.Active)&&
+            RetainedRouteDisplay.OnTile(new PanelTile{Kind=PanelTileKind.Switch,Reference="W1"},heldLibrary,engine.Active)&&!held.Permitted,
+            "cancelled routes remain visible as held resources even while all entry signals are at stop");
+        held.Stage=RouteStage.Set;
         Check(engine.Locked("W1",false)&&!engine.Locked("W1",true)&&engine.UsesSignal("B"),"active route locks its switch against contrary changes and protects both endpoint signals");
         Check(Reject(()=>Ready(engine,Route("F2","C",50,150),world))&&engine.Active.Count==1,"overlapping routes are rejected without mutating the active authority");
         var sameSwitch=Route("F3","D",200,300);Check(Reject(()=>Ready(engine,sameSwitch,world)),"even nonoverlapping routes cannot concurrently own the same switch");

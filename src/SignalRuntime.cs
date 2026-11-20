@@ -35,15 +35,18 @@ namespace EnusDE.Signaltechnik {
         WindowManager manager;
         CustomWindowDefinition definition;
         IModLogger log;
-        string directory,scope,status="Stellwerk wird vorbereitet.",entryId,exitId,routeId;
+        string directory,scope,status=LocalText.Get("Stellwerk wird vorbereitet."),entryId,exitId,routeId;
         bool reduced,shunting,aiEnabled,stopped,loadFailed;
         double nextTick,lastRead=-100;
         double publishedRead=-200;
         bool nativeDirty=true,publishedStale,publishedAi;
+        long publishedOperatingVersion=-1,publishedObjectVersion=-1;
         public InterlockingEngine Engine=>engine;
         public void Initialize(MarkerRuntime placements,IModLogger logger,string path) {
             objects=placements;log=logger;directory=Path.Combine(path,"Interlocking");world=new SignalWorldBridge(this,transform);
-            hooks=new SignalHooks();try{hooks.Start(this);log.Info("Native Signalanbindung bereit; optionale Schild-Tooltips sind getrennt.");Entry.RecordSignalEvent("signal_bridge_health",new{available=true,version=Entry.Version});}catch(Exception e){loadFailed=true;status="Native Signalanbindung nicht verfügbar: "+e.Message;log.Warning(status);Entry.RecordSignalEvent("signal_bridge_health",new{available=false,error=e.Message});}
+            hooks=new SignalHooks();try{hooks.Start(this);log.Info("Native Signalanbindung bereit; optionale Schild-Tooltips sind getrennt.");Entry.RecordSignalEvent("signal_bridge_health",new{available=true,version=Entry.Version});}catch(Exception e){loadFailed=true;status=LocalText.Get("Native Signalanbindung nicht verfügbar: ")+e.Message;log.Warning(status);Entry.RecordSignalEvent("signal_bridge_health",new{available=false,error=e.Message});}
+            try{switchModels=new NativeSwitchModels();switchModels.Start(ElectricStand);}catch(Exception e){switchModels=null;log.Warning("Elektrische Weichenmodelle nicht verfügbar: "+e.Message);}
+            StartAutomation();
             ApplySettings(Entry.SettingsSnapshot());
             stockHooks=new StockSignalHooks();stockHooks.Start(message=>log.Warning(message));
         }
@@ -53,7 +56,8 @@ namespace EnusDE.Signaltechnik {
         internal IEnumerable<MarkerRecord> SignalObjects=>inventory.Values;
         public string Code(string id)=>RouteEndpoint(id)?.Name??"Signal fehlt";
         string SignalCaption(string id)=>RouteEndpoint(id)?.DisplayTitle??"Signal fehlt";
-        public bool CanModify(string id)=>!engine.UsesSignal(id);
+        public bool CanModify(string id)=>!engine.UsesSignal(id)&&!ReferencedAuxiliaryLocked(id)&&!lineDirections.States.Any(s=>s.Held&&(s.Definition.Anchors.ContainsKey(id)||s.Definition.BlockUnits.Any(u=>u.Boundary==id||u.Forward==id||u.Reverse==id)))&&
+            desks?.Points.Any(p=>p.Value.BoundaryLinks.Values.Contains(Object(id)?.PhysicalId??id)&&engine.Active.Any(r=>r.Route.Switches.Any(s=>s.Node==p.Key&&!r.ReleasedSwitches.Contains(p.Key))))!=true;
         public bool SwitchAllowed(string node,bool thrown)=>!StateManager.IsHost||!engine.Locked(node,thrown);
         public void AiRead(string id,SignalAspect aspect) {
             if(!Entry.WantsSignalEvents)return;
@@ -62,8 +66,9 @@ namespace EnusDE.Signaltechnik {
         }
         public LocalSignalAspect Aspect(string id) {
             if(!StateManager.IsHost)return Entry.Shared?.ClientAspect(id)??LocalSignalAspect.Stop;
+            var operation=OperatingState(id);if(operation==SignalOperatingState.Unbound)return LocalSignalAspect.Invalid;if(operation==SignalOperatingState.OutOfService)return LocalSignalAspect.Kennlicht;
             if(engine.FlankHoldsSignal(id))return LocalSignalAspect.Stop;
-            var row=Object(id);if(row==null||!aiEnabled||loadFailed||stopped||!StateManager.IsHost||Time.realtimeSinceStartup-lastRead>1.5)return LocalSignalAspect.Stop;
+            var row=Object(id);if(row==null||!aiEnabled||loadFailed||stopped||backupSuspended||!StateManager.IsHost||Time.realtimeSinceStartup-lastRead>1.5)return LocalSignalAspect.Stop;
             if(row.Kind==MarkerRecord.Distant) {
                 var target=Object(row.LinkedSignal);if(target==null||target.Kind!=MarkerRecord.Main)return LocalSignalAspect.Stop;
                 return Aspect(target.Id);
@@ -74,29 +79,36 @@ namespace EnusDE.Signaltechnik {
             return run.Route.Shunting?LocalSignalAspect.Shunt:run.Route.Reduced?LocalSignalAspect.Slow:LocalSignalAspect.Clear;
         }
         public SignalAspect NativeAspect(string id) {
+            if(IgnoreOwnSignal(id))return SignalAspect.Clear;
             return NativeSignalAuthority.For(Aspect(id),engine.ForViaSignal(id),id);
         }
         void Update() {
-            if(stopped||StateManager.IsUnloading)return;
+            if(stopped||backupSuspended||StateManager.IsUnloading){CancelRouteWork();return;}
+            ReadSetupFieldFocus();
             ReadEditorDeleteKey();
-            double now=Time.realtimeSinceStartup;if(now<nextTick)return;nextTick=now+.5;
+            ReadPointPickCancel();
+            ReadWorldSignalPickCancel();
+            if(panelButtons.ExpireSelection()){status=LocalText.Select("Start selection expired. Select the start signal again.","Startauswahl abgelaufen. Startsignal erneut auswählen.");panelView?.Refresh();}
+            double now=Time.realtimeSinceStartup;
+            if(scope!=null&&scope==objects.WorldKey&&Entry.Shared?.ConfigurationReady==true)try{ReadAutomationContacts(now);}catch(Exception e){automationStatus="Kontaktprüfung: "+e.Message;}
+            if(now<nextTick){TickRouteWork();return;}nextTick=now+.5;
             try {
                 var shared=Entry.Shared;if(shared==null||!shared.ConfigurationReady)return;
-                var markers=objects.Objects;
-                physicalBoundaries=markers.Where(r=>CircuitIdentity.Enabled(r)||r.IsSignal&&r.CircuitNumber>0)
-                    .ToDictionary(r=>r.Id);
-                inventory=SignalCatalogue.Expand(markers).ToDictionary(o=>o.Id);
+                ReadSignalInventory();
                 if(objects.WorldKey!=null&&scope!=objects.WorldKey) {
-                    if(scope!=null&&engine.Active.Count>0){engine.HaltAll();lastRead=-100;status="Spielstandzuordnung geändert. Vorherige Verschlüsse zuerst sicher auflösen.";return;}
+                    if(scope!=null&&engine.Active.Count>0){engine.HaltAll();lastRead=-100;status=LocalText.Get("Spielstandzuordnung geändert. Vorherige Verschlüsse zuerst sicher auflösen.");return;}
                     if(scope!=null){engine.HaltAll();RemoveProxies();world.Dispose();world=new SignalWorldBridge(this,transform);}
                     scope=objects.WorldKey;store=new InterlockingStore(directory,scope,shared.Routes,shared.PutRoutes);
-                    try{routes=store.Load();status="Stellwerk bereit. Alle Signale starten mit Halt.";}catch(Exception e){loadFailed=true;status="Stellwerksdatei bleibt erhalten: "+e.Message;}
+                    try{routes=store.Load();status=LocalText.Get("Stellwerk bereit. Alle Signale starten mit Halt.");}catch(Exception e){loadFailed=true;status=LocalText.Get("Stellwerksdatei bleibt erhalten: ")+e.Message;}
                     LoadPanel();
                 }
-                EnsureWindow();
+                EnsureWindow();RefreshSwitchModels();
                 if(!StateManager.IsHost){UpdateClient(shared);ReadPanel();return;}
-                UpdateNetwork();
+                RefreshRegisteredSignals();
+                UpdateRecognition();UpdateNetwork();
+                engine.SignalPassageMeters=Automation?.SignalPassageMeters??5;
                 world.BeginRead();engine.Tick(world);lastRead=now;
+                TickAutomation(now);
                 ReadNumberPassages(shared);
                 if(panel!=null&&PanelVisible)BuildRouteCues();
                 RefreshActiveInspector();
@@ -105,13 +117,34 @@ namespace EnusDE.Signaltechnik {
                 ObserveStates();
                 ReadPanel();
                 shared.Publish(this);
-            }catch(Exception e){lastRead=-100;engine.HaltAll();status="Stellwerk: "+e.Message;}
+                TickRouteWork();
+            }catch(Exception e){lastRead=-100;engine.HaltAll();status=LocalText.Get("Stellwerk: ")+e.Message;}
         }
         public void PublishNativeAspects() {
-            bool stale=stopped||StateManager.IsUnloading||!StateManager.IsHost||Time.realtimeSinceStartup-lastRead>1.5;
-            if(!nativeDirty&&publishedRead==lastRead&&publishedStale==stale&&publishedAi==aiEnabled)return;
-            foreach(var pair in proxies)if(pair.Value!=null)pair.Value.Publish(stale?SignalAspect.Stop:NativeAspect(pair.Key));
+            bool stale=stopped||backupSuspended||StateManager.IsUnloading||!StateManager.IsHost||Time.realtimeSinceStartup-lastRead>1.5;
+            long config=Entry.Shared?.ConfigurationVersion??-1,objectsVersion=Entry.Shared?.InstallationVersion??-1;
+            if(!nativeDirty&&publishedRead==lastRead&&publishedStale==stale&&publishedAi==aiEnabled&&publishedOperatingVersion==config&&publishedObjectVersion==objectsVersion)return;
+            if(OperatingDataReady&&(operatingNativeFault||publishedOperatingVersion!=config||publishedObjectVersion!=objectsVersion)) {
+                if(operatingNativeFault&&Time.realtimeSinceStartup<nextOperatingNativeRetry)return;
+                try {
+                    if(physicalBoundaryVersion!=objectsVersion)ReadSignalInventory();
+                    operatingNativeFault=false;RefreshProxies();aheadCache.Clear();operatingNativeError=null;
+                }catch(Exception error) {
+                    operatingNativeFault=true;nextOperatingNativeRetry=Time.realtimeSinceStartup+.5;lastRead=-100;nativeDirty=true;
+                    foreach(var proxy in proxies.Values)if(proxy!=null)try{proxy.Publish(SignalAspect.Stop);}catch{}
+                    if(operatingNativeError!=error.Message){operatingNativeError=error.Message;log?.Warning("Operating state native sync: "+error.Message);}
+                    return;
+                }
+            }
+            foreach(var pair in proxies)if(pair.Value!=null)pair.Value.Publish(IgnoreOwnSignal(pair.Key)?SignalAspect.Clear:stale?SignalAspect.Stop:NativeAspect(pair.Key));
+            publishedOperatingVersion=config;publishedObjectVersion=objectsVersion;
             publishedRead=lastRead;publishedStale=stale;publishedAi=aiEnabled;nativeDirty=false;
+        }
+        void ReadSignalInventory() {
+            var markers=objects.Objects;
+            IndexGfmObjects(markers);
+            physicalBoundaries=markers.Where(r=>CircuitIdentity.Enabled(r)||r.IsSignal&&r.CircuitNumber>0).ToDictionary(r=>r.Id);
+            inventory=SignalCatalogue.Expand(markers).ToDictionary(o=>o.Id);physicalBoundaryVersion=Entry.Shared.InstallationVersion;
         }
         void ObserveStates() {
             if(!Entry.WantsSignalEvents){lastStates.Clear();return;}
@@ -135,6 +168,8 @@ namespace EnusDE.Signaltechnik {
                     var go=new GameObject("EnusDE native signal "+row.Id);go.SetActive(false);go.transform.SetParent(transform,false);
                     proxy=go.AddComponent<RuntimeSignalProxy>();proxy.ObjectId=row.Id;proxy.id="enusde.signaltechnik.signal."+row.Id;proxies[row.Id]=proxy;nativeDirty=true;go.SetActive(true);
                 }
+                if(IgnoreOwnSignal(row.Id)){proxy.Bypassed=true;proxy.Publish(SignalAspect.Clear);graph.RemoveNamedLocation(proxy.id);markerPositions.Remove(row.Id);continue;}
+                if(proxy.Bypassed){proxy.Bypassed=false;proxy.Publish(SignalAspect.Stop);nativeDirty=true;}
                 string signature=SignalWorldBridge.AnchorKey(row),previous;
                 if(!markerPositions.TryGetValue(row.Id,out previous)||previous!=signature) {
                     graph.RemoveNamedLocation(proxy.id);graph.AddNamedLocation(proxy.id,at,1,proxy);markerPositions[row.Id]=signature;
@@ -146,7 +181,8 @@ namespace EnusDE.Signaltechnik {
         void RemoveProxy(string id){var proxy=proxies[id];try{Graph.Shared?.RemoveNamedLocation(proxy.id);}catch(Exception e){log?.Warning("Eigener Signalmarker: "+e.Message);}finally{if(proxy!=null)UnityEngine.Object.Destroy(proxy.gameObject);proxies.Remove(id);markerPositions.Remove(id);lastAi.Remove(id);}}
         void RemoveProxies(){foreach(string id in proxies.Keys.ToArray())Cleanup(()=>RemoveProxy(id));}
         void RequireEdit() {
-            if(stopped||loadFailed||StateManager.IsUnloading||!StateManager.IsHost||store==null)throw new InvalidOperationException("Stellwerk nur im geladenen Host-/Einzelspielerstand und mit lesbaren Daten bearbeitbar.");
+            if(stopped||backupSuspended||loadFailed||StateManager.IsUnloading||!StateManager.IsHost||store==null)throw new InvalidOperationException("Stellwerk nur im geladenen Host-/Einzelspielerstand und mit lesbaren Daten bearbeitbar.");
+            Entry.Shared?.RequireConstruction();
         }
         void CreateRoute() {
             RequirePanelEdit();
@@ -164,29 +200,27 @@ namespace EnusDE.Signaltechnik {
 
         void SaveNewRoutes(IReadOnlyList<RouteDefinition> additions) {
             RequirePanelEdit();
-            if(additions.Count==0||routes.Count+additions.Count>128)throw new InvalidOperationException("Höchstens 128 Fahrstraßen pro Spielstand.");
-            var next=routes.Concat(additions).ToList();
-            store.Save(next);
+            if(additions.Count==0)throw new InvalidOperationException("Höchstens 128 Fahrstraßen pro Spielstand.");
+            var accepted=additions.Select(r=>routes.FirstOrDefault(old=>RouteIdentity.DefinitionKey(old)==RouteIdentity.DefinitionKey(r))??r).ToList();
+            var next=routes.Concat(accepted.Where(r=>!routes.Any(old=>old.Id==r.Id))).GroupBy(r=>r.Id).Select(g=>g.First()).ToList();
+            if(next.Count>128)throw new InvalidOperationException("Höchstens 128 Fahrstraßen pro Spielstand.");
+            if(next.Count!=routes.Count)store.Save(next);
             routes=next;
-            routeId=additions[0].Id;
-            status=additions.Count==1?additions[0].Code+" gespeichert.":additions.Count+" Fahrstraßen gespeichert.";
+            routeId=accepted[0].Id;
+            status=accepted.Count==1?accepted[0].Code+" verfügbar.":accepted.Count+" Fahrstraßen verfügbar.";
         }
         void SetRoute() {
-            var flankRoute=routes.FirstOrDefault(r=>r.Id==routeId);if(flankRoute!=null)FlankProtection.RequireCalculated(flankRoute);
-            RequireDispatcher();if(!aiEnabled)throw new InvalidOperationException("AE-Anbindung zuerst unter Spieloptionen > Mods > EnusDE Signaltechnik einschalten.");
-            var route=routes.FirstOrDefault(r=>r.Id==routeId)??throw new InvalidOperationException("Fahrstraße auswählen.");
-            if(route.Path==null)throw new InvalidOperationException("Ältere Fahrstraße: Weichen passend stellen und Fahrweg einmal aktualisieren, damit Rangiersignale und Freimeldebereiche übernommen werden.");
-            if(!SignalCatalogue.Supports(Object(route.Entry),route.Shunting,route.Reduced))throw new InvalidOperationException("Der gewählte Signalbegriff ist an dieser Mastrichtung nicht eingerichtet.");
-            world.BeginRead();engine.Request(route,world,Entry.SettingsSnapshot().Markers.ProtectionWaitSeconds);lastRead=Time.realtimeSinceStartup;status=route.Code+" angefordert. Fahrt erst nach bestätigter Festlegung.";Entry.RecordSignalEvent("route_set",new{id=route.Id,code=route.Code,entry=route.Entry,exit=route.Exit,phase="requested"});
+            RequireDispatcher();var route=routes.FirstOrDefault(r=>r.Id==routeId)??throw new InvalidOperationException("Fahrstraße auswählen.");
+            SetRoutePlan(new RouteChainPlan{Routes=new List<RouteDefinition>{route}});
         }
         void CancelRoute() {
-            RequireDispatcher();world.BeginRead();engine.CancelChain(routeId,world);status="Fahrstraße / Folge sicher aufgelöst.";Entry.RecordSignalEvent("route_cancel",new{id=routeId});
+            RequireDispatcher();world.BeginRead();engine.CancelChain(routeId,world);status=LocalText.Get("Fahrstraße / Folge sicher aufgelöst.");Entry.RecordSignalEvent("route_cancel",new{id=routeId});
         }
         void DeleteRoute() {
             RequirePanelEdit();if(engine.Active.Any(r=>r.Route.Id==routeId))throw new InvalidOperationException("Aktive Fahrstraße zuerst sicher auflösen.");
-            var next=routes.Where(r=>r.Id!=routeId).ToList();store.Save(next);routes=next;routeId=routes.FirstOrDefault()?.Id;status="Fahrstraßendefinition entfernt.";Rebuild();
+            var next=routes.Where(r=>r.Id!=routeId).ToList();store.Save(next);routes=next;routeId=routes.FirstOrDefault()?.Id;status=LocalText.Get("Fahrstraßendefinition entfernt.");Rebuild();
         }
-        void Act(Action action){workspaceActionError=null;try{action();}catch(Exception e){workspaceActionError=status=e.Message;try{log?.Warning("Stellwerkaktion: "+e.Message);Entry.RecordSignalEvent("interlocking_action_failed",new{error=e.Message,entry=entryId,exit=exitId,route=routeId});}catch{}}finally{nativeDirty=true;PublishNativeAspects();}}
+        void Act(Action action){bool fromUi=WorldPointerInput.OverUi();workspaceActionError=null;try{action();}catch(Exception e){workspaceActionError=status=e.Message;if(e is RouteConflictException conflict)OpenBlockingRoutes(conflict);try{log?.Warning("Stellwerkaktion: "+e.Message);Entry.RecordSignalEvent("interlocking_action_failed",new{error=e.Message,entry=entryId,exit=exitId,route=routeId});}catch{}}finally{if(fromUi)worldSelectionInput.Complete();nativeDirty=true;PublishNativeAspects();}}
         CustomWindowDefinition editorDefinition;
         void EnsureWindow() {
             if(manager==null)manager=WindowManager.Shared;
@@ -201,19 +235,28 @@ namespace EnusDE.Signaltechnik {
             manager.RegisterCustomWindow(next);
             return next;
         }
-        void Rebuild(bool rememberScroll=true){if(rememberScroll)RememberPanelScroll();if(manager!=null&&!StateManager.IsUnloading)CustomWindowHandle.Create(ActiveWindowId)?.SetNeedsRebuild();}
+        void Rebuild(bool rememberScroll=true){if(rememberScroll)RememberPanelScroll();if(manager!=null&&!StateManager.IsUnloading){CustomWindowHandle.Create(ActiveWindowId)?.SetNeedsRebuild();RebuildEditorToolsWindow();}}
         public void Open(bool choose=true)=>ShowWorkspace(false,choose?4:0,choose);
         public void Shutdown() {
-            stockHooks?.Dispose();
+            stockHooks?.Dispose();Cleanup(()=>automationHooks?.Dispose());Cleanup(()=>contactScene?.Dispose());Cleanup(RestoreSwitchModels);
             StopNetwork();
-            if(stopped)return;stopped=true;engine.HaltAll();lastRead=-100;Cleanup(PublishNativeAspects);Cleanup(RemoveProxies);Cleanup(()=>hooks?.Dispose());Cleanup(()=>world?.Dispose());Cleanup(()=>panelWorld?.Dispose());Cleanup(RemoveWindow);
+            if(stopped)return;stopped=true;CancelRouteWork();engine.HaltAll();lastRead=-100;Cleanup(PublishNativeAspects);Cleanup(RemoveProxies);Cleanup(()=>hooks?.Dispose());Cleanup(()=>world?.Dispose());Cleanup(()=>panelWorld?.Dispose());Cleanup(RemoveWindow);
             manager=null;definition=null;editorDefinition=null;inventory.Clear();lastStates.Clear();lastAi.Clear();routes.Clear();
         }
         void Cleanup(Action action){try{action();}catch(Exception e){log?.Warning("Stellwerk-Bereinigung: "+e.Message);}}
         void RemoveWindow() {
+            Cleanup(()=>UnregisterWorkspace(NumberOverviewPlacementId,numberOverviewPlacementDefinition));numberOverviewPlacementDefinition=null;numberOverviewProposal=null;numberOverviewOriginal=null;
+            Cleanup(()=>UnregisterWorkspace(BlockPlacementWindowId,blockPlacementDefinition));blockPlacementDefinition=null;blockPlacementBuild=null;
+            Cleanup(()=>UnregisterWorkspace(DiagramPickId,diagramPickDefinition));diagramPickDefinition=null;diagramPickAccept=null;diagramPickGeneration++;
+            Cleanup(()=>UnregisterWorkspace(RouteChoiceWindowId,routeChoiceDefinition));routeChoiceDefinition=null;
+            masterLayoutPopup?.Dismiss();masterLayoutPopup=null;
             ReleaseWorkspaceCanvas();
             Cleanup(()=>UnregisterWorkspace(WindowId,definition));
             Cleanup(()=>UnregisterWorkspace(EditorWindowId,editorDefinition));
+            Cleanup(()=>UnregisterWorkspace(CarInfoWindowId,carInfoDefinition));carInfoDefinition=null;informationCar=null;
+            Cleanup(()=>UnregisterWorkspace(EditorToolsWindowId,editorToolsDefinition));editorToolsDefinition=null;
+            Cleanup(()=>UnregisterWorkspace(RecognitionPreviewWindowId,recognitionPreviewDefinition));recognitionPreviewDefinition=null;
+            Cleanup(()=>UnregisterWorkspace(MasterLayoutWindowId,masterLayoutDefinition));masterLayoutDefinition=null;
         }
         void UnregisterWorkspace(string id,CustomWindowDefinition owned) {
             if(manager==null||owned==null||!ReferenceEquals(manager.GetDefinition(id),owned))return;

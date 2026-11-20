@@ -15,6 +15,7 @@ namespace EnusDE.Signaltechnik {
     // It is discovered by the game's own named-location signal search. No AE speed-slider writes.
     public sealed class RuntimeSignalProxy : CTCSignal {
         public string ObjectId;
+        public bool Bypassed;
         static readonly FieldInfo displayed=typeof(CTCSignal).GetField("<LastShownAspect>k__BackingField",BindingFlags.Instance|BindingFlags.NonPublic);
         SignalAspect published;
         bool hasPublished;
@@ -86,7 +87,8 @@ namespace EnusDE.Signaltechnik {
         static void AiRead(CTCSignal __0,SignalAspect __1){var proxy=__0 as RuntimeSignalProxy;if(proxy!=null)runtime?.AiRead(proxy.ObjectId,__1);}
         static void Forecast(ref int? __0,ref int? __1,ref float __2,ref CTCSignal __3,ref bool __4){try{runtime?.ForecastRestriction(ref __0,ref __1,ref __2,ref __3,ref __4);}catch(Exception e){runtime?.ForecastFailure(e);}}
         static void ForecastTarget(Model.AI.AutoEngineerPlanner planner,int? speed,int? approach,float distance,CTCSignal signal,bool limited){
-            Forecast(ref speed,ref approach,ref distance,ref signal,ref limited);
+            if(signal is RuntimeSignalProxy proxy&&runtime?.IgnoreOwnSignal(proxy.ObjectId)==true){speed=null;approach=null;distance=0;signal=null;limited=false;}
+            else Forecast(ref speed,ref approach,ref distance,ref signal,ref limited);
             setRestriction(planner,speed,approach,distance,signal,limited);
             if(speed==0&&Entry.WantsSignalEvents)runtime?.ObserveStopTarget(planner,signal,distance);
         }

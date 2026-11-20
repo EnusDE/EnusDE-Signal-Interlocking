@@ -41,6 +41,11 @@ namespace EnusDE.Signaltechnik {
             int oldCount=0;string bankKey=channel+".bank"+h.Slot;int.TryParse(properties.Read(bankKey),out oldCount);for(int i=h.Count;i<oldCount&&i<limit*2/ChunkLength+2;i++)properties.Write(channel+"."+h.Slot+"."+i,null);
             properties.Write(bankKey,h.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));properties.Write(channel+".commit",JsonConvert.SerializeObject(h));
         }
+        // Explicit, reviewed backup restoration only. Ordinary writes still reject corrupt headers.
+        public void Replace<T>(string channel,T value,int limit) {
+            try{Parse(Header(channel),limit);}catch(Exception e)when(e is InvalidDataException||e is JsonException||e is FormatException){properties.Write(channel+".commit",null);}
+            Write(channel,value,limit);
+        }
         public static string Hash(byte[] bytes){using(var hash=SHA256.Create())return BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-","").ToLowerInvariant();}
     }
     public sealed class LiveLease {

@@ -35,3 +35,27 @@ settings.json
 *.bak
 Thumbs.db
 Desktop.ini
+
+# Python caches and local dependency/runtime copies
+__pycache__/
+*.py[cod]
+/Managed/
+/Railroader_Data/
+/library-files/
+/attachments/
+/.cloud-setup/
+
+# Private working notes, discussion drafts and upload handoffs (not public guides)
+/private/
+/local-notes/
+/docs/private/
+/docs/CONCEPT-AI-GFM-CABLES.de.txt
+/docs/CONCEPT-AUTOMATION-COMMUNICATION-HANDBOOK.de.md
+/docs/EDITOR-ESTW-UMBAUPLAN.de.md
+/docs/FOLLOW-UP-GFM-PLACEMENT.de.txt
+/docs/GWB-REDESIGN.en.md
+/docs/ON-DEMAND-ROUTES.de.md
+/docs/OPERATING-MODES-PROPOSAL.de.txt
+/docs/PROJECT-OVERVIEW.de.md
+/docs/VORSIGNALE-FAHRWEGE.de.md
+/docs/NEXUS-0.7.59.en.txt

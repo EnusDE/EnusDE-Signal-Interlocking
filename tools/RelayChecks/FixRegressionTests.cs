@@ -21,6 +21,8 @@ public static class FixRegressionTests {
         var requested=new List<string>();object hdrp=new object();object found=ShaderPolicy.Find<object>(name=>{requested.Add(name);return name=="HDRP/Unlit"?hdrp:null;});
         Check(ReferenceEquals(found,hdrp)&&requested.SequenceEqual(new[]{"Universal Render Pipeline/Unlit","HDRP/Unlit"}),"shared shader selection supports an HDRP-only installation instead of requiring URP or legacy Unlit");
         Check(ShaderPolicy.Find<object>(name=>null)==null,"a renderer with no available shader can retain the original sign instead of inventing a shader");
+        var paintShaders=new List<string>();object paint=new object();
+        Check(ReferenceEquals(ShaderPolicy.FindLit<object>(name=>{paintShaders.Add(name);return name=="HDRP/Lit"?paint:null;}),paint)&&paintShaders.SequenceEqual(new[]{"HDRP/Lit"})&&ShaderPolicy.FindLit<object>(name=>name.Contains("Unlit")?paint:null)==null,"painted detection arrows prefer ambient-lit materials and never select an unlit shader as ordinary paint");
         bool joined=true,corner=true,straight=true,slopes=true;
         var branch=PanelGeometry.Lines(PanelTileKind.Switch)[2].B;var diagonal=PanelGeometry.Lines(PanelTileKind.Diagonal)[0];var bend=PanelGeometry.Lines(PanelTileKind.Curve)[1].B;
         for(int rotation=0;rotation<4;rotation++)foreach(bool mirror in new[]{false,true}) {

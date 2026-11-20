@@ -86,12 +86,25 @@ public static class NativeTests {
         DeskTests.Run(root);
         EditorTests.Run(root);
         SharedFeatureTests.Run(root);
+        BackupTests.Run(root);
         TransferTests.Run();
         EditorPerformanceTests.Run(root);
         ApproachReleaseTests.Run();
         ForecastTests.Run();
         FlankTests.Run();WorkspaceTests.Run();SignalGlowTests.Run();
+        PracticalSetupTests.Run(root);
+        BlockUpdateTests.Run(root);
+        GfmRepairTests.Run();
+        LineTargetTests.Run();
+        LineNumberOverviewTests.Run();
+        EditorCanvasTests.Run(root);
+        Game063Tests.Run();
+        ConstructionSnapshotTests.Run();
         NetworkTests.Run(Path.Combine(Path.GetDirectoryName(typeof(Model.Car).Assembly.Location),"..","StreamingAssets","AssetPacksCore","nc-bryson-terrain","Data","Map.json"));
+        LineTutorialTests.Run();
+        DiagramFieldSetupTests.Run();
+        LineRemovalTests.Run();
+        SetupAssistantTests.Run();
         SignalApiTests.Run();
         FixRegressionTests.Run(root);
     }

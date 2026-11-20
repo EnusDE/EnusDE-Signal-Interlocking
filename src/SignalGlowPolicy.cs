@@ -12,8 +12,8 @@ namespace EnusDE.Signaltechnik {
     public static class SignalLensPlan {
         public static SignalLensColor[] For(string kind,LocalSignalAspect aspect) {
             if(kind!=MarkerRecord.Main&&kind!=MarkerRecord.Shunt&&kind!=MarkerRecord.Distant)throw new ArgumentException("Unbekannter Signalkopf.");
-            if(aspect!=LocalSignalAspect.Stop&&aspect!=LocalSignalAspect.Clear&&aspect!=LocalSignalAspect.Slow&&aspect!=LocalSignalAspect.Shunt&&aspect!=LocalSignalAspect.Dark)aspect=LocalSignalAspect.Stop;
-            var lamps=new SignalLensColor[kind==MarkerRecord.Main?3:4];if(aspect==LocalSignalAspect.Dark)return lamps;
+            if(!Enum.IsDefined(typeof(LocalSignalAspect),aspect))aspect=LocalSignalAspect.Stop;
+            var lamps=new SignalLensColor[kind==MarkerRecord.Main?3:4];if(aspect==LocalSignalAspect.Dark||aspect==LocalSignalAspect.Invalid||aspect==LocalSignalAspect.Kennlicht)return lamps;
             if(kind==MarkerRecord.Main){if(aspect==LocalSignalAspect.Stop||aspect==LocalSignalAspect.Shunt)lamps[2]=SignalLensColor.Red;else{lamps[0]=SignalLensColor.Green;if(aspect==LocalSignalAspect.Slow)lamps[1]=SignalLensColor.Yellow;}}
             else if(kind==MarkerRecord.Shunt){if(aspect==LocalSignalAspect.Shunt){lamps[2]=lamps[3]=SignalLensColor.White;}else lamps[0]=lamps[1]=SignalLensColor.Red;}
             else if(kind==MarkerRecord.Distant){if(aspect==LocalSignalAspect.Clear)lamps[2]=lamps[3]=SignalLensColor.Green;else if(aspect==LocalSignalAspect.Slow){lamps[0]=SignalLensColor.Yellow;lamps[3]=SignalLensColor.Green;}else lamps[0]=lamps[1]=SignalLensColor.Yellow;}

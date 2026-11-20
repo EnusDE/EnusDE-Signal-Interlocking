@@ -8,7 +8,8 @@ $sdk=Get-BuildSdk
 $compiler=$sdk.Compiler
 $arguments=@('/nologo','/target:exe','/langversion:9','/nostdlib+',('/out:"'+(Join-Path $output 'InteractionChecks.dll')+'"'))
 Get-ChildItem -LiteralPath $sdk.ReferenceAssemblies -Filter '*.dll' | ForEach-Object {$arguments+='/reference:"'+$_.FullName+'"'}
-foreach($file in @((Join-Path $PSScriptRoot 'InteractionFixture.cs'),(Join-Path $project 'src\TrackMenuIntegration.cs'),(Join-Path $project 'src\SignalHooks.cs'))){$arguments+='"'+$file+'"'}
+foreach($name in @('TrackMenuIntegration','SignalHooks','AutomationHooks')){$arguments+='"'+(Join-Path $project ('src/'+$name+'.cs'))+'"'}
+$arguments+='"'+(Join-Path $PSScriptRoot 'InteractionFixture.cs')+'"'
 $response=Join-Path $output 'compiler.rsp'
 [IO.File]::WriteAllLines($response,$arguments,[Text.UTF8Encoding]::new($false))
 & dotnet exec $compiler /noconfig ('@'+$response)

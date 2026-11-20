@@ -23,7 +23,18 @@ public static class PanelTests {
         Check(Reject(()=>buttons.Match(new[]{route,route.Clone()},false,false)),"ambiguous route definitions require explicit selection rather than choosing a random route");
         buttons.Clear();buttons.Press("A",id=>true);Check(Reject(()=>buttons.Press("B",id=>id=="B"))&&buttons.Start==null,"a deleted start signal invalidates a pending two-button action");
         File.WriteAllText(store.FilePath,"{broken");Check(Reject(()=>store.Load())&&File.ReadAllText(store.FilePath)=="{broken","corrupt panel files are preserved and cannot silently become an empty replacement");
-        double mph;Check(NativeSignProfile.TrySpeed("Speed Sign","SignsGroup01",448,978,.005588,.0007175,.0265922,out mph)&&mph==25,"base-map speed conversion recognizes the inspected 0.6.2 mesh profile with canonical 25 mph");
-        Check(!NativeSignProfile.TrySpeed("Other Sign","SignsGroup01",448,978,.005588,.0007175,.0265922,out mph)&&!NativeSignProfile.TrySpeed("Speed Sign","SignsGroup01",449,978,.005588,.0007175,.0265922,out mph),"unknown scenery and changed meshes are not assigned guessed speed limits");
+        EditorContextTests.Run();
+        OnDemandRouteTests.Run();
+        RouteQueueTests.Run();
+        RecognitionContactTests.Run();
+        SchematicTests.Run(root);
+        CircuitRoleTests.Run(root);
+        NumberMirrorTests.Run();
+        AutomationTests.Run();
+        ExtensionTests.Run(root);
+        FreeLineTests.Run();
+        WorldSignTextureTests.Run();
+        Check(NativeSignProfile.IsKnownGeometry("Speed Sign","SignsGroup01",448,978,.005588,.0007175,.0265922),"native mesh profile identifies the supported sign model while each face supplies its own speed value");
+        Check(!NativeSignProfile.IsKnownGeometry("Other Sign","SignsGroup01",448,978,.005588,.0007175,.0265922)&&!NativeSignProfile.IsKnownGeometry("Speed Sign","SignsGroup01",449,978,.005588,.0007175,.0265922),"unknown scenery and changed meshes are not assigned guessed speed limits");
     }
 }

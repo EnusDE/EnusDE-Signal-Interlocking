@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using Game.State;
@@ -17,10 +18,10 @@ namespace EnusDE.Signaltechnik {
         float editorZoom=1,dispatcherZoom=1;
         Vector2 editorScroll=new Vector2(0,1),dispatcherScroll=new Vector2(0,1);
 
-        internal bool WorkspaceAvailable=>!stopped&&!StateManager.IsUnloading&&panel!=null;
+        internal bool WorkspaceAvailable=>!stopped&&!StateManager.IsUnloading&&panel!=null&&Entry.Shared?.ConstructionUnlocked==true;
         internal bool WorkspaceEditable=>WorkspaceAvailable&&StateManager.IsHost&&!loadFailed&&store!=null&&panelStore!=null&&panelError==null;
         string ActiveWindowId=>editingWorkspace?EditorWindowId:WindowId;
-        string WindowText(string english,string german)=>objects?.GermanInterface==true?german:english;
+        string WindowText(string english,string german)=>LocalText.Select(english,german);
 
         internal void OpenMode(bool editing) {
             if(!WorkspaceAvailable||editing&&!WorkspaceEditable)return;
@@ -28,9 +29,11 @@ namespace EnusDE.Signaltechnik {
         }
 
         void ShowWorkspace(bool editing,int page,bool showTools) {
-            if(stopped||StateManager.IsUnloading||editing&&!WorkspaceEditable)return;
+            if(!WorkspaceAvailable||editing&&!WorkspaceEditable)return;
+            if(objects.IsPlacing)objects.CloseForWorldSelection();
             EnsureWindow();
             if(manager==null)return;
+            if(!editing&&CurrentDesk!=null&&!CurrentDesk.Global&&!CurrentDesk.ShowInDispatcher)SelectDesk(desks.Desks.Single(d=>d.Global).Id,false);
             if(editingWorkspace!=editing) {
                 CloseWorkspaceMode();
                 editingWorkspace=editing;
@@ -41,22 +44,28 @@ namespace EnusDE.Signaltechnik {
                 region=null;
                 workspaceActionError=null;
             }
+            panel=DeskPanel(CurrentDesk);panelReadings.Clear();panelReadTime=-100;nextPanelRead=0;
             workspaceContext=showTools;
             if(editing) {
                 editorMode=1;
                 editorCatalogueForm=null;
                 pendingDeskRemoval=null;
                 editorLinksAfterSelection=page==3;
-                page=4;
+                page=page==7?7:4;editorDetailsOpen=showTools&&page==7;
             }
             ResetWorkspacePage(page);
             var window=CustomWindowHandle.Create(ActiveWindowId);
             bool cached=manager.GetCustomWindow(ActiveWindowId)!=null;
             window?.Show();
             if(cached)window?.SetNeedsRebuild();
+            if(editing&&editorDetailsOpen)OpenEditorToolsWindow();
         }
 
         internal void CloseWorkspaceMode() {
+            CloseRouteChoiceWindow();
+            masterLayoutPopup?.Dismiss();masterLayoutPopup=null;
+            if(manager?.GetCustomWindow(MasterLayoutWindowId)!=null)manager.CloseWindow(MasterLayoutWindowId);
+            if(manager?.GetCustomWindow(EditorToolsWindowId)!=null)manager.CloseWindow(EditorToolsWindowId);
             if(panelScroll!=null) {
                 RememberPanelScroll();
                 if(editingWorkspace)SaveEditorView();
@@ -67,6 +76,9 @@ namespace EnusDE.Signaltechnik {
         }
 
         void ReleaseWorkspaceCanvas() {
+            DismissEditorMenu();
+            if(catalogueInspector!=null&&editorSurface!=null)catalogueInspector.OnRebuild-=editorSurface.ThemeSoon;
+            catalogueInspector=null;
             if(inspector!=null&&workspace!=null)inspector.OnRebuild-=workspace.ThemeSoon;
             if(inspector!=null&&editorSurface!=null)inspector.OnRebuild-=editorSurface.ThemeSoon;
             if(workspace!=null){workspace.gameObject.SetActive(false);Destroy(workspace.gameObject);}
@@ -79,6 +91,7 @@ namespace EnusDE.Signaltechnik {
             SizeDispatcherPopup();
             RefreshWorkspaceTools();
             inspector?.SetNeedsRebuild();
+            catalogueInspector?.SetNeedsRebuild();
             workspace?.ThemeSoon();
             editorSurface?.ThemeSoon();
         }
@@ -91,30 +104,34 @@ namespace EnusDE.Signaltechnik {
         void SizeDispatcherPopup() {
             if(workspace==null||!workspaceContext)return;
             var tile=panelLookup.Read(panel,selectedX,selectedY);
-            workspace.SetCompactPopup(panelPage==0&&tile?.Kind==PanelTileKind.Signal&&
+            workspace.SetCompactPopup(panelPage==0&&tile?.Kind==PanelTileKind.Signal&&!SignalCellLayout.HasAuxiliaryHalf(tile)&&
                 !SignalHasRouteControls(tile.Reference)&&!SignalHasRouteControls(tile.AlternateSignal)&&
                 (panelButtons.Start==null||tile.LinkedAuxiliary==null));
         }
 
-        void OpenWorkspaceContext(){workspaceContext=true;workspace?.ShowContext(true);RefreshWorkspaceFields();}
-        void WorkspacePage(int page){workspaceContext=true;Mode(page);}
-        void CloseWorkspaceContext(){workspaceContext=false;workspace?.ShowContext(false);}
+        void OpenWorkspaceContext(){workspaceContext=true;workspace?.ShowContext(true);if(editingWorkspace){editorDetailsOpen=true;OpenEditorToolsWindow();}RefreshWorkspaceFields();}
+        void WorkspacePage(int page){workspaceContext=true;if(editingWorkspace)editorDetailsOpen=true;Mode(page);if(editingWorkspace)OpenEditorToolsWindow();}
+        void CloseWorkspaceContext(){workspaceContext=false;workspace?.ShowContext(false);if(editingWorkspace){editorDetailsOpen=false;if(manager?.GetCustomWindow(EditorToolsWindowId)!=null)manager.CloseWindow(EditorToolsWindowId);}}
 
         void BuildDispatcherWindow(UIPanelBuilder builder) {
             if(editingWorkspace)return;
             CreateWorkspaceSurface(builder);
             AddWorkspaceTool("STW",WindowText("Choose interlocking","Stellwerk wählen"),()=>WorkspacePage(4),()=>panelPage==4);
             AddWorkspaceTool("DISPATCH",WindowText("Operate from the track diagram","Gleisbild bedienen"),()=>{CloseWorkspaceContext();Mode(0);},()=>panelPage==0);
-            AddWorkspaceTool("FS",WindowText("Operate stored routes","Gespeicherte Fahrstraßen bedienen"),()=>WorkspacePage(2),()=>panelPage==2);
+            if(!OnDemandRoutes)AddWorkspaceTool("FS",WindowText("Operate stored routes","Gespeicherte Fahrstraßen bedienen"),()=>WorkspacePage(2),()=>panelPage==2);
+            AddWorkspaceTool("LOCK",WindowText("All routes and retained locks","Festlegungen – alle Stellwerke"),()=>WorkspacePage(6),()=>panelPage==6);
+            AddWorkspaceTool("ID","Automatikstatus",()=>WorkspacePage(7),()=>panelPage==7);
+            AddWorkspaceTool("STW",WindowText("Master modules and central takeover","ESTW-Module und zentrale Übernahme"),()=>WorkspacePage(8),()=>panelPage==8);
+            AddWorkspaceTool("↔",WindowText("Open line / GWB permissions","Freie Strecke / GWB-Erlaubnisse"),OpenFreeLines,()=>panelPage==9);
             AddWorkspaceTool("?",WindowText("Handbook","Handbuch"),()=>WorkspacePage(5),()=>panelPage==5);
             if(StateManager.IsHost) {
-                var stop=workspace.Button(workspace.Root,WindowText("STOP","HALT"),()=>Act(()=>{RequireDispatcher();engine.HaltAll();panelButtons.Clear();status="Alle Signale Halt. Erforderliche Verschlüsse bleiben erhalten.";}),WindowText("Set all own signals to stop","Alle eigenen Signale auf Halt"));
+                var stop=workspace.Button(workspace.Root,WindowText("STOP","HALT"),()=>Act(()=>{RequireDispatcher();CancelRouteWork();foreach(var pending in automaticRequests.Where(r=>r.Stage==AutomaticRequestStage.Waiting||r.Stage==AutomaticRequestStage.Submitted).ToArray())WithdrawAutomaticRequest(pending,"Alle Signale Halt angefordert.");engine.HaltAll();panelButtons.Clear();status=LocalText.Get("Alle Signale Halt. Erforderliche Verschlüsse bleiben erhalten.");}),WindowText("Set all own signals to stop","Alle eigenen Signale auf Halt"));
                 var rect=stop.GetComponent<RectTransform>();
                 rect.anchorMin=rect.anchorMax=rect.pivot=Vector2.zero;
                 rect.anchoredPosition=new Vector2(8,8);rect.sizeDelta=new Vector2(46,38);
                 (stop.targetGraphic as Image).color=new Color(.48f,.09f,.08f);
             }
-            CompleteWorkspace(builder,BuildDispatcherFields,()=>panelPage==2?WindowText("Routes","Fahrstraßen"):WorkspacePaneTitle());
+            CompleteWorkspace(builder,BuildDispatcherFields,()=>panelPage==7?"Automatikstatus":panelPage==6?"Festlegungen · alle Stellwerke":panelPage==2?WindowText("Routes","Fahrstraßen"):WorkspacePaneTitle());
         }
 
         void CreateWorkspaceSurface(UIPanelBuilder builder) {
@@ -129,7 +146,7 @@ namespace EnusDE.Signaltechnik {
             workspace.Initialize(root);
             workspace.ReadTitle=()=>CurrentDeskLabel+" · "+Math.Round(panelZoom*100)+" %";
             workspace.ReadStatus=()=>panelError??workspaceActionError??status;
-            workspace.ReadSelection=()=>panelButtons.Start==null?SelectedFieldStatus():SignalCaption(panelButtons.Start)+(panelButtons.End==null?" → "+WindowText("Choose destination","Ziel wählen"):" → "+SignalCaption(panelButtons.End));
+            workspace.ReadSelection=()=>DispatcherReleaseFeedback()??(panelButtons.Start==null?SelectedFieldStatus():SignalCaption(panelButtons.Start)+(panelButtons.End==null?" → "+WindowText("Choose destination","Ziel wählen"):" → "+SignalCaption(panelButtons.End)));
             workspace.Closed=()=>{workspaceContext=false;};
 
         }
@@ -180,7 +197,7 @@ namespace EnusDE.Signaltechnik {
 
         void BuildWorkspaceDiagram(RectTransform frame,Func<bool> isCurrent,bool editor=false) {
             var viewport=WorkspaceSurface.Rect(frame,"Viewport");
-            WorkspaceSurface.Fill(viewport,0,0,12,12);
+            WorkspaceSurface.Fill(viewport,editor?42:0,editor?24:0,12,12);
             viewport.gameObject.AddComponent<RectMask2D>();
             panelScroll=frame.gameObject.AddComponent<ScrollRect>();
             panelScroll.viewport=viewport;
@@ -188,14 +205,31 @@ namespace EnusDE.Signaltechnik {
             panelScroll.movementType=ScrollRect.MovementType.Clamped;
             panelScroll.inertia=false;
             panelScroll.scrollSensitivity=0;
-            var drawing=WorkspaceSurface.Rect(viewport,"Track diagram");
+            var content=editor?WorkspaceSurface.Rect(viewport,"Editor working area"):null;
+            if(content!=null){content.anchorMin=content.anchorMax=content.pivot=new Vector2(0,1);content.anchoredPosition=Vector2.zero;}
+            var drawing=WorkspaceSurface.Rect(content!=null?content:viewport,"Track diagram");
             panelView=drawing.gameObject.AddComponent<PanelView>();
             panelView.Initialize(panel,Visual,PressCell,()=>!stopped&&isCurrent()&&PanelVisible,CellContext,ChangeZoom,PreviewTile,SelectedRegion,editor);
-            panelScroll.content=drawing;
+            if(editor){var surface=content.gameObject.AddComponent<EditorCanvasSurface>();surface.Initialize(panelView);panelView.ConfigureCanvas(surface);}
+            if(editor)panelView.ConfigureMove(()=>editingWorkspace&&panelPage==1&&(editorMode==1||editorMode==2)&&regionAction==0&&pendingDelete==null&&!assigningPoint&&!HasPendingSignal,
+                pending=>Act(()=>{
+                    RequirePanelEdit();if(pending.X==pending.Source.X&&pending.Y==pending.Source.Y)return;
+                    var growth=pending.Growth(panel);EditPanel(doc=>pending.Apply(doc));region=new PanelRegion{X=pending.X+growth.Left,Y=pending.Y+growth.Top,Width=pending.Source.Width,Height=pending.Source.Height};
+                    axisSelection.Clear();tileDraft=null;status=WindowText("Moved with all bindings. Undo is available.","Mit allen Zuordnungen verschoben. Rückgängig ist verfügbar.");panelView?.Refresh();RefreshWorkspaceFields();
+                }));
+            panelScroll.content=content!=null?content:drawing;
             panelView.SetZoom(panelZoom);
             panelView.AttachScroll(panelScroll);
             panelScroll.horizontalScrollbar=WorkspaceBar(frame,false);
             panelScroll.verticalScrollbar=WorkspaceBar(frame,true);
+            if(editor) {
+                var columns=WorkspaceSurface.Rect(frame,"Column headers");columns.anchorMin=new Vector2(0,1);columns.anchorMax=new Vector2(1,1);columns.pivot=new Vector2(0,1);columns.offsetMin=new Vector2(42,-24);columns.offsetMax=new Vector2(-12,0);columns.gameObject.AddComponent<RectMask2D>();
+                var rows=WorkspaceSurface.Rect(frame,"Row headers");rows.anchorMin=new Vector2(0,0);rows.anchorMax=new Vector2(0,1);rows.pivot=new Vector2(0,1);rows.offsetMin=new Vector2(0,12);rows.offsetMax=new Vector2(42,-24);rows.gameObject.AddComponent<RectMask2D>();
+                var grid=panelView;bool Alive()=>editingWorkspace&&PanelVisible&&isCurrent()&&panelView==grid;
+                columns.gameObject.AddComponent<EditorGridHeader>().Initialize(grid,false,SelectEditorAxis,SelectedRegion,()=>axisSelection.Row,Alive);
+                rows.gameObject.AddComponent<EditorGridHeader>().Initialize(grid,true,SelectEditorAxis,SelectedRegion,()=>axisSelection.Row,Alive);
+                var all=EditorSurface.Button(frame,WindowText("All","Alle"),()=>{if(Alive())Act(SelectAll);});WorkspaceSurface.Place(all.GetComponent<RectTransform>(),new WorkspaceBox(0,0,42,24));
+            }
             StartCoroutine(RestoreWorkspaceView(panelScroll,isCurrent,editor));
         }
 

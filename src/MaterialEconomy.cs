@@ -11,7 +11,7 @@ namespace EnusDE.Signaltechnik {
         public MaterialCost(int b,int t){B=b;T=t;}
         public MaterialCost Clone()=>new MaterialCost(B,T);
         public void Validate(){if(B<0||T<0||B>1000000||T>1000000)throw new InvalidDataException("Ungültiger Materialbestand.");}
-        public override string ToString()=>B+" Baumaterial / "+T+" Signaltechnik";
+        public override string ToString()=>B+LocalText.Select(" building / "," Baumaterial / ")+T+LocalText.Select(" technology"," Signaltechnik");
     }
     public sealed class MaterialDepot {
         public string Id=Guid.NewGuid().ToString("N"),Name="Materiallager";
@@ -23,12 +23,17 @@ namespace EnusDE.Signaltechnik {
         public string Depot;
     }
     public sealed class MaterialLedger {
-        public bool Enabled;
+        public bool Enabled,Unlocked,MaterialsInSandbox,FreeInEconomy;
+        public int PolicyVersion;
+        public string UnlockPrerequisite="";
+        [JsonProperty(DefaultValueHandling=DefaultValueHandling.Ignore)]
+        public ConstructionUnlockMode UnlockMode;
         public double Factor=1;
         public List<MaterialDepot> Depots=new List<MaterialDepot>();
         public Dictionary<string,BuiltMaterial> Built=new Dictionary<string,BuiltMaterial>();
         public List<string> ConnectedPoints=new List<string>(),Receipts=new List<string>();
         public void Validate() {
+            if(PolicyVersion<0||PolicyVersion>1||!Enum.IsDefined(typeof(ConstructionUnlockMode),UnlockMode)||UnlockPrerequisite==null||UnlockPrerequisite.Length>200||UnlockPrerequisite.Any(char.IsControl))throw new InvalidDataException("Ungültige Baufreischaltung.");
             if(double.IsNaN(Factor)||double.IsInfinity(Factor)||Factor<.25||Factor>4||Depots==null||Depots.Count>16||Built==null||Built.Count>MarkerRepository.Maximum||ConnectedPoints==null||ConnectedPoints.Count>4096||ConnectedPoints.Any(s=>string.IsNullOrWhiteSpace(s)||s.Length>128)||ConnectedPoints.Distinct().Count()!=ConnectedPoints.Count||Receipts==null||Receipts.Count>64||Receipts.Any(s=>s==null||s.Length!=32))throw new InvalidDataException("Materialverwaltung ungültig.");
             foreach(var depot in Depots){Guid id;if(depot==null||!Guid.TryParseExact(depot.Id,"N",out id)||string.IsNullOrWhiteSpace(depot.Name)||depot.Name.Length>48||depot.Anchor==null||depot.Stock==null)throw new InvalidDataException("Materiallager ungültig.");depot.Anchor.Validate();depot.Stock.Validate();}
             if(Depots.Select(d=>d.Id).Distinct().Count()!=Depots.Count)throw new InvalidDataException("Materiallager-ID doppelt.");
@@ -75,7 +80,7 @@ namespace EnusDE.Signaltechnik {
                 foreach(string id in doc.SignalNumberFields.Keys.Where(id=>!signalIds.Contains(id)).ToArray())doc.SignalNumberFields.Remove(id);
             }
             foreach(var removed in before.Objects.Markers.Where(m=>!next.Markers.Any(n=>n.Id==m.Id))){BuiltMaterial paid;if(doc.Economy.Built.TryGetValue(removed.Id,out paid)){var depot=doc.Economy.Depots.FirstOrDefault(d=>d.Id==paid.Depot);if(depot!=null){depot.Stock.B=checked(depot.Stock.B+paid.Paid.B/2);depot.Stock.T=checked(depot.Stock.T+paid.Paid.T/2);}doc.Economy.Built.Remove(removed.Id);}}
-            foreach(var marker in doc.Objects.Markers){var old=before.Objects.Markers.FirstOrDefault(m=>m.Id==marker.Id);if(old!=null&&old.Kind!=marker.Kind)throw new InvalidOperationException("Objekttyp nur über Rückbau und Neubau ändern.");BuiltMaterial built;if(!doc.Economy.Built.TryGetValue(marker.Id,out built))doc.Economy.Built[marker.Id]=built=new BuiltMaterial();
+            foreach(var marker in doc.Objects.Markers){var old=before.Objects.Markers.FirstOrDefault(m=>m.Id==marker.Id);if(old!=null&&old.Kind!=marker.Kind&&!(old.Kind==MarkerRecord.Shunt&&marker.Kind==MarkerRecord.Main&&marker.LowMain)&&!(old.IsCircuitBox&&marker.IsCircuitBox))throw new InvalidOperationException("Objekttyp nur über Rückbau und Neubau ändern.");BuiltMaterial built;if(!doc.Economy.Built.TryGetValue(marker.Id,out built))doc.Economy.Built[marker.Id]=built=new BuiltMaterial();
                 if(!doc.Economy.Enabled){marker.Planned=old?.Planned??false;if(!marker.Planned){var cost=Cost(marker);built.Budget.B=Math.Max(built.Budget.B,cost.B);built.Budget.T=Math.Max(built.Budget.T,cost.T);}}else {var missing=Missing(doc,marker);marker.Planned=missing.B>0||missing.T>0;}
                 if(old!=null&&old.Planned!=marker.Planned)marker.VisualRevision++;
             }

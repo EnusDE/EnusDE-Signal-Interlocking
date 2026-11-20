@@ -11,14 +11,14 @@ using Game.State;
 using UnityEngine;
 
 namespace EnusDE.Signaltechnik {
-    public sealed partial class SignalWorldBridge : IInterlockingWorld,ISectionalWorld,ISwitchFeedbackWorld,ITrainStopWorld,IDisposable {
+    public sealed partial class SignalWorldBridge : IInterlockingWorld,ISectionalWorld,ISwitchFeedbackWorld,ITrainStopWorld,IRequestDiagnosticWorld,IVehicleOccupancyWorld,IDisposable {
         readonly SignalRuntime owner;
         readonly Transform parent;
         readonly Dictionary<string,TrackSpan> spans=new Dictionary<string,TrackSpan>();
         readonly Dictionary<string,TrackOccupancy> readings=new Dictionary<string,TrackOccupancy>();
         readonly NativeSwitchFeedback feedback=new NativeSwitchFeedback();
         readonly int spanLimit;
-        public SignalWorldBridge(SignalRuntime owner,Transform parent):this(owner,parent,512){}
+        public SignalWorldBridge(SignalRuntime owner,Transform parent):this(owner,parent,2048){}
         public SignalWorldBridge(SignalRuntime owner,Transform parent,int limit){this.owner=owner;this.parent=parent;spanLimit=limit;}
         public static string AnchorKey(MarkerRecord row)=>row.Anchor.Segment+":"+row.Anchor.Meters.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+":"+row.FacingReverse;
         public static Location Location(MarkerRecord row) {
@@ -69,6 +69,7 @@ namespace EnusDE.Signaltechnik {
             }
             if(result.Count==0)throw new InvalidOperationException("Kein prüfbarer Annäherungsbereich.");return result.Values.ToList();
         }
+        public static string TrackFingerprint(IEnumerable<TrackSection> sections)=>Topology(sections);
         static string Topology(IEnumerable<TrackSection> sections) {
             var graph=Graph.Shared;
             var parts=new List<string>();
@@ -95,16 +96,17 @@ namespace EnusDE.Signaltechnik {
             return BuildDesign(entry,exit,code,reduced,shunting,from,to,path,switches);
         }
 
-        internal RouteDiscovery DiscoverRoutesTo(MarkerRecord target)=>new RouteDiscovery(FlankGraph(),owner.SignalObjects,target);
-        public RouteDiscovery DiscoverRoutes(string auxiliary=null) => new RouteDiscovery(FlankGraph(),owner.SignalObjects,owner.AuxiliaryEndpoint(auxiliary));
+        internal NetworkInput RoutePlanningGraph()=>FlankGraph();
+        internal RouteDiscovery DiscoverRoutesTo(MarkerRecord target)=>new RouteDiscovery(FlankGraph(),owner.OperationalSignalObjects,target);
+        public RouteDiscovery DiscoverRoutes(string auxiliary=null) => new RouteDiscovery(FlankGraph(),owner.OperationalSignalObjects,owner.AuxiliaryEndpoint(auxiliary));
 
-        internal Func<RouteProposal,string,RouteDefinition> PrepareProposalDesign(ISet<string> destinations) {
-            var graph=FlankGraph();
-            var search=new RouteDiscovery(graph,owner.SignalObjects);
+        internal Func<RouteProposal,string,RouteDefinition> PrepareProposalDesign(ISet<string> destinations,NetworkInput snapshot=null) {
+            var graph=snapshot??FlankGraph();
+            var search=new RouteDiscovery(graph,owner.OperationalSignalObjects);
             return (proposal,code)=> {
                 var extra=owner.AuxiliaryEndpoint(proposal.Exit);
                 return DesignProposal(proposal,code,destinations,graph,
-                    extra==null?search:new RouteDiscovery(graph,owner.SignalObjects,extra));
+                    extra==null?search:new RouteDiscovery(graph,owner.OperationalSignalObjects,extra));
             };
         }
 
@@ -112,7 +114,7 @@ namespace EnusDE.Signaltechnik {
             var entry=owner.Object(proposal.Entry);
             var exit=owner.RouteEndpoint(proposal.Exit);
             if(entry==null||exit==null)throw new InvalidOperationException("Start oder Ziel fehlt. Vorschläge neu suchen.");
-            var current=search.Find(entry,proposal.Kind,destinations)
+            var current=search.Find(entry,proposal.Kind,destinations,includeAlternatives:true,allowedDirections:RouteTargetScope.Build(graph,exit))
                 .SingleOrDefault(proposal.SamePath);
             if(current==null)throw new InvalidOperationException("Fahrweg geändert oder nicht eindeutig. Vorschläge neu suchen.");
             return BuildDesign(entry,exit,code,proposal.Kind==RouteKind.Slow,proposal.Kind==RouteKind.Shunt,
@@ -122,54 +124,43 @@ namespace EnusDE.Signaltechnik {
         RouteDefinition BuildDesign(MarkerRecord entry,MarkerRecord exit,string code,bool reduced,bool shunting,
             Location from,Location to,List<DirectedRouteSection> path,List<RouteSwitch> switches,NetworkInput graph=null) {
             bool auxiliary=AuxiliaryTarget.IsEndpoint(exit);
-            if(auxiliary&&AuxiliaryTarget.HasBlockingSignal(path,owner.SignalObjects,entry.Id,shunting))
+            if(auxiliary&&AuxiliaryTarget.HasBlockingSignal(path,owner.OperationalSignalObjects,entry.Id,shunting))
                 throw new InvalidOperationException("Vor dem Hilfsziel liegt ein weiteres Signal in Fahrtrichtung. Dort eine eigene Teilfahrstraße beginnen.");
             var sections=path.Select(p=>p.Section).ToList();
-            // Protect nearby branch ends against a vehicle fouling a route switch.
-            foreach(var setting in switches) {
-                var node=Graph.Shared.GetNode(setting.Node);
-                setting.Protection=new List<TrackSection>();
-                foreach(var segment in Graph.Shared.SegmentsConnectedTo(node)) {
-                    double length=segment.GetLength(),guard=Math.Min(length,25);
-                    var protection=segment.EndForNode(node)==TrackSegment.End.A?new TrackSection{Segment=segment.id,From=0,To=guard}:new TrackSection{Segment=segment.id,From=length-guard,To=length};sections.Add(protection);setting.Protection.Add(protection);
-                }
-            }
             var approach=Approach(from.Flipped());
             List<RouteSwitch> ignored;Location ignoredEnd;List<DirectedRouteSection> entryApproach,exitContinuation;
             try{Walk(from.Flipped(),30,out ignored,out ignoredEnd,out entryApproach,true);}catch{entryApproach=new List<DirectedRouteSection>();}
             try{Walk(to,2000,out ignored,out ignoredEnd,out exitContinuation,true);}catch{exitContinuation=new List<DirectedRouteSection>();}
             var route=new RouteDefinition{Code=code,Entry=entry.Id,Exit=exit.Id,AuxiliaryExit=auxiliary,EntryAnchor=AnchorKey(entry),ExitAnchor=AnchorKey(exit),Shunting=shunting,Reduced=reduced,Sections=sections,Approach=approach,Switches=switches,Path=path,EntryApproach=entryApproach,ExitContinuation=exitContinuation};
-            route.ViaSignals=RouteSignals.Bind(route.Path,owner.SignalObjects,entry.Id,exit.Id);if(shunting)route.Flanks=new List<RouteFlank>();else FlankProtection.Plan(route,graph??FlankGraph(),owner.SignalObjects);RouteSignals.SplitProtection(route);route.ViaSignals=RouteSignals.Bind(route.Path,owner.SignalObjects,entry.Id,exit.Id);route.Topology=Topology(route.Sections.Concat(approach));route.ProgressTopology=Topology(exitContinuation.Select(p=>p.Section));route.Validate();return route;
+            RoutePointProtection.Bind(route,owner.RoutePointGuards);
+            route.ViaSignals=RouteSignals.Bind(route.Path,owner.OperationalSignalObjects,entry.Id,exit.Id);if(shunting)route.Flanks=new List<RouteFlank>();else FlankProtection.Plan(route,graph??FlankGraph(),owner.OperationalSignalObjects,owner.RoutePointGuards);route.PointGuardSignature=RoutePointProtection.Signature(route,owner.RoutePointGuards);RouteSignals.SplitProtection(route);route.ViaSignals=RouteSignals.Bind(route.Path,owner.OperationalSignalObjects,entry.Id,exit.Id);route.Topology=Topology(route.Sections.Concat(approach));route.ProgressTopology=Topology(exitContinuation.Select(p=>p.Section));route.Validate();return route;
         }
         public bool PathValid(RouteDefinition route) {
             try {
+                if(!owner.BlockSignalPathValid(route)||!owner.LineTargetPathValid(route))return false;
                 var a=owner.Object(route.Entry);var b=owner.RouteEndpoint(route.Exit);
                 if(a==null||!a.IsSignal||a.Kind==MarkerRecord.Distant||!AuxiliaryTarget.Accepts(b,route.Shunting)||
                     route.AuxiliaryExit!=AuxiliaryTarget.IsEndpoint(b)||AnchorKey(a)!=route.EntryAnchor||AnchorKey(b)!=route.ExitAnchor)return false;
-                if(route.AuxiliaryExit&&route.Path!=null&&AuxiliaryTarget.HasBlockingSignal(route.Path,owner.SignalObjects,a.Id,route.Shunting))return false;
+                if(route.AuxiliaryExit&&route.Path!=null&&AuxiliaryTarget.HasBlockingSignal(route.Path,owner.OperationalSignalObjects,a.Id,route.Shunting))return false;
                 if(!SignalCatalogue.Supports(a,route.Shunting,route.Reduced))return false;
-                if(route.Path==null||!RouteSignals.Same(route.ViaSignals,RouteSignals.Bind(route.Path,owner.SignalObjects,route.Entry,route.Exit)))return false;
-                if(!FlankBindingsValid(route))return false;
+                if(route.Path==null||!RouteSignals.Same(route.ViaSignals,RouteSignals.Bind(route.Path,owner.OperationalSignalObjects,route.Entry,route.Exit)))return false;
+                if(!FlankBindingsValid(route)||!RoutePointProtection.Current(route,owner.RoutePointGuards))return false;
                 Location(a);Location(b);
                 if(string.IsNullOrEmpty(route.Topology)||Topology(route.Sections.Concat(route.Approach))!=route.Topology)return false;
                 return route.Sections.Concat(route.Approach).All(s=>{var segment=Graph.Shared.GetSegment(s.Segment);return segment!=null&&segment.Available&&segment.GroupEnabled&&segment.turntable==null&&s.From>=0&&s.To<=segment.GetLength()+.001;});
             }catch{return false;}
         }
-        public void BeginRead(){readings.Clear();flankReadings.Clear();}
+        public void BeginRead(){readings.Clear();flankReadings.Clear();occupancyCars.Clear();vehicleOccupancy=null;}
+        public bool CachedRequestOccupancy(TrackSection section,out TrackOccupancy state)=>readings.TryGetValue(section.Key,out state);
+        public bool RequestPointPosition(string point,out bool position)=>SwitchPosition(point,out position);
         public TrackOccupancy Occupancy(TrackSection section) {
             TrackOccupancy previous;if(readings.TryGetValue(section.Key,out previous))return previous;
             TrackOccupancy value=TrackOccupancy.Unknown;
+            readings[section.Key]=value;
             try {
-                var graph=Graph.Shared;var trains=TrainController.Shared;var segment=graph?.GetSegment(section.Segment);
-                if(trains==null||segment==null||!segment.Available||!segment.GroupEnabled||section.To>segment.GetLength()+.001)return value;
-                TrackSpan span;
-                if(!spans.TryGetValue(section.Key,out span)) {
-                    if(spans.Count>=spanLimit)return value;
-                    var go=new GameObject("EnusDE occupancy "+spans.Count);go.SetActive(false);go.transform.SetParent(parent,false);
-                    span=go.AddComponent<TrackSpan>();span.id="enusde.signaltechnik.occupancy."+Guid.NewGuid().ToString("N");
-                    span.lower=new Location(segment,(float)section.From,TrackSegment.End.A);span.upper=new Location(segment,(float)section.To,TrackSegment.End.A).Flipped();spans[section.Key]=span;
-                }
-                if(span.IsValid&&span.GetSegments().Count==1&&span.GetSegments().Contains(segment))value=trains.AnyCarsOnSpan(span)?TrackOccupancy.Occupied:TrackOccupancy.Clear;
+                var segment=Graph.Shared?.GetSegment(section.Segment);
+                if(segment==null||!segment.Available||!segment.GroupEnabled||section.From<0||section.To>segment.GetLength()+.001)return value;
+                EnsureVehicleOccupancy();value=vehicleOccupancy.Read(section,out var cars);occupancyCars[section.Key]=cars;
             }catch{value=TrackOccupancy.Unknown;}
             readings[section.Key]=value;return value;
         }
@@ -183,11 +174,10 @@ namespace EnusDE.Signaltechnik {
                 if(route.EntryApproach!=null)sections.AddRange(route.EntryApproach.Select(p=>p.Section));
                 var first=route.Path[0];sections.Add(new TrackSection{Segment=first.Section.Segment,From=first.Reverse?Math.Max(first.Section.From,first.Section.To-10):first.Section.From,To=first.Reverse?first.Section.To:Math.Min(first.Section.To,first.Section.From+10)});
                 foreach(var section in sections) {
-                    Occupancy(section);TrackSpan span;if(!spans.TryGetValue(section.Key,out span)||!span.IsValid)continue;
-                    var found=new List<Model.Car>();TrainController.Shared.GetCarsOnSpan(span,found,8);
-                    foreach(var car in found)if(car!=null)candidates[car.id]=car;
+                    SectionWithCars(section,out var found);
+                    foreach(string id in found??Array.Empty<string>())if(TrainController.Shared.TryGetCarForId(id,out var car)&&car!=null&&!car.IsInBardo)candidates[car.id]=car;
                 }
-                var ordered=candidates.Values.Select(car=>{double a=0,b=0;bool valid=Progress(route,car.LocationA,out a)&&Progress(route,car.LocationB,out b);return new{car,valid,front=valid?Math.Max(a,b):double.NegativeInfinity};}).Where(c=>c.valid&&c.front<=10&&c.front>=-30).OrderByDescending(c=>c.front).ToArray();
+                var ordered=candidates.Values.Select(car=>{double a=0,b=0;bool valid=Progress(route,car.LocationA,out a)&&Progress(route,car.LocationB,out b);return new{car,valid,front=valid?Math.Max(a,b):double.NegativeInfinity,rear=valid?Math.Min(a,b):double.PositiveInfinity};}).Where(c=>c.valid&&c.front<=10&&c.front>=-30&&c.rear<-.001).OrderByDescending(c=>c.front).ToArray();
                 if(ordered.Length==0)return false;
                 var connected=new Dictionary<string,Model.Car>();var pending=new Queue<Model.Car>();pending.Enqueue(ordered[0].car);
                 while(pending.Count>0) {
@@ -217,9 +207,11 @@ namespace EnusDE.Signaltechnik {
         }
         public bool SetSwitch(string id,bool thrown) {
             if(!StateManager.IsHost)return false;
+            if(!SwitchPosition(id,out bool current))throw new InvalidOperationException(LocalText.Select("Point not found in the current track network.","Weiche nicht im aktuellen Gleisnetz gefunden."));
+            if(current==thrown)return true;
             var trains=TrainController.Shared;if(trains==null)return false;
-            string reason;if(!trains.TrySetSwitch(id,thrown,"EnusDE Signaltechnik",out reason))throw new InvalidOperationException("Spiel verweigert Weiche "+id+": "+reason);
-            readings.Clear();
+            string reason;if(!trains.TrySetSwitch(id,thrown,"EnusDE Signaltechnik",out reason))throw new InvalidOperationException(LocalText.Select("Game refused point movement ","Spiel verweigert Weichenumstellung ")+id+": "+reason);
+            BeginRead();
             bool value;return SwitchPosition(id,out value)&&value==thrown;
         }
         public void Dispose(){foreach(var span in spans.Values)if(span!=null)UnityEngine.Object.Destroy(span.gameObject);spans.Clear();readings.Clear();feedback.Dispose();}

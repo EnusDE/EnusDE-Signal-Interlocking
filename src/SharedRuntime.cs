@@ -11,16 +11,21 @@ using UnityEngine;
 
 namespace EnusDE.Signaltechnik {
     public sealed class SharedRouteStatus {
-        public string Id,Reason,FaultReason,ChainId;
+        public RouteDefinition Definition;
+        public string Id,Reason,FaultReason,ChainId,ReleaseSelection,ReleaseStatus;
+        public double WaitRemaining;
+        public bool ReleaseWaitCompleted;
         public bool ChainReady=true;
         public RouteStage Stage;
         public bool Entered,HeadKnown;
         public List<string> ReleasedSections=new List<string>(),ReleasedSwitches=new List<string>(),PassedSignals=new List<string>();
         public Dictionary<string,string> PointStates=new Dictionary<string,string>();
-        public static SharedRouteStatus From(RouteRun run)=>new SharedRouteStatus{Id=run.Route.Id,Reason=run.Reason,FaultReason=run.FaultReason,ChainId=run.ChainId,ChainReady=run.ChainReady,Stage=run.Stage,Entered=run.Entered,HeadKnown=run.HeadKnown,ReleasedSections=run.ReleasedSections.ToList(),ReleasedSwitches=run.ReleasedSwitches.ToList(),PassedSignals=run.PassedSignals.ToList(),PointStates=new Dictionary<string,string>(run.PointStates)};
+        public static SharedRouteStatus From(RouteRun run,double waitRemaining=0)=>new SharedRouteStatus{Id=run.Route.Id,Reason=run.Reason,FaultReason=run.FaultReason,ChainId=run.ChainId,ChainReady=run.ChainReady,Stage=run.Stage,Entered=run.Entered,HeadKnown=run.HeadKnown,ReleaseSelection=run.ReleaseSelection,ReleaseStatus=run.ReleaseStatus,WaitRemaining=waitRemaining,ReleaseWaitCompleted=run.ReleaseWaitCompleted,ReleasedSections=run.ReleasedSections.ToList(),ReleasedSwitches=run.ReleasedSwitches.ToList(),PassedSignals=run.PassedSignals.ToList(),PointStates=new Dictionary<string,string>(run.PointStates)};
         public RouteRun ToRun(RouteDefinition route) {
+            route=Definition??route;if(route==null||route.Id!=Id)throw new InvalidDataException("Missing or inconsistent live route definition.");route.Validate();
+            if(double.IsNaN(WaitRemaining)||double.IsInfinity(WaitRemaining)||WaitRemaining<0||WaitRemaining>300||ReleaseSelection?.Length>1024||ReleaseStatus?.Length>2048)throw new InvalidDataException(LocalText.Select("Invalid live release status.","Ungültiger aktueller Auflösungsstatus."));
             if(!Enum.IsDefined(typeof(RouteStage),Stage)||Reason?.Length>1024||FaultReason?.Length>1024||ReleasedSections==null||ReleasedSections.Count>128||ReleasedSwitches==null||ReleasedSwitches.Count>64||PassedSignals==null||PassedSignals.Count>128||PointStates==null||PointStates.Count>64||ReleasedSections.Any(k=>!route.Sections.Any(s=>s.Key==k))||ReleasedSwitches.Any(k=>!route.Switches.Any(s=>s.Node==k)))throw new InvalidDataException("Fahrstraßenanzeige ungültig.");
-            var run=new RouteRun{Route=route,Stage=Stage,Reason=Reason,FaultReason=FaultReason,ChainId=ChainId,ChainReady=ChainReady,Entered=Entered,HeadKnown=HeadKnown};foreach(string id in ReleasedSections)run.ReleasedSections.Add(id);foreach(string id in ReleasedSwitches)run.ReleasedSwitches.Add(id);foreach(string id in PassedSignals)run.PassedSignals.Add(id);foreach(var item in PointStates)run.PointStates[item.Key]=item.Value;return run;
+            var run=new RouteRun{Route=route,Stage=Stage,Reason=Reason,FaultReason=FaultReason,ChainId=ChainId,ChainReady=ChainReady,Entered=Entered,HeadKnown=HeadKnown,ReleaseSelection=ReleaseSelection,ReleaseStatus=ReleaseStatus,ReportedWaitRemaining=WaitRemaining,ReleaseWaitCompleted=ReleaseWaitCompleted};foreach(string id in ReleasedSections)run.ReleasedSections.Add(id);foreach(string id in ReleasedSwitches)run.ReleasedSwitches.Add(id);foreach(string id in PassedSignals)run.PassedSignals.Add(id);foreach(var item in PointStates)run.PointStates[item.Key]=item.Value;return run;
         }
     }
     public sealed class SharedLiveFrame {
@@ -28,11 +33,12 @@ namespace EnusDE.Signaltechnik {
         public long Sequence;
         public Dictionary<string,LocalSignalAspect> Aspects=new Dictionary<string,LocalSignalAspect>();
         public List<SharedRouteStatus> Runs=new List<SharedRouteStatus>();
-        public void Validate(){Guid id;if(!Guid.TryParseExact(Epoch,"N",out id)||Sequence<1||Aspects==null||Aspects.Count>384||Runs==null||Runs.Count>16||Aspects.Any(p=>!Guid.TryParseExact(p.Key,"N",out id)||!Enum.IsDefined(typeof(LocalSignalAspect),p.Value))||Runs.Any(r=>r==null))throw new InvalidDataException("Gemeinsame Betriebsanzeige ungültig.");}
+        public AutomationLiveFrame Automation=new AutomationLiveFrame();
+        public void Validate(){if(Automation==null)throw new InvalidDataException("Automatikstatus fehlt.");Automation.Validate();Guid id;if(!Guid.TryParseExact(Epoch,"N",out id)||Sequence<1||Aspects==null||Aspects.Count>384||Runs==null||Runs.Count>16||Aspects.Any(p=>!Guid.TryParseExact(p.Key,"N",out id)||!Enum.IsDefined(typeof(LocalSignalAspect),p.Value))||Runs.Any(r=>r==null)||Runs.Select(r=>r.Id).Distinct().Count()!=Runs.Count)throw new InvalidDataException("Gemeinsame Betriebsanzeige ungültig.");foreach(var run in Runs)if(run.Definition!=null)run.ToRun(null);}
     }
     public sealed partial class SharedRuntime : MonoBehaviour,ISharedProperties {
         public const string ObjectId="enusde.signaltechnik.shared.v1";
-        const int InstallLimit=1024*1024,DeskLimit=16*1024*1024,RouteLimit=4*1024*1024,FrameLimit=256*1024;
+        const int InstallLimit=1024*1024,DeskLimit=16*1024*1024,RouteLimit=4*1024*1024,FrameLimit=4*1024*1024;
         KeyValueObject properties;
         SharedDocuments documents;
         IDisposable observer;
@@ -52,6 +58,15 @@ namespace EnusDE.Signaltechnik {
         public bool ConfigurationReady=>Ready&&sharedDesks!=null&&sharedRoutes!=null;
         public long InstallationVersion {get;private set;}
         public long ConfigurationVersion {get;private set;}
+        InstallationDocument constructionSignatureSource;
+        string constructionSignature;
+        public string ConstructionSignature {
+            get {
+                if(installation==null)return null;
+                if(!ReferenceEquals(constructionSignatureSource,installation)){constructionSignature=ConstructionSnapshot.Signature(installation);constructionSignatureSource=installation;}
+                return constructionSignature;
+            }
+        }
         public string Error {get;private set;}
         public string WorldKey=>installation?.WorldKey;
         public string LegacyKey {get;private set;}
@@ -63,7 +78,7 @@ namespace EnusDE.Signaltechnik {
         public void ApplyPlacementDefaults(MarkerOptions value){installation?.Placement.Apply(value);}
         public bool PlacementMatches(MarkerOptions value)=>installation?.Placement.Matches(value)??true;
         public void Initialize(IModLogger logger,string path) {
-            log=logger;directory=path;properties=gameObject.AddComponent<KeyValueObject>();documents=new SharedDocuments(this);
+            log=logger;directory=path;backups=new InstallationBackups(Path.Combine(path,"Backups"));log.Info("Externe Anlagensicherungen: "+backups.DirectoryPath);properties=gameObject.AddComponent<KeyValueObject>();documents=new SharedDocuments(this);
             StateManager.Shared.RegisterPropertyObject(ObjectId,properties,AuthorizationRequirement.HostOnly,null);
             // Host mutations already update the validated in-memory documents below. Only
             // initial restore or remote client commits need decompression/deserialization.
@@ -71,11 +86,13 @@ namespace EnusDE.Signaltechnik {
             changed.UnionWith(new[]{"install","desks","routes","live"});
         }
         public string Read(string key){var value=properties.Get(key);return value.IsNull?null:value.StringValue;}
-        public void Write(string key,string value){RequireHost();properties.Set(key,value==null?Value.Null():Value.String(value),SetValueOrigin.Local);}
+        public void Write(string key,string value){RequireHost();if(restoreJournal!=null&&!restoreJournal.ContainsKey(key))restoreJournal[key]=Read(key);properties.Set(key,value==null?Value.Null():Value.String(value),SetValueOrigin.Local);}
         void RequireHost(){if(stopped||StateManager.IsUnloading||!StateManager.IsHost||properties==null)throw new InvalidOperationException("Gemeinsame Anlage nur vom Host änderbar.");}
         void Update() {
             if(stopped||StateManager.IsUnloading||Time.realtimeSinceStartup<next||StateManager.Shared==null||!StateManager.Shared.IsSessionReady||!StateManager.Shared.HasRestoredProperties)return;next=Time.realtimeSinceStartup+.25;
             foreach(string channel in changed.ToArray())try{ReadChannel(channel);changed.Remove(channel);Error=null;}catch(Exception e){if(Error!=e.Message){Error=e.Message;log?.Warning("Anlagensynchronisation: "+e.Message);}}
+            if(StateManager.IsHost&&Ready)try{SyncConstructionMilestone();}catch(Exception e){Error=e.Message;}
+            if(StateManager.IsHost&&Time.realtimeSinceStartup>=nextBackupRetry)TryBackup();
         }
         void ReadChannel(string channel) {
             if(channel=="install") {var value=documents.Read<InstallationDocument>(channel,InstallLimit);if(value==null)return;CircuitIdentity.Fill(value.Objects);value.Validate();if(value.Map!=StateManager.Shared.CurrentMapIdentifier)throw new InvalidDataException("Gemeinsame Anlage gehört zu einer anderen Karte.");installation=value;InstallationVersion++;}
@@ -89,14 +106,14 @@ namespace EnusDE.Signaltechnik {
             // Read a committed snapshot first. Never replace corrupt/unfinished shared data by legacy files.
             if(documents.Header("install")!=null){ReadChannel("install");return;}
             string path=StateManager.Shared.SaveManager?.RailroadPath,map=StateManager.Shared.CurrentMapIdentifier;if(string.IsNullOrWhiteSpace(path)||string.IsNullOrWhiteSpace(map))return;
-            LegacyKey=MarkerRepository.Key(path,map);var legacy=new MarkerRepository(Path.Combine(directory,"Markers"),LegacyKey,map).Snapshot();
+            LegacyKey=MarkerRepository.Key(path,map);if(NeedsRecoveryDecision(LegacyKey,map))return;var legacy=new MarkerRepository(Path.Combine(directory,"Markers"),LegacyKey,map).Snapshot();
             string key=SharedDocuments.Hash(System.Text.Encoding.UTF8.GetBytes(Guid.NewGuid().ToString("N")));legacy.WorldKey=key;
             var initial=new InstallationDocument{WorldKey=key,Map=map,Objects=legacy};foreach(var row in legacy.Markers)initial.Economy.Built[row.Id]=new BuiltMaterial{Budget=MaterialEconomy.Cost(row)};
             var oldDesksPath=new DeskStore(Path.Combine(directory,"Desks"),LegacyKey);DeskLibrary desks;
             if(File.Exists(oldDesksPath.FilePath))desks=oldDesksPath.Load(null);else {var panel=new PanelStore(Path.Combine(directory,"Panels"),LegacyKey).Load();desks=new DeskLibrary{WorldKey=LegacyKey,Desks=new List<DeskDefinition>{new DeskDefinition{Global=true,Code="ESTW",Name="Übergeordnetes ESTW",Panel=panel}}};}
             desks.WorldKey=key;foreach(var desk in desks.Desks)desk.Panel.WorldKey=key;desks.Validate(key);
             var routes=new InterlockingStore(Path.Combine(directory,"Interlocking"),LegacyKey).Load();initial.Economy.ConnectedPoints=desks.Desks.SelectMany(d=>d.Panel.Tiles).Where(t=>t.Kind==PanelTileKind.Switch&&!string.IsNullOrWhiteSpace(t.Reference)).Select(t=>t.Reference).Concat(routes.SelectMany(r=>r.Switches.Select(p=>p.Node))).Distinct().ToList();
-            var defaults=Entry.SettingsSnapshot().Markers;initial.Economy.Enabled=defaults.EconomyEnabled;initial.Economy.Factor=defaults.MaterialFactor;initial.Placement=ServerPlacement.From(defaults);initial.Validate();
+            var defaults=Entry.SettingsSnapshot().Markers;initial.Economy.PolicyVersion=1;initial.Economy.Unlocked=legacy.Markers.Count>0;initial.Economy.MaterialsInSandbox=defaults.MaterialsInSandbox;initial.Economy.FreeInEconomy=defaults.FreeInEconomy;initial.Economy.Enabled=ConstructionPolicy.MaterialsRequired(StateManager.IsSandbox,defaults.MaterialsInSandbox,defaults.FreeInEconomy);initial.Economy.Factor=defaults.MaterialFactor;initial.Placement=ServerPlacement.From(defaults);initial.Validate();
             Atomic(()=>{documents.Write("desks",desks,DeskLimit);documents.Write("routes",new InterlockingDocument{WorldKey=key,Routes=routes},RouteLimit);CommitInstall(initial);sharedDesks=desks;sharedRoutes=routes;ConfigurationVersion++;});
         }
         public MarkerDocument Objects()=>installation==null?null:JsonConvert.DeserializeObject<MarkerDocument>(JsonConvert.SerializeObject(installation.Objects));
@@ -104,6 +121,7 @@ namespace EnusDE.Signaltechnik {
         public DeskLibrary Desks()=>sharedDesks?.Clone();
         public List<RouteDefinition> Routes()=>sharedRoutes?.Select(r=>r.Clone()).ToList();
         public IReadOnlyDictionary<string,string> NumberRegistry()=>installation?.TrainNumbers;
+        public IReadOnlyDictionary<string,string> NumberFields()=>installation?.SignalNumberFields;
 
         internal string FieldNumber(string signal) {
             return installation!=null&&!string.IsNullOrEmpty(signal)&&installation.SignalNumberFields.TryGetValue(signal,out string number)?number:"";
@@ -118,18 +136,20 @@ namespace EnusDE.Signaltechnik {
             int cars=TrainNumbers.RemoveNumber(next.TrainNumbers,value,new HashSet<string>()).Length;
             bool changed=FieldNumber(signal)!=value||previous.Length>0||cars>0;
             if(value=="")next.SignalNumberFields.Remove(signal);else next.SignalNumberFields[signal]=value;
-            if(changed)CommitInstall(next);
+            if(changed)CommitInstall(next,false);
             return (previous,cars);
         }
 
-        internal void AdvanceFieldNumbers(IReadOnlyList<RouteRun> movements,Func<string,string> fieldFor) {
+        internal string[] AdvanceFieldNumbers(IReadOnlyList<RouteRun> movements,Func<string,string> fieldFor) {
             RequireReady();
             var numbers=new Dictionary<string,string>(installation.SignalNumberFields);
-            if(TrainNumbers.AdvanceSignalNumbers(numbers,movements,fieldFor)) {
+            var completed=new HashSet<string>();
+            if(TrainNumbers.AdvanceSignalNumbers(numbers,movements,fieldFor,completed)) {
                 var next=installation.Clone();
                 next.SignalNumberFields=numbers;
-                CommitInstall(next);
+                CommitInstall(next,false);
             }
+            return completed.ToArray();
         }
         public int AssignNumber(Model.Car selected,string prefix,string number) {
             RequireReady();if(selected==null)throw new InvalidOperationException("Zug oder Fahrzeug im Spiel auswählen.");string formatted=TrainNumbers.Format(prefix,number);var ids=new HashSet<string>();var queue=new Queue<Model.Car>();queue.Enqueue(selected);
@@ -137,24 +157,32 @@ namespace EnusDE.Signaltechnik {
             var next=installation.Clone();var present=new HashSet<string>(TrainController.Shared.Cars.Where(c=>c!=null).Select(c=>c.id));foreach(string old in next.TrainNumbers.Keys.Where(id=>!present.Contains(id)).ToArray())next.TrainNumbers.Remove(old);int transferred=TrainNumbers.RemoveNumber(next.SignalNumberFields,formatted,new HashSet<string>()).Length+
                 TrainNumbers.RemoveNumber(next.TrainNumbers,formatted,ids).Length;
             foreach(string id in ids)if(formatted=="")next.TrainNumbers.Remove(id);else next.TrainNumbers[id]=formatted;
-            CommitInstall(next);
+            CommitInstall(next,false);
             return transferred;
         }
-        void CommitInstall(InstallationDocument value){RequireHost();CircuitIdentity.Fill(value.Objects);value.Validate();documents.Write("install",value,InstallLimit);installation=value;InstallationVersion++;}
+        void CommitInstall(InstallationDocument value,bool configuration=true){RequireHost();CircuitIdentity.Fill(value.Objects);value.Validate();documents.Write("install",value,InstallLimit);installation=value;InstallationVersion++;if(configuration)BackupChanged();}
         void Atomic(Action action,Action rollback=null) {
             RequireHost();var heads=new[]{"install","desks","routes"}.ToDictionary(k=>k,k=>documents.Header(k));var old=installation;var oldDesks=sharedDesks;var oldRoutes=sharedRoutes;long iv=InstallationVersion,cv=ConfigurationVersion;
-            using(StateManager.TransactionScope())try{action();}catch{foreach(var head in heads)Write(head.Key+".commit",head.Value);installation=old;sharedDesks=oldDesks;sharedRoutes=oldRoutes;InstallationVersion=iv;ConfigurationVersion=cv;rollback?.Invoke();throw;}
+            bool wasDirty=backupDirty;backupTransactionDepth++;
+            try{using(StateManager.TransactionScope())try{action();}catch{foreach(var head in heads)Write(head.Key+".commit",head.Value);installation=old;sharedDesks=oldDesks;sharedRoutes=oldRoutes;InstallationVersion=iv;ConfigurationVersion=cv;backupDirty=wasDirty;rollback?.Invoke();throw;}}
+            finally{backupTransactionDepth--;}
+            BackupChanged();
         }
-        public void PutObjects(MarkerDocument next){RequireHost();var value=MaterialEconomy.Markers(installation,next);CommitInstall(value);next.Markers=value.Objects.Markers.Select(m=>m.Clone()).ToList();}
-        public void PutDesks(DeskLibrary next){RequireHost();next.Validate(WorldKey);Atomic(()=>{documents.Write("desks",next,DeskLimit);sharedDesks=next.Clone();ConfigurationVersion++;});}
-        public void PutRoutes(IEnumerable<RouteDefinition> next){RequireHost();var doc=new InterlockingDocument{WorldKey=WorldKey,Routes=next.Select(r=>r.Clone()).ToList()};ValidateRoutes(doc);var value=MaterialEconomy.Connect(installation,doc.Routes.SelectMany(r=>r.Switches.Select(p=>p.Node)),DepotForPoint);Atomic(()=>{documents.Write("routes",doc,RouteLimit);CommitInstall(value);sharedRoutes=doc.Routes;ConfigurationVersion++;});}
+        public void PutObjects(MarkerDocument next){RequireHost();foreach(var marker in next.Markers){var old=installation.Objects.Markers.FirstOrDefault(m=>m.Id==marker.Id);if(HlTestFeature.RequiresEnable(old,marker))HlTestFeature.Require(Entry.SettingsSnapshot().Markers.EnableHlSignalsTest);if(old!=null&&(old.Kind!=marker.Kind||old.LowMain!=marker.LowMain||old.HlSignal!=marker.HlSignal)&&!Entry.MastCanModify(old))throw new InvalidOperationException("Signal is locked by a route.");}if(next.Markers.Any(m=>!installation.Objects.Markers.Any(old=>old.Id==m.Id)||m.LowMain&&!installation.Objects.Markers.Any(old=>old.Id==m.Id&&old.LowMain)))RequireConstruction();var value=MaterialEconomy.Markers(installation,next);CommitInstall(value);next.Markers=value.Objects.Markers.Select(m=>m.Clone()).ToList();}
+        public void PutDesks(DeskLibrary next){RequireConstruction();next.Validate(WorldKey);if(sharedDesks!=null){var changed=LineConfigurationChanges.Changed(sharedDesks.FreeLines,next.FreeLines);if(changed.Length>0)Entry.CheckLineConfigurationChange(changed,next.FreeLines);var targets=LineTargetBindings.ChangedTargets(sharedDesks,next,out var lines);if(targets.Length>0)Entry.CheckLineConfigurationChange(lines,next.FreeLines,targets);}Atomic(()=>{documents.Write("desks",next,DeskLimit);sharedDesks=next.Clone();ConfigurationVersion++;});}
+        public void PutRoutes(IEnumerable<RouteDefinition> next){RequireConstruction();var doc=new InterlockingDocument{WorldKey=WorldKey,Routes=next.Select(r=>r.Clone()).ToList()};ValidateRoutes(doc);var value=MaterialEconomy.Connect(installation,doc.Routes.SelectMany(r=>r.Switches.Select(p=>p.Node)),DepotForPoint);Atomic(()=>{documents.Write("routes",doc,RouteLimit);CommitInstall(value);sharedRoutes=doc.Routes;ConfigurationVersion++;});}
+        internal void ConnectRoutePoints(IEnumerable<string> points) {
+            RequireHost();var added=points.Distinct().Where(p=>!installation.Economy.ConnectedPoints.Contains(p)).ToArray();
+            if(added.Length==0)return;
+            var value=MaterialEconomy.Connect(installation,added,DepotForPoint);Atomic(()=>CommitInstall(value));
+        }
         public void ApplyEconomy(bool enabled,double factor){RequireHost();if(!Ready||EconomyEnabled==enabled&&EconomyFactor==factor)return;var value=installation.Clone();value.Economy.Enabled=enabled;value.Economy.Factor=factor;value.Validate();CommitInstall(value);}
         public void ApplyPlacement(MarkerOptions options){RequireHost();if(!Ready||installation.Placement.Size!=null&&PlacementMatches(options))return;var value=installation.Clone();value.Placement=ServerPlacement.From(options);CommitInstall(value);}
         public LocalSignalAspect ClientAspect(string id){LocalSignalAspect aspect;return LiveFresh&&Live!=null&&Live.Aspects.TryGetValue(id,out aspect)?aspect:LocalSignalAspect.Stop;}
         public void Publish(SignalRuntime signals) {
             if(!Ready||!StateManager.IsHost||Time.realtimeSinceStartup<nextFrame)return;nextFrame=Time.realtimeSinceStartup+1;
-            var frame=new SharedLiveFrame{Epoch=epoch,Sequence=++sequence};foreach(var row in signals.SignalObjects.Where(s=>s.IsSignal))frame.Aspects[row.Id]=signals.Aspect(row.Id);frame.Runs=signals.Engine.Active.Select(SharedRouteStatus.From).ToList();frame.Validate();documents.Write("live",frame,FrameLimit);
+            var frame=new SharedLiveFrame{Epoch=epoch,Sequence=++sequence};foreach(var row in signals.SignalObjects.Where(s=>s.IsSignal))frame.Aspects[row.Id]=signals.Aspect(row.Id);frame.Runs=signals.Engine.Active.Select(run=>{var state=SharedRouteStatus.From(run,signals.Engine.RemainingWait(run));if(!sharedRoutes.Any(r=>r.Id==run.Route.Id))state.Definition=run.Route.Clone();return state;}).ToList();frame.Automation=signals.AutomationFrame();frame.Validate();documents.Write("live",frame,FrameLimit);
         }
-        public void Shutdown(){if(stopped)return;stopped=true;observer?.Dispose();observer=null;try{if(StateManager.Shared!=null)StateManager.Shared.UnregisterPropertyObject(ObjectId);}finally{if(properties!=null)Destroy(properties);properties=null;changed.Clear();installation=null;sharedDesks=null;sharedRoutes=null;Live=null;}}
+        public void Shutdown(){if(stopped)return;TryBackup();stopped=true;observer?.Dispose();observer=null;try{if(StateManager.Shared!=null)StateManager.Shared.UnregisterPropertyObject(ObjectId);}finally{if(properties!=null)Destroy(properties);properties=null;changed.Clear();installation=null;sharedDesks=null;sharedRoutes=null;Live=null;}}
     }
 }

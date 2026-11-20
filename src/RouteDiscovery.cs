@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace EnusDE.Signaltechnik {
     public enum RouteKind { Train,Slow,Shunt }
@@ -75,7 +76,8 @@ namespace EnusDE.Signaltechnik {
                 .GroupBy(s=>s.Anchor.Segment,StringComparer.Ordinal).ToDictionary(g=>g.Key,g=>g.ToArray(),StringComparer.Ordinal);
         }
 
-        public List<RouteProposal> Find(MarkerRecord entry,RouteKind kind,ISet<string> destinations,int workLimit=1024,RouteSearchReport report=null,bool probeThroughSignals=false) {
+        public List<RouteProposal> Find(MarkerRecord entry,RouteKind kind,ISet<string> destinations,int workLimit=1024,RouteSearchReport report=null,bool probeThroughSignals=false,bool includeAlternatives=false,ISet<string> allowedDirections=null,CancellationToken cancellation=default) {
+            cancellation.ThrowIfCancellationRequested();
             var result=new List<RouteProposal>();
             bool shunt=kind==RouteKind.Shunt;
             if(!SignalCatalogue.Supports(entry,shunt,kind==RouteKind.Slow)||entry.Anchor==null||
@@ -88,6 +90,8 @@ namespace EnusDE.Signaltechnik {
             var used=new HashSet<string>(StringComparer.Ordinal);
             int work=0;
             void Visit(PlanEdge edge,double from,bool reverse,double distance) {
+                cancellation.ThrowIfCancellationRequested();
+                if(allowedDirections!=null&&!allowedDirections.Contains(RouteTargetScope.Key(edge.Id,reverse)))return;
                 if(++work>workLimit||distance>MaximumDistance||path.Count>=128||!used.Add(edge.Id))return;
                 double limit=reverse?0:edge.Length;
                 MarkerRecord[] next=Array.Empty<MarkerRecord>();
@@ -134,6 +138,7 @@ namespace EnusDE.Signaltechnik {
                 return new List<RouteProposal>();
             }
             if(report!=null)report.Ambiguous.UnionWith(result.GroupBy(p=>p.Exit).Where(g=>g.Count()>1).Select(g=>g.Key));
+            if(includeAlternatives)return result.OrderBy(p=>p.Length).ThenBy(p=>p.Exit,StringComparer.Ordinal).ToList();
             return result.GroupBy(p=>p.Exit,StringComparer.Ordinal).Where(g=>g.Count()==1)
                 .Select(g=>g.Single()).OrderBy(p=>p.Length).ThenBy(p=>p.Exit,StringComparer.Ordinal).ToList();
         }

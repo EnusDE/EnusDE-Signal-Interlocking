@@ -9,7 +9,9 @@ $compiler=$sdk.Compiler
 $arguments=@('/nologo','/target:exe','/langversion:9','/nostdlib+',('/out:"'+(Join-Path $output 'PreferencesChecks.dll')+'"'))
 Get-ChildItem -LiteralPath $sdk.ReferenceAssemblies -Filter '*.dll' | ForEach-Object {$arguments+='/reference:"'+$_.FullName+'"'}
 $arguments+='"'+(Join-Path $PSScriptRoot 'PreferencesFixture.cs')+'"'
+foreach($name in @('LocalText','BuiltInLanguage')){$arguments+='"'+(Join-Path $project ('src\'+$name+'.cs'))+'"'}
 $arguments+='"'+(Join-Path $project 'src\ModsPreferencesRegistration.cs')+'"'
+$arguments+='"'+(Join-Path $project 'src\SignalPreferencesRegistration.cs')+'"'
 $response=Join-Path $output 'compiler.rsp'
 [IO.File]::WriteAllLines($response,$arguments,[Text.UTF8Encoding]::new($false))
 & dotnet exec $compiler /noconfig ('@'+$response)

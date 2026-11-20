@@ -1,7 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
 using Game.Scripting.Modules.Railroader;
 using Railroader.Modding;
 using Relay;
@@ -13,25 +13,39 @@ using Newtonsoft.Json.Linq;
 
 namespace EnusDE.Signaltechnik {
     public sealed class Entry : IModEntryPoint,IWorldLifecycle {
-        public const string Version="0.7.15";
+        public const string Version="0.7.59";
         static Recorder current;
         static DiagnosticWindow diagnostic;
         static MarkerRuntime markers;
         static SignalRuntime signals;
         static SharedRuntime shared;
         public static SharedRuntime Shared=>shared;
+        public static string RecordingsDirectory=>current?.DirectoryPath??Path.Combine(Application.persistentDataPath,"EnusDE-Signaltechnik","Diagnostics");
+        public static void OpenDiagnostics()=>diagnostic?.Command("toggle");
+        public static string DiagnosticExportDirectory=>string.IsNullOrWhiteSpace(settings.DiagnosticExportDirectory)?Path.Combine(Application.persistentDataPath,"EnusDE-Signaltechnik","Diagnostics","Exports"):settings.DiagnosticExportDirectory;
+        public static string DiagnosticExportStatus {get;private set;}="";
+        public static void ExportDiagnostics() {
+            try {
+                if(signals==null)throw new InvalidOperationException(LocalText.Select("Load the session before exporting diagnostics.","Vor dem Diagnoseexport den Spielstand laden."));
+                string file=DiagnosticArchive.Write(DiagnosticExportDirectory,signals.DiagnosticSnapshot());
+                DiagnosticExportStatus=LocalText.Select("Diagnostic ZIP saved: ","Diagnose-ZIP gespeichert: ")+file;
+            }catch(Exception e){DiagnosticExportStatus=LocalText.Select("Diagnostic export failed: ","Diagnoseexport fehlgeschlagen: ")+e.Message;}
+        }
         static string startupError;
         static DiagnosticSettings settings=new DiagnosticSettings();
         static SettingsStore store;
         GameObject root;
         IModLogger log;
         IDisposable preferences;
+        IDisposable companyPreferences;
+        ConstructionIntegration constructionIntegration;
+        HandbookIntegration handbookIntegration;
         SettingsMenu menu;
         TrackMenuIntegration trackMenu;
         SignTooltipHooks tooltipHooks;
         TransferHooks transfers;
         internal static string SearchCloseKey=>settings.SearchCloseKey;
-        public static DiagnosticSettings SettingsSnapshot(){var copy=settings.Clone();if(shared!=null&&shared.Ready){copy.Markers.EconomyEnabled=shared.EconomyEnabled;copy.Markers.MaterialFactor=shared.EconomyFactor;shared.ApplyPlacementDefaults(copy.Markers);}return copy;}
+        public static DiagnosticSettings SettingsSnapshot(){var copy=settings.Clone();if(shared!=null&&shared.Ready){copy.Markers.MaterialsInSandbox=shared.Snapshot().Economy.MaterialsInSandbox;copy.Markers.FreeInEconomy=shared.Snapshot().Economy.FreeInEconomy;copy.Markers.EconomyEnabled=shared.EconomyEnabled;copy.Markers.MaterialFactor=shared.EconomyFactor;shared.ApplyPlacementDefaults(copy.Markers);}return copy;}
         static DiagnosticSettings SessionSettings(){var copy=SettingsSnapshot();if(!Game.State.StateManager.IsHost&&!copy.RecordOnClients)copy.Recording=false;return copy;}
         public static bool IsRecording=>current!=null&&current.Recording;
         public static long WindowBuilds=>diagnostic==null?0:diagnostic.Builds;
@@ -39,23 +53,27 @@ namespace EnusDE.Signaltechnik {
             log=context.Log;startupError=null;
             try{transfers=new TransferHooks();transfers.Start(log);}catch(Exception e){log.Error(e,"Signaltechnik MP-Großübertragung nicht verfügbar.");}
             store=new SettingsStore(Path.Combine(Application.persistentDataPath,"EnusDE-Signaltechnik","settings.json"));
-            settings=store.Load();
+            settings=store.Load();LocalText.Configure(()=>settings.Language);
             if(store.Error!=null)log.Warning(store.Error);
+            try{handbookIntegration=new HandbookIntegration(message=>log.Warning(message));}catch(Exception e){log.Warning("F1 handbook: "+e.Message);}
+            try{constructionIntegration=new ConstructionIntegration(message=>log.Warning(message));}catch(Exception e){log.Warning("Construction integration: "+e.Message);}
             RegisterBridge(RailroaderModule.Shared);
             var registered=ModuleRegistry.GetModule("railroader");
             if(registered!=null&&!ReferenceEquals(registered,RailroaderModule.Shared))RegisterBridge(registered);
             menu=new SettingsMenu(SettingsSnapshot,SaveSettings,store.FilePath);
-            try{preferences=ModsPreferencesRegistration.Register(menu.Build,message=>log.Warning(message));}
-            catch(Exception e){log.Warning("Mods-Einstellungen nicht verfügbar: "+e.Message);}
-            try{trackMenu=new TrackMenuIntegration();trackMenu.Start(()=>markers!=null&&!Game.State.StateManager.IsUnloading&&Game.State.StateManager.IsHost&&settings.Markers.Visible,(at,kind)=>markers?.FromTrack(at,kind),message=>log.Warning(message));}
+            try{companyPreferences=new CompanySettingsRegistration(menu.BuildStandalone,message=>log.Warning(message));}
+            catch(Exception e){log.Warning("Company-Einstellungen nicht verfügbar: "+e.Message);}
+            try{preferences=SignalPreferencesRegistration.Register(companyPreferences==null?menu.BuildStandalone:menu.BuildMovedNotice,message=>log.Warning(message));}
+            catch(Exception e){log.Warning("Signaltechnik-Einstellungen nicht verfügbar: "+e.Message);}
+            try{trackMenu=new TrackMenuIntegration();trackMenu.Start(()=>markers!=null&&!Game.State.StateManager.IsUnloading&&Game.State.StateManager.IsHost&&settings.Markers.Visible,(at,kind)=>markers?.FromTrack(at,kind),message=>log.Warning(message),()=>signals?.PickingPoint==true,node=>signals?.TryAssignWorldPoint(node)==true);}
             catch(Exception e){log.Warning("Gleis-Kontextmenü nicht verfügbar: "+e.Message);}
-            log.Info("Signaltechnik "+Version+": wählbare lokale Diagnose. Einstellungen: Spieloptionen > Mods > EnusDE Signaltechnik.");
+            log.Info("Signaltechnik "+Version+": Einstellungen unter Company > Optionen > Mods > Signaltechnik.");
         }
         public static void SaveSettings(DiagnosticSettings value) {
             var next=value.Clone();
             signals?.CheckSettings(next);
             if(store==null)throw new InvalidOperationException("Einstellungsablage nicht bereit.");
-            if(shared!=null&&shared.Ready){if(Game.State.StateManager.IsHost){shared.ApplyEconomy(next.Markers.EconomyEnabled,next.Markers.MaterialFactor);shared.ApplyPlacement(next.Markers);}else if(next.Markers.EconomyEnabled!=shared.EconomyEnabled||next.Markers.MaterialFactor!=shared.EconomyFactor||!shared.PlacementMatches(next.Markers))throw new InvalidOperationException("Materialwirtschaft und Bauvorgaben werden vom Host festgelegt.");}
+            if(shared!=null&&shared.Ready){if(Game.State.StateManager.IsHost){shared.ApplyMaterialPolicy(next.Markers.MaterialsInSandbox,next.Markers.FreeInEconomy,next.Markers.MaterialFactor);shared.ApplyPlacement(next.Markers);}else if(next.Markers.EconomyEnabled!=shared.EconomyEnabled||next.Markers.MaterialFactor!=shared.EconomyFactor||!shared.PlacementMatches(next.Markers))throw new InvalidOperationException("Materialwirtschaft und Bauvorgaben werden vom Host festgelegt.");}
             store.Save(next);settings=next;
             if(current!=null)current.Apply(SessionSettings());
             if(diagnostic!=null)diagnostic.ApplySettings(settings);
@@ -142,16 +160,47 @@ namespace EnusDE.Signaltechnik {
             if(current!=null)current.DisposeRecorder();current=null;
             if(root!=null)UnityEngine.Object.Destroy(root);root=null;
         }
-        public void OnModUnload(){trackMenu?.Dispose();trackMenu=null;OnWorldUnload();transfers?.Dispose();transfers=null;preferences?.Dispose();preferences=null;menu=null;store=null;}
+        public void OnModUnload(){try{handbookIntegration?.Dispose();}catch(Exception e){log?.Warning("Guide cleanup: "+e.Message);}finally{handbookIntegration=null;}try{constructionIntegration?.Dispose();}catch(Exception e){log?.Warning("Construction cleanup: "+e.Message);}finally{constructionIntegration=null;}trackMenu?.Dispose();trackMenu=null;OnWorldUnload();transfers?.Dispose();transfers=null;preferences?.Dispose();preferences=null;companyPreferences?.Dispose();companyPreferences=null;menu=null;store=null;}
         public static string MarkerCommand(string command)=>markers==null?"Grenzzeichen-Werkzeug nicht bereit: erst eine Spielwelt laden.":markers.Command(command);
         public static void RecordMarkerEvent(string action,MarkerRecord row){if(current!=null)current.LocalMarkerEvent(action,row);}
         public static LocalSignalAspect SignalAspect(string id)=>signals?.Aspect(id)??LocalSignalAspect.Stop;
+        internal static void CheckLineConfigurationChange(string[] affected=null,IEnumerable<LineTrackDefinition> proposed=null,string[] targets=null)=>signals?.CheckLineConfigurationChange(affected,proposed,targets);
         public static bool SignalCanModify(string id)=>signals==null||signals.CanModify(id);
         public static bool MastCanModify(MarkerRecord row)=>SignalCatalogue.Ids(row).All(SignalCanModify);
         public static bool PlacingObject=>markers!=null&&markers.IsPlacing;
-        public static void OpenMarker(string id,int direction=0){markers?.OpenObject(id,direction);}
+        internal static bool BlockWorldObjectClick=>signals?.ConsumeSelectionInput()==true||WorldPointerInput.OverUi();
+        public static void OpenMarker(string id,int direction=0){if(signals?.OfferWorldSignalPick(id,direction)==true)return;markers?.OpenObject(id,direction);}
+        internal static void ActivateMarker(string id,int direction,bool secondary){if(signals?.OfferWorldSignalPick(id,direction)==true)return;if(secondary)markers?.OpenObjectContext(id,direction);else markers?.OpenObject(id,direction);}
+        internal static string WorldSelectionHint(string id)=>signals?.WorldSelectionHint(id);
+        internal static bool TryPickWorldObject(string id)=>signals?.OfferWorldSignalPick(id,0)==true;
+        internal static void BuildSignalContactStatus(UI.Builder.UIPanelBuilder c,string id)=>signals?.BuildSignalContactStatus(c,id);
+        internal static PointCircuitOption[] PointCircuitOptions()=>signals?.PointCircuitOptions()??Array.Empty<PointCircuitOption>();
+        internal static string InspectPointCircuit(string id)=>signals?.InspectPointCircuit(id)??"Weichenerkennung noch nicht bereit.";
+        internal static void ConfigureSwitchModel(string id,bool electric,bool wholeDesk)=>signals?.ConfigureSwitchModel(id,electric,wholeDesk);
+        internal static void ConfigurePointCircuit(string id,bool enabled,bool detect)=>signals?.ConfigurePointCircuit(id,enabled,detect);
+        internal static void EnableTrackPointCircuit(Track.Location at){if(signals==null)throw new InvalidOperationException(LocalText.Select("Load a world first.","Zuerst eine Spielwelt laden."));signals.EnableTrackPointCircuit(at);}
+        internal static MarkerRecord[] AutomaticPointBoxes()=>signals?.AutomaticPointBoxes()??Array.Empty<MarkerRecord>();
+        internal static bool IsSharedSignalCircuit(string id)=>signals?.IsSharedSignalCircuit(id)==true;
+        internal static string SharedPointSignal(string id)=>signals?.SharedPointSignal(id);
+        internal static string[] SharedPointSignals(string point)=>signals?.SharedPointSignals(point)??Array.Empty<string>();
+        internal static string[] SharedSignalPoints(string signal)=>signals?.SharedSignalPoints(signal)??Array.Empty<string>();
+        internal static void OpenPointBoundary(string id)=>markers?.OpenPointBox(id);
+        internal static MarkerRecord PointBoxDefault(string id)=>signals?.PointBoxDefault(id);
+        internal static PointBoxPlacement PointBoxPosition(string id)=>signals?.PointBoxPosition(id);
+        internal static void PutPointBoxPosition(string id,PointBoxPlacement placement)=>signals?.PutPointBoxPosition(id,placement);
         public static string MarkerCaption(string id)=>markers?.ObjectCaption(id)??"Signaltechnik";
         public static void ApplyHostPlacement(){if(markers==null)throw new InvalidOperationException("Erst eine Welt laden.");markers.ApplyHostPlacement();}
+        internal static void BuildBackups(UI.Builder.UIPanelBuilder b){if(shared==null)b.AddLabel(LocalText.Get("Zuerst eine Spielwelt laden."));else shared.BuildBackups(b);}
+        internal static void CheckBackupRestore()=>signals?.CheckBackupRestore();
+        internal static void SuspendBackupRestore()=>signals?.SuspendBackupRestore();
+        internal static void CancelBackupRestore()=>signals?.CancelBackupRestore();
+        internal static void ReloadBackupConfiguration(){try{markers?.ReloadBackupConfiguration();}finally{signals?.ReloadBackupConfiguration();}}
+        internal static void OpenAutomation()=>signals?.OpenAutomation();
+        internal static void BuildAutomationSettings(UI.Builder.UIPanelBuilder b){if(signals==null)b.AddLabel(LocalText.Get("Zuerst eine Welt laden."));else signals.BuildAutomationSettings(b);}
+        internal static void BuildSignalRoleEditor(UI.Builder.UIPanelBuilder b,string id,Action verify=null)=>signals?.BuildSignalRoleEditor(b,id,verify);
+        internal static void BuildSignalOperatingEditor(UI.Builder.UIPanelBuilder b,string id,Action verify=null)=>signals?.BuildSignalOperatingEditor(b,id,verify);
+        internal static bool IgnoresOwnSignal(string id)=>signals?.IgnoreOwnSignal(id)==true;
+        internal static void PlaceAutomationContact(Track.Location at)=>signals?.PlaceAutomationContact(at);
         public static void OpenInterlocking()=>signals?.Open();
         internal static bool WorkspaceAvailable=>signals?.WorkspaceAvailable==true;
         internal static bool WorkspaceEditable=>signals?.WorkspaceEditable==true;
@@ -171,6 +220,7 @@ namespace EnusDE.Signaltechnik {
             signals.RememberCircuitBoundary(id);
         }
         public static void AssignSignalPoint(Track.Location at){signals?.AssignTrackPoint(at);}
+        internal static string SelectTrackPoint(Track.Location at){if(signals==null)throw new InvalidOperationException(LocalText.Get("Zuerst eine Welt laden."));return signals.SelectTrackPoint(at);}
         public static Dictionary<string,string> DisplayData(string selectedId) {
             var r=current;
             var d=new Dictionary<string,string>{

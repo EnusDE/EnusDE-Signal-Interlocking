@@ -10,6 +10,7 @@ namespace EnusDE.Signaltechnik {
         static readonly Dictionary<int,IReadOnlyList<PanelLine>> shapes=new Dictionary<int,IReadOnlyList<PanelLine>>();
         public static int Count(int mask){int n=0;for(int i=0;i<8;i++)if((mask&(1<<i))!=0)n++;return n;}
         public static void Validate(PanelTile t) {
+            if(t.Kind==PanelTileKind.LinePermission&&t.InlinePermission&&t.Ports!=0&&(Count(t.Ports)<1||Count(t.Ports)>2))throw new InvalidOperationException(LocalText.Select("An inline permission module needs one or two rail ports.","Ein Erlaubnismodul im Gleis benötigt einen oder zwei Gleisanschlüsse."));
             if(t.Ports<0||t.Ports>255||Count(t.Ports)>4||(t.Kind==PanelTileKind.Signal||t.Kind==PanelTileKind.TrainNumber||t.Kind==PanelTileKind.AuxiliaryTarget)&&Count(t.Ports)>2||t.Kind==PanelTileKind.Label&&t.Ports!=0)throw new InvalidOperationException("Ungültige Gleisanschlüsse.");
             if(t.Ports!=0&&(t.Kind==PanelTileKind.Switch&&Count(t.Ports)!=3||t.Kind==PanelTileKind.Cross&&Count(t.Ports)!=4||t.Kind==PanelTileKind.Straight&&Count(t.Ports)>2||(t.Kind==PanelTileKind.Diagonal||t.Kind==PanelTileKind.Curve)&&Count(t.Ports)!=2))throw new InvalidOperationException("Anschlüsse passen nicht zum Symboltyp.");
             foreach(int p in new[]{t.Stem,t.Normal})if(p!=0&&(p<1||p>128||(p&(p-1))!=0||(p&t.Ports)==0))throw new InvalidOperationException("Weichenast nicht an das Symbol angeschlossen.");
@@ -21,6 +22,8 @@ namespace EnusDE.Signaltechnik {
             int result=0;for(int i=0;i<8;i++)if((mask&(1<<i))!=0){int j=i;if(inverse){j=(j+2*rotation)%8;if(mirror)j=(8-j)%8;}else{if(mirror)j=(8-j)%8;j=(j-2*rotation+8)%8;}result|=1<<j;}return result;
         }
         public static int Ports(PanelTile tile) {
+            if(NumberMirrors.IsMirror(tile)||tile.Kind==PanelTileKind.LinePermission&&!tile.InlinePermission)return 0;
+            if(tile.Kind==PanelTileKind.LinePermission&&tile.Ports==0)return Transform(17,tile.Rotation,tile.Mirror);
             if(tile.Ports!=0)return Transform(tile.Ports,tile.Rotation,tile.Mirror);
             int mask=0;foreach(var line in PanelGeometry.Lines(tile.Kind))foreach(var p in new[]{line.A,line.B})if(Math.Abs(p.X)==1||Math.Abs(p.Y)==1)mask|=1<<Direction((int)Math.Sign(p.X),-(int)Math.Sign(p.Y));
             return Transform(mask,tile.Rotation,tile.Mirror);
@@ -32,9 +35,12 @@ namespace EnusDE.Signaltechnik {
             branch=tile.Ports&~(stem|normal);
         }
         public static IReadOnlyList<PanelLine> Lines(PanelTile tile) {
+            if(tile.Kind==PanelTileKind.LinePermission&&!tile.InlinePermission)return Array.Empty<PanelLine>();
+            if(tile.Kind==PanelTileKind.LinePermission&&tile.Ports==0)return PanelGeometry.Lines(PanelTileKind.Straight);
             if(tile.Ports==0)return PanelGeometry.Lines(tile.Kind);
             int key=(int)tile.Kind*256+tile.Ports;lock(shapes){IReadOnlyList<PanelLine> found;if(shapes.TryGetValue(key,out found))return found;var lines=new List<PanelLine>();for(int i=0;i<8;i++)if((tile.Ports&(1<<i))!=0)lines.Add(new PanelLine(0,0,Dx[i],-Dy[i]));if(tile.Kind==PanelTileKind.Signal){lines.Add(new PanelLine(0,0,0,.375f));lines.Add(new PanelLine(0,.375f,.5f,.375f));}var result=lines.ToArray();shapes[key]=result;return result;}
         }
+        public static int RailLineCount(PanelTile tile)=>Lines(tile).Count-(tile.Kind==PanelTileKind.Signal?2:0);
         public static bool LineActive(PanelTile tile,int index,bool thrown) {
             if(tile.Kind!=PanelTileKind.Switch)return true;
             if(tile.Ports==0)return index==0||((index==2)==thrown);
@@ -42,27 +48,28 @@ namespace EnusDE.Signaltechnik {
         }
     }
     public static class PanelEditing {
-        static void Commit(PanelDocument doc,PanelDocument next){next.Validate(doc.WorldKey);doc.Columns=next.Columns;doc.Rows=next.Rows;doc.Tiles=next.Tiles;}
+        static void Commit(PanelDocument doc,PanelDocument next){next.Validate(doc.WorldKey);doc.Columns=next.Columns;doc.Rows=next.Rows;doc.OriginX=next.OriginX;doc.OriginY=next.OriginY;doc.Tiles=next.Tiles;}
         public static void PlaceField(PanelDocument doc,int x,int y,PanelTileKind kind)=>doc.Put(PreviewField(doc,x,y,kind));
         public static PanelTile PreviewField(PanelDocument doc,int x,int y,PanelTileKind kind) {
-            if(kind!=PanelTileKind.Signal&&kind!=PanelTileKind.Switch&&kind!=PanelTileKind.Label&&kind!=PanelTileKind.TrainNumber&&kind!=PanelTileKind.AuxiliaryTarget)
+            if(kind!=PanelTileKind.Signal&&kind!=PanelTileKind.Switch&&kind!=PanelTileKind.Label&&kind!=PanelTileKind.TrainNumber&&kind!=PanelTileKind.AuxiliaryTarget&&kind!=PanelTileKind.LinePermission)
                 throw new InvalidOperationException("Für Gleise das Zeichenwerkzeug verwenden.");
             var old=doc.At(x,y);
-            if(old==null)return new PanelTile{X=x,Y=y,Kind=kind};
+            if(old==null)return new PanelTile{X=x,Y=y,Kind=kind,InlinePermission=kind==PanelTileKind.LinePermission};
             int ports=PanelConnections.Ports(old),count=PanelConnections.Count(ports);
             bool plain=old.Kind==PanelTileKind.Straight||old.Kind==PanelTileKind.Diagonal||old.Kind==PanelTileKind.Curve;
             if(!plain||old.Reference!=""||old.Label!=""||count>2||
-                (kind!=PanelTileKind.TrainNumber&&kind!=PanelTileKind.AuxiliaryTarget&&(kind!=PanelTileKind.Signal||old.Section!=null)))
+                (kind!=PanelTileKind.LinePermission&&kind!=PanelTileKind.TrainNumber&&kind!=PanelTileKind.AuxiliaryTarget&&(kind!=PanelTileKind.Signal||old.Section!=null)))
                 throw new InvalidOperationException("Dieses Feld ist bereits belegt oder hat eine eigene Bindung. Freies Feld wählen oder das bestehende Feld bearbeiten.");
             var added=old.Clone();
             added.Kind=kind;
+            added.InlinePermission=kind==PanelTileKind.LinePermission;
             added.Ports=PanelConnections.Transform(ports,old.Rotation,old.Mirror,true);
             added.Stem=added.Normal=0;
             return added;
         }
 
         internal static PanelTile TrackBelowSymbol(PanelDocument doc,PanelTile tile) {
-            if(tile==null||(tile.Kind!=PanelTileKind.Signal&&tile.Kind!=PanelTileKind.TrainNumber&&tile.Kind!=PanelTileKind.AuxiliaryTarget))return null;
+            if(tile==null||(tile.Kind!=PanelTileKind.Signal&&tile.Kind!=PanelTileKind.TrainNumber&&tile.Kind!=PanelTileKind.AuxiliaryTarget&&!(tile.Kind==PanelTileKind.LinePermission&&tile.InlinePermission)))return null;
             int mask=PanelConnections.Ports(tile);
             bool connected=Enumerable.Range(0,8).Any(i=>{
                 if((mask&(1<<i))==0)return false;
@@ -75,19 +82,17 @@ namespace EnusDE.Signaltechnik {
             track.Kind=bends?PanelTileKind.Curve:PanelTileKind.Straight;
             track.Ports=PanelConnections.Transform(mask,tile.Rotation,tile.Mirror,true);
             track.Label=track.Reference=track.Number=track.Prefix="";
-            track.AlternateSignal=null;track.CircuitRails=null;
+            track.AlternateSignal=null;if(tile.Kind!=PanelTileKind.LinePermission)track.CircuitRails=null;track.NumberId=track.NumberMirror=null;track.InlineNumberMirror=false;
             track.MainSignalDirection=track.ShuntSignalDirection=null;track.SwapSignalHalves=false;
             track.Target=null;track.LinkedAuxiliary=null;
+            track.InlinePermission=false;track.PermissionAuxiliary=null;
             track.Stem=track.Normal=0;
             return track;
         }
-        public static void Insert(PanelDocument doc,bool row,int at) {
-            if(at<0||at>(row?doc.Rows:doc.Columns))throw new InvalidOperationException("Einfügestelle außerhalb der Tafel.");
-            var next=doc.Clone();if(row){next.Rows++;foreach(var t in next.Tiles)if(t.Y>=at)t.Y++;foreach(var a in next.Areas){if(a.Y>=at)a.Y++;else if(a.Y+a.Height>at)a.Height++;}}else{next.Columns++;foreach(var t in next.Tiles)if(t.X>=at)t.X++;foreach(var a in next.Areas){if(a.X>=at)a.X++;else if(a.X+a.Width>at)a.Width++;}}Commit(doc,next);doc.Areas=next.Areas;
-        }
+        public static void Insert(PanelDocument doc,bool row,int at)=>EditorCanvasGeometry.Insert(doc,row,at);
         public static void Paste(PanelDocument target,PanelDocument source,int x,int y) {
             if(target.WorldKey!=source.WorldKey)throw new InvalidOperationException("Bereich gehört zu einer anderen Welt.");
-            var next=target.Clone();foreach(var tile in source.Tiles){var copy=tile.Clone();copy.X+=x;copy.Y+=y;if(next.At(copy.X,copy.Y)!=null)throw new InvalidOperationException("Ziel enthält bereits Felder. Erst Platz schaffen oder eine freie Position wählen.");next.Tiles.Add(copy);}
+            var next=target.Clone();foreach(var tile in source.Tiles){var copy=tile.Clone();copy.NumberId=null;copy.X+=x;copy.Y+=y;if(next.At(copy.X,copy.Y)!=null)throw new InvalidOperationException("Ziel enthält bereits Felder. Erst Platz schaffen oder eine freie Position wählen.");next.Tiles.Add(copy);}
             foreach(var a in source.Areas){var copy=JsonConvertArea(a);copy.Id=Guid.NewGuid().ToString("N");copy.X+=x;copy.Y+=y;if(next.Areas.Any(b=>string.Equals(b.Code,copy.Code,StringComparison.OrdinalIgnoreCase)))throw new InvalidOperationException("Bereichskennung im Ziel bereits vorhanden: "+copy.Code);next.Areas.Add(copy);}
             Commit(target,next);target.Areas=next.Areas;
         }
@@ -98,7 +103,7 @@ namespace EnusDE.Signaltechnik {
             var next=doc.Clone();var points=new List<Tuple<int,int>>{Tuple.Create(x0,y0)};int x=x0,y=y0;
             while(x!=x1||y!=y1){x+=Math.Sign(x1-x);y+=Math.Sign(y1-y);points.Add(Tuple.Create(x,y));}
             for(int n=0;n<points.Count;n++) {
-                var p=points[n];var old=next.At(p.Item1,p.Item2);if(old?.Kind==PanelTileKind.Label)throw new InvalidOperationException("Beschriftung im Zeichenweg. Bereich verschieben oder anderes Ziel wählen.");
+                var p=points[n];var old=next.At(p.Item1,p.Item2);if(old?.Kind==PanelTileKind.LinePermission)throw new InvalidOperationException(LocalText.Select("Move the permission indicator before drawing.","Erlaubnismelder vor dem Zeichnen versetzen."));if(old?.Kind==PanelTileKind.Label)throw new InvalidOperationException("Beschriftung im Zeichenweg. Bereich verschieben oder anderes Ziel wählen.");
                 int mask=old==null?0:PanelConnections.Ports(old),previous=mask;
                 foreach(int j in new[]{n-1,n+1})if(j>=0&&j<points.Count)mask|=1<<PanelConnections.Direction(points[j].Item1-p.Item1,points[j].Item2-p.Item2);
                 int count=PanelConnections.Count(mask);if(count>4||(old?.Kind==PanelTileKind.Signal||old?.Kind==PanelTileKind.TrainNumber||old?.Kind==PanelTileKind.AuxiliaryTarget)&&count>2||old?.Kind==PanelTileKind.Switch&&count>3&&!string.IsNullOrEmpty(old.Reference))throw new InvalidOperationException("Zu viele Anschlüsse an einem gebundenen Symbol. Anders führen oder Symbol vorher bearbeiten.");
@@ -120,6 +125,9 @@ namespace EnusDE.Signaltechnik {
     public static class PanelPicking {
         public static bool RightHalf(int x,float zoom,float localX)=>
             localX>=(x+.5f)*PanelGeometry.CellWidth*zoom;
+        public static bool SecondHalf(PanelTile tile,int x,int y,float zoom,float localX,float localY)=>
+            SignalCellLayout.HasAuxiliaryHalf(tile)&&SignalCellLayout.MainDirection(tile)%2==1?
+                localY<=-(y+.5f)*PanelGeometry.CellHeight*zoom:RightHalf(x,zoom,localX);
         public static bool Cell(int columns,int rows,float zoom,float localX,float localY,out int x,out int y) {
             x=y=-1;if(zoom<.005f||zoom>2||float.IsNaN(localX)||float.IsNaN(localY)||float.IsInfinity(localX)||float.IsInfinity(localY))return false;
             x=(int)Math.Floor(localX/(PanelGeometry.CellWidth*zoom));y=(int)Math.Floor(-localY/(PanelGeometry.CellHeight*zoom));return x>=0&&y>=0&&x<columns&&y<rows;

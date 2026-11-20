@@ -65,15 +65,18 @@ namespace EnusDE.Signaltechnik {
         void Build(UIPanelBuilder builder) {
             Builds++;RefreshValues();layoutDirty=false;
             builder.VScrollView(b=>{
-                b.AddTitle("EnusDE Signaltechnik","P0 · Wählbare Diagnose v"+Entry.Version);
-                b.AddLabel("Einstellungen: Spieloptionen → Mods → EnusDE Signaltechnik.");
-                b.AddLabel("Werte stammen aus der letzten Aufzeichnung. Die Scrollposition bleibt bei Messwertänderungen erhalten.");
-                if(config.ShowRecorder)b.AddSection("Hintergrundaufzeichnung",section=>{
+                b.AddTitle(LocalText.Get("EnusDE Signaltechnik"),"P0 · Wählbare Diagnose v"+Entry.Version);
+                b.AddLabel(LocalText.Get("Einstellungen: Spieloptionen → Signaltechnik."));
+                b.AddLabel(LocalText.Get("Werte stammen aus der letzten Aufzeichnung. Die Scrollposition bleibt bei Messwertänderungen erhalten."));
+                if(config.ShowRecorder)b.AddSection(LocalText.Get("Hintergrundaufzeichnung"),section=>{
+                    section.AddField(LocalText.Select("Recording folder","Aufzeichnungsordner"),()=>Entry.RecordingsDirectory,UIPanelBuilder.Frequency.Periodic);
                     Field(section,"Aufzeichnung","recording");Field(section,"Gespeicherte Datensätze","written");
                     Field(section,"Verworfene Datensätze","dropped");Field(section,"Durch Begrenzung ausgelassen","suppressed");
                 });
                 Field(b,"Recorderhinweis","error");Field(b,"Instanz","role");
-                if(config["vehicles"].Visible)b.AddSection("Ausgewähltes Fahrzeug",section=>{
+                b.AddButton(LocalText.Select("Export diagnostic ZIP","Diagnose-ZIP exportieren"),Entry.ExportDiagnostics);
+                b.AddField(LocalText.Select("Export result","Exportergebnis"),()=>Entry.DiagnosticExportStatus,UIPanelBuilder.Frequency.Periodic);
+                if(config["vehicles"].Visible)b.AddSection(LocalText.Get("Ausgewähltes Fahrzeug"),section=>{
                     Field(section,"Messstatus","vehicle_status");Field(section,"Name","name");Field(section,"Fahrzeug-ID","id");Field(section,"Messzeit (UTC)","sampleTime");
                     if(config.ShowSpeed){Field(section,"Geschwindigkeit (km/h)","kmh");Field(section,"Geschwindigkeit (mph)","mph");}
                     if(config.ShowPositions){Field(section,"Gleisposition vorne","front");Field(section,"Gleisposition hinten","rear");}
@@ -82,11 +85,11 @@ namespace EnusDE.Signaltechnik {
                     string key=category;if(!config[key].Visible)continue;
                     b.AddSection(SettingsMenu.Caption(key),section=>{Field(section,"Objekte im Umfang",key+"_count");Field(section,"Zustand",key+"_status");});
                 }
-                if(config["signs"].Visible){Field(b,"Schilder-Verwaltungsereignisse","sign_callbacks");b.AddLabel("Keine bestätigten Zug-/Schildauslöser.");}
+                if(config["signs"].Visible){Field(b,"Schilder-Verwaltungsereignisse","sign_callbacks");b.AddLabel(LocalText.Get("Keine bestätigten Zug-/Schildauslöser."));}
                 if(config["game_log"].Visible)Field(b,"Letzte Spielmeldung","last_log");
                 if(config["performance"].Visible){Field(b,"Leistung","performance");Field(b,"Speicher des Spielprozesses","memory");}
-                b.AddButton("Werte aktualisieren",RefreshValues);
-                b.AddButton("Schließen",()=>{if(manager!=null&&!StateManager.IsUnloading)manager.CloseWindow(Id);});
+                b.AddButton(LocalText.Get("Werte aktualisieren"),RefreshValues);
+                b.AddButton(LocalText.Get("Schließen"),()=>{if(manager!=null&&!StateManager.IsUnloading)manager.CloseWindow(Id);});
             });
         }
         // Adapted from the MIT-licensed EnusDE Mod Menu 0.1.2 ownership cleanup.

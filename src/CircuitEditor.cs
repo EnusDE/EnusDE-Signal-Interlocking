@@ -32,43 +32,93 @@ namespace EnusDE.Signaltechnik {
 
         internal MarkerRecord CircuitEndpoint(string id) {
             if(string.IsNullOrEmpty(id))return null;
-            if(TrackCircuit.TryPointId(id,out var point,out int arm))return PointBoundaries(point).ElementAtOrDefault(arm);
-            if(physicalBoundaries.TryGetValue(id,out var physical))return CircuitIdentity.Enabled(physical)?physical:null;
+            id=BlockBoundary(id)??id;
+            if(TrackCircuit.TryPointId(id,out var point,out int arm))return PointCircuitVisibility.Enabled(desks,point)?SharedPointCircuits().PointAlias(SafePointBoundaries(point).ElementAtOrDefault(arm)):null;
+            if(physicalBoundaries.TryGetValue(id,out var physical))return CircuitIdentity.Enabled(physical)?EffectivePhysicalBoundary(physical):null;
             var signal=Object(id);
+            if(signal?.PhysicalId!=null&&physicalBoundaries.TryGetValue(signal.PhysicalId,out physical))return CircuitIdentity.Enabled(physical)?EffectivePhysicalBoundary(physical):null;
             return signal?.CircuitNumber>0&&!CircuitIdentity.Enabled(signal)?null:signal;
         }
+        readonly Dictionary<string,string> pointBoundaryErrors=new Dictionary<string,string>();
+        MarkerRecord[] SafePointBoundaries(string point) {
+            try{var result=PointBoundaries(point);pointBoundaryErrors.Remove(point);return result;}
+            catch(Exception e){if(!pointBoundaryErrors.TryGetValue(point,out var old)||old!=e.Message){pointBoundaryErrors[point]=e.Message;Entry.RecordSignalEvent("point_gfm_invalid",new{point,error=e.Message});}return Array.Empty<MarkerRecord>();}
+        }
+        IEnumerable<TrackSection> UsablePointGuards(TrackBlock block) {try{return ReadPointDefinition(block).Guards;}catch{return Array.Empty<TrackSection>();}}
 
         MarkerRecord[] PointBoundaries(string point) {
-            var result=new MarkerRecord[3];
-            var graph=Graph.Shared;
-            var node=graph?.GetNode(point);
+            var graph=Graph.Shared;var node=graph?.GetNode(point);
             if(desks==null||node==null||!desks.Blocks.TryGetValue("p:"+point,out var block)||
-                !graph.IsSwitch(node)||!graph.DecodeSwitchAt(node,out var common,out var normal,out var branch))return result;
+                !graph.IsSwitch(node)||!graph.DecodeSwitchAt(node,out var common,out var normal,out var branch))return Array.Empty<MarkerRecord>();
+            block=ReadPointDefinition(block);
             var segments=new[]{common,normal,branch};
+            var anchors=new MarkerAnchor[3];var positions=new UnityEngine.Vector3[3];
+            var fallback=new MarkerRecord[3];
             for(int i=0;i<segments.Length;i++) {
                 var segment=segments[i];
                 var guard=block.Guards.FirstOrDefault(g=>g.Segment==segment?.id);
-                if(guard==null)continue;
-                result[i]=new MarkerRecord{Id=TrackCircuit.PointId(point,i),Kind=MarkerRecord.CircuitA,
-                    Name=PointAssignments.Caption(desks,point)+" · "+TrackCircuit.PointArms[i],
-                    Anchor=new MarkerAnchor{Segment=segment.id,Meters=segment.a==node?guard.To:guard.From}};
+                if(guard==null||segment==null)continue;
+                double meters=segment.a==node?guard.To:guard.From;
+                anchors[i]=new MarkerAnchor{Segment=segment.id,Meters=meters};
+                fallback[i]=new MarkerRecord{Id=TrackCircuit.PointId(point,i),Kind=MarkerRecord.CircuitB,
+                    Name=PointAssignments.Caption(desks,point)+" · "+TrackCircuit.PointArms[i],Anchor=anchors[i]};
+                positions[i]=graph.GetPosition(new Location(segment,(float)meters,TrackSegment.End.A));
+            }
+            if(anchors.Any(a=>a==null))return fallback;
+            var forward=node.Position-positions[0];forward.y=0;
+            if(forward.sqrMagnitude<.001f)return fallback;
+            forward.Normalize();
+            var right=UnityEngine.Vector3.Cross(UnityEngine.Vector3.up,forward);
+            double normalRight=UnityEngine.Vector3.Dot(positions[1]-node.Position,right);
+            double branchRight=UnityEngine.Vector3.Dot(positions[2]-node.Position,right);
+            var result=PointCircuitBoxes.Create(point,PointAssignments.Caption(desks,point),anchors,normalRight,branchRight);
+            if(result.Length!=3)return fallback;
+            for(int i=0;i<result.Length;i++) {
+                string side=PointCircuitBoxes.Side(i,normalRight,branchRight);
+                bool away=segments[i].a==node;result[i].FacingReverse=!away;
+                result[i].Anchor.Lateral=i==0?(away?-2.3:2.3):(side=="L"?-2.3:2.3)*(away?1:-1);
+                if(desks.PointBoxes.TryGetValue(result[i].Id,out var appearance))result[i]=appearance.Appearance(result[i]);
             }
             return result;
         }
 
+        DeskLibrary automaticPointLibrary;
+        object automaticPointGraph;
+        MarkerRecord[] automaticPointBoxes=Array.Empty<MarkerRecord>();
+        internal MarkerRecord[] AutomaticPointBoxes() {
+            var graph=Graph.Shared;
+            if(desks==null||graph==null||desks.WorldKey!=Entry.Shared?.WorldKey)return Array.Empty<MarkerRecord>();
+            var shared=SharedPointCircuits();
+            if(ReferenceEquals(desks,automaticPointLibrary)&&ReferenceEquals(graph,automaticPointGraph)&&ReferenceEquals(shared,automaticSharedCircuits))return automaticPointBoxes;
+            automaticPointBoxes=PointCircuitVisibility.VisibleIds(desks).OrderBy(id=>id,StringComparer.Ordinal).SelectMany(PointBoundaries)
+                .Where(row=>row!=null&&row.Name.StartsWith("GFM-",StringComparison.Ordinal)&&!shared.PointSignals.ContainsKey(row.Id))
+                .Select(row=>desks.PointBoxes.TryGetValue(row.Id,out var placement)?placement.Apply(row):row).ToArray();
+            automaticPointLibrary=desks;automaticPointGraph=graph;
+            automaticSharedCircuits=shared;
+            return automaticPointBoxes;
+        }
+        SharedCircuitBoundary automaticSharedCircuits;
+        internal void OpenPointBoundary(string id) {
+            Act(()=>{
+                RememberCircuitBoundary(id);
+                ShowWorkspace(true,1,true);
+                status=BoundaryCaption(id)+" vorgemerkt. Im Abschnittseditor als Grenze übernehmen.";
+            });
+        }
+
         string BoundaryCaption(string id) {
             var marker=CircuitEndpoint(id);
-            return marker==null?"Grenze fehlt":CircuitIdentity.Caption(marker);
+            return GfmFaults.Caption(id,RawGfm(id),marker);
         }
 
         IEnumerable<SignalSearchEntry> BoundaryChoices(bool boxesOnly) {
-            foreach(var marker in physicalBoundaries.Values.Where(CircuitIdentity.Enabled))
+            foreach(var marker in physicalBoundaries.Values.Where(CircuitIdentity.Enabled).Select(EffectivePhysicalBoundary))
                 if(!boxesOnly||marker.IsCircuitBox)
                     yield return new SignalSearchEntry(marker.Id,CircuitIdentity.Caption(marker),marker.IsSignal?marker.DisplayTitle:marker.Name);
-            if(boxesOnly)yield break;
-            foreach(var tile in panel.Tiles.Where(t=>t.Kind==PanelTileKind.Switch&&t.Reference!="").GroupBy(t=>t.Reference).Select(g=>g.First()))
-                foreach(var endpoint in PointBoundaries(tile.Reference))
-                    if(endpoint!=null)yield return new SignalSearchEntry(endpoint.Id,endpoint.Name,"Weiche");
+
+            foreach(var tile in panel.Tiles.Where(t=>t.Kind==PanelTileKind.Switch&&PointCircuitVisibility.Enabled(desks,t.Reference)).GroupBy(t=>t.Reference).Select(g=>g.First()))
+                foreach(var endpoint in PointBoundaries(tile.Reference).Select(p=>SharedPointCircuits().PointAlias(p)))
+                    if(endpoint!=null)yield return new SignalSearchEntry(endpoint.Id,endpoint.Name,endpoint.DisplayName??"Weiche");
         }
 
         internal void RememberCircuitBoundary(string id) {
@@ -86,7 +136,7 @@ namespace EnusDE.Signaltechnik {
         }
 
         static bool CircuitField(PanelTile tile)=>tile!=null&&
-            (tile.Kind==PanelTileKind.Straight||tile.Kind==PanelTileKind.Diagonal||tile.Kind==PanelTileKind.Curve||tile.Kind==PanelTileKind.TrainNumber);
+            (tile.Kind==PanelTileKind.Straight||tile.Kind==PanelTileKind.Diagonal||tile.Kind==PanelTileKind.Curve||tile.Kind==PanelTileKind.TrainNumber||tile.Kind==PanelTileKind.LinePermission&&tile.InlinePermission);
         static bool TerminalField(PanelTile tile)=>CircuitField(tile)&&PanelConnections.Count(PanelConnections.Ports(tile))==1;
 
         void BoundarySearch(UIPanelBuilder c,string label,string selected,SignalSearchEntry[] choices,Action<string> select) {
@@ -111,7 +161,7 @@ namespace EnusDE.Signaltechnik {
             BoundarySearch(c,"Grenzmarke",tile.CircuitBoundary,choices,id=>binding.Do(()=> {
                 tile.CircuitBoundary=id;RefreshWorkspaceFields();panelView?.Refresh();
             }));
-            if(tile.CircuitBoundary!=null)c.AddButton("Grenzmarke lösen",()=>binding.Do(()=>{
+            if(tile.CircuitBoundary!=null)c.AddButton(LocalText.Get("Grenzmarke lösen"),()=>binding.Do(()=>{
                 tile.CircuitBoundary=null;RefreshWorkspaceFields();panelView?.Refresh();
             }));
         }
@@ -128,7 +178,9 @@ namespace EnusDE.Signaltechnik {
                 circuitPath=0;
                 RefreshWorkspaceFields();
             }
-            c.AddSection("Gleisfreimeldung");
+            c.AddSection(LocalText.Get("Gleisfreimeldung"));
+            BuildAutomaticCircuitDetection(c,desk,field);
+            BuildExistingDiagramCircuit(c,desk,field);
             string linked=field?.BlockId;
             int? selectedSide=null;
             if(field?.Kind==PanelTileKind.Signal) {
@@ -138,7 +190,7 @@ namespace EnusDE.Signaltechnik {
                 if(sides.Count==0)return;
                 if(!sides.Contains(circuitSide))circuitSide=sides[0];
                 selectedSide=circuitSide;
-                c.AddField("Ausleuchtung",c.AddDropdown(sides.Select(i=>i.HasValue?
+                c.AddField(LocalText.Get("Ausleuchtung"),c.AddDropdown(sides.Select(i=>i.HasValue?
                     "Vom Signal nach "+PanelConnections.Names[i.Value]:"Zwischen beiden Signalen").ToList(),
                     sides.IndexOf(circuitSide),i=>{circuitSide=sides[i];RefreshWorkspaceFields();}));
                 if(selectedSide.HasValue) {
@@ -148,30 +200,31 @@ namespace EnusDE.Signaltechnik {
                 var signal=Object(field.Reference);
                 var key=signal?.PhysicalId??signal?.Id;
                 if(key!=null&&choices.Any(choice=>choice.Id==key))
-                    c.AddButton("Signal am Feld als Grenze 1",()=>Pick(key,true));
+                    c.AddButton(LocalText.Get("Signal am Feld als Grenze 1"),()=>Pick(key,true));
             }
             if(linked!=null&&desks.Blocks.TryGetValue(linked,out var bound)&&bound.IsCircuit) {
-                c.AddLabel("Zugeordnet · "+bound.Name);
+                c.AddLabel(LocalText.Get("Zugeordnet · ")+bound.Name);
                 if(!TrackCircuit.EndsMatch(bound,CircuitEndpoint(bound.BoundaryA),CircuitEndpoint(bound.BoundaryB)))
-                    c.AddLabel("Eine Grenze fehlt oder wurde verschoben. Abschnitt neu zuordnen.");
+                    c.AddLabel(LocalText.Get("Eine Grenze fehlt oder wurde verschoben. Abschnitt neu zuordnen."));
             }
             var firstChoices=TerminalField(field)?BoundaryChoices(true).ToArray():choices;
             BoundarySearch(c,"Grenze 1",circuitA,firstChoices,id=>Pick(id,true));
             BoundarySearch(c,"Grenze 2",circuitB,choices,id=>Pick(id,false));
             var pin=rememberedWorld==scope?choices.FirstOrDefault(choice=>choice.Id==rememberedBoundary):null;
             if(pin!=null) {
-                c.AddLabel("In der Spielwelt vorgemerkt · "+pin.Caption);
-                if(firstChoices.Any(choice=>choice.Id==pin.Id))c.AddButton("Als Grenze 1 übernehmen",()=>Pick(pin.Id,true));
-                c.AddButton("Als Grenze 2 übernehmen",()=>Pick(pin.Id,false));
+                c.AddLabel(LocalText.Get("In der Spielwelt vorgemerkt · ")+pin.Caption);
+                if(firstChoices.Any(choice=>choice.Id==pin.Id))c.AddButton(LocalText.Get("Als Grenze 1 übernehmen"),()=>Pick(pin.Id,true));
+                c.AddButton(LocalText.Get("Als Grenze 2 übernehmen"),()=>Pick(pin.Id,false));
             }
-            c.AddButton("Gleisverlauf suchen",()=>Act(()=>{
+            c.AddButton(LocalText.Get("Gleisverlauf suchen"),()=>Act(()=>{
                 RequirePanelEdit();
                 var a=CircuitEndpoint(circuitA);
                 var b=CircuitEndpoint(circuitB);
+                if(circuitA!=null&&CanonicalBoundaryId(circuitA)==CanonicalBoundaryId(circuitB))throw new InvalidOperationException(LocalText.Select("Both selections refer to the same A/B boundary. Choose a different second boundary; point occupancy is assigned by detection.","Beide Angaben bezeichnen dieselbe A/B-Grenze. Eine andere zweite Grenze wählen; die Weichenbelegung wird über die Erkennung zugeordnet."));
                 if(deskId!=desk||!TrackCircuit.IsBoundary(a)||!TrackCircuit.IsBoundary(b)||TerminalField(field)&&!a.IsCircuitBox)
                     throw new InvalidOperationException("Zwei Freimeldegrenzen auswählen.");
                 circuitPaths.Clear();
-                circuitPaths.AddRange(TrackCircuit.Find(CaptureNetwork(),a.Anchor,b.Anchor,out bool limited));
+                circuitPaths.AddRange(TrackCircuit.Find(CaptureNetwork(),a,b,out bool limited));
                 circuitPath=0;
                 status=circuitPaths.Count==0?
                     limited?"Suche zu weit verzweigt. Nähere Abschnittsgrenzen wählen.":"Kein Gleisverlauf zwischen diesen Grenzen.":
@@ -181,12 +234,19 @@ namespace EnusDE.Signaltechnik {
             if(circuitPaths.Count>0) {
                 var captions=circuitPaths.Select(p=>SignUnits.Number(Math.Round(p.Length,1))+" m · "+
                     p.Sections.Count+" Segmente"+(p.Points.Count==0?"":" · "+string.Join(" → ",p.Points.Select(id=>PointAssignments.Caption(desks,id))))).ToList();
-                c.AddField("Gleisverlauf",c.AddDropdown(captions,circuitPath,i=>{circuitPath=i;RefreshWorkspaceFields();}));
+                c.AddSearchChoice(LocalText.Get("Gleisverlauf"),captions,circuitPath,i=>{circuitPath=i;RefreshWorkspaceFields();});
                 c.AddLabel(string.Join(" → ",circuitPaths[circuitPath].Sections.Select(p=>p.Section.Segment)));
-                c.AddButton("Abschnitt zuordnen",()=>Act(()=>SaveCircuit(desk,selected,selectedSide)));
+                if(CircuitDiagramAssignment.RailField(field)) {
+                    try {
+                        var complete=CircuitDiagramAssignment.Find(panel,field.X,field.Y,circuitA,circuitB,DiagramBoundary);
+                        c.AddLabel(LocalText.Get("Vollständiger Gleisbildabschnitt: ")+complete.Length+" Felder, davon "+complete.Count(t=>t.Kind==PanelTileKind.TrainNumber)+" Zugnummernfelder.");
+                    } catch(InvalidOperationException e){c.AddLabel(e.Message);}
+                    c.AddButton(LocalText.Get("Gesamten Abschnitt inkl. Zugnummern übernehmen"),()=>Act(()=>SaveCircuit(desk,selected,selectedSide,true)));
+                }
+                c.AddButton(CircuitDiagramAssignment.RailField(field)?"Nur markierte Felder zuordnen":"Abschnitt zuordnen",()=>Act(()=>SaveCircuit(desk,selected,selectedSide)));
             }
             if(linked!=null&&desks.Blocks.TryGetValue(linked,out var old)&&old.IsCircuit)
-                c.AddButton("Abschnittszuordnung lösen",()=>Act(()=>{
+                c.AddButton(LocalText.Get("Abschnittszuordnung lösen"),()=>Act(()=>{
                     if(deskId!=desk)throw new InvalidOperationException("Gleisfeld erneut auswählen.");
                     EditPanel(doc=>{
                         var tile=doc.At(selected.X,selected.Y);
@@ -203,7 +263,7 @@ namespace EnusDE.Signaltechnik {
                         }
                     });
                     ReloadCircuitDraft();
-                    status="Abschnittszuordnung gelöst.";
+                    status=LocalText.Get("Abschnittszuordnung gelöst.");
                 }));
         }
 
@@ -216,7 +276,7 @@ namespace EnusDE.Signaltechnik {
             panelView?.Refresh();
         }
 
-        void SaveCircuit(string desk,PanelRegion selected,int? signalSide) {
+        void SaveCircuit(string desk,PanelRegion selected,int? signalSide,bool complete=false) {
             RequirePanelEdit();
             if(deskId!=desk||circuitPath>=circuitPaths.Count)throw new InvalidOperationException("Abschnitt erneut suchen.");
             var a=CircuitEndpoint(circuitA);
@@ -228,6 +288,7 @@ namespace EnusDE.Signaltechnik {
             if(!TrackCircuit.EndsMatch(block,a,b))throw new InvalidOperationException("Die Grenzen wurden geändert. Abschnitt erneut suchen.");
             var fields=panel.Tiles.Where(t=>selected.Contains(t.X,t.Y)&&CircuitField(t)).ToArray();
             var field=selected.Width==1&&selected.Height==1?panel.At(selected.X,selected.Y):null;
+            var diagram=complete?CircuitDiagramAssignment.Find(panel,selected.X,selected.Y,circuitA,circuitB,DiagramBoundary):null;
             bool arm=signalSide.HasValue&&field?.Kind==PanelTileKind.Signal;
             if(arm&&!AtSignal(field,circuitA)&&!AtSignal(field,circuitB))
                 throw new InvalidOperationException("Mindestens eine Abschnittsgrenze muss das Signal dieses Feldes sein.");
@@ -240,6 +301,7 @@ namespace EnusDE.Signaltechnik {
                 p.Path.Select(s=>s.Section.Key).OrderBy(k=>k).SequenceEqual(block.Path.Select(s=>s.Section.Key).OrderBy(k=>k)));
             if(existing!=null)block=existing;
             EditPanel(doc=>{
+                if(complete){CircuitDiagramAssignment.Assign(doc,selected.X,selected.Y,block,DiagramBoundary);return;}
                 foreach(var tile in doc.Tiles.Where(t=>selected.Contains(t.X,t.Y)&&CircuitField(t))) {
                     tile.Section=null;
                     tile.AutoSegment="";
@@ -257,7 +319,7 @@ namespace EnusDE.Signaltechnik {
                     tile.BlockId=block.Id;
             },addBlock:block);
             ReloadCircuitDraft();
-            status=arm?"Abschnitt an der gewählten Signalseite gespeichert.":inner?"Abschnitt zwischen beiden Signalen gespeichert.":"Gleisfreimeldung für "+fields.Length+" Gleisfeld(er) gespeichert · "+block.Name+".";
+            status=complete?"Vollständiger Abschnitt mit "+diagram.Length+" Feldern einschließlich Zugnummern und inneren Signalseiten gespeichert.":arm?"Abschnitt an der gewählten Signalseite gespeichert.":inner?"Abschnitt zwischen beiden Signalen gespeichert.":"Gleisfreimeldung für "+fields.Length+" Gleisfeld(er) gespeichert · "+block.Name+".";
         }
 
         string BetweenSignals(PanelTile tile) {

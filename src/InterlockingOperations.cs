@@ -6,7 +6,7 @@ namespace EnusDE.Signaltechnik {
     public sealed partial class InterlockingEngine {
         readonly Func<double> clock;
         public InterlockingEngine(Func<double> clock=null){this.clock=clock??(()=>System.Diagnostics.Stopwatch.GetTimestamp()/(double)System.Diagnostics.Stopwatch.Frequency);}
-        public double RemainingWait(RouteRun run)=>Math.Max(0,(run.ReleaseSelection==null?run.WaitUntil:run.ReleaseAt)-clock());
+        public double RemainingWait(RouteRun run)=>run.ReleaseSelection!=null?Math.Max(0,run.ReleaseAt-clock()):run.Stage==RouteStage.WaitingProtection?Math.Max(0,run.WaitUntil-clock()):0;
         static void Fault(RouteRun run,string reason){run.Stage=RouteStage.Fault;run.Reason=reason;if(string.IsNullOrEmpty(run.FaultReason))run.FaultReason=reason;run.ClearChecks=0;run.DestinationChecks=0;run.ReleaseChecks.Clear();}
         static double WaitSeconds(RouteDefinition route,double fallback) {
             double value=route.ProtectionWaitSeconds>=0?route.ProtectionWaitSeconds:fallback;
@@ -14,35 +14,37 @@ namespace EnusDE.Signaltechnik {
         }
         void BeginRequest(RouteDefinition definition,IInterlockingWorld world,double fallback) {
             definition.Validate();var route=definition.Clone();double wait=WaitSeconds(route,fallback);
-            if(active.Count>=16||active.ContainsKey(route.Id))throw new InvalidOperationException("Fahrstraße bereits aktiv oder Grenze von 16 erreicht.");
+            if(active.TryGetValue(route.Id,out var existing))throw new RouteConflictException(new[]{existing});
+            if(active.Count>=16)throw new InvalidOperationException("Grenze von 16 aktiven Festlegungen erreicht. Unter Festlegungen prüfen.");
             var conflicts=active.Values.Where(r=>Conflict(route,r)).ToArray();
             if(Incorporate(route,conflicts,world))return;
-            if(conflicts.Length>0&&(route.Shunting||conflicts.Any(r=>!r.Route.Shunting)))throw new InvalidOperationException("Widersprechende Fahrstraße/Festlegung vorhanden. Erst sicher auflösen.");
+            if(conflicts.Length>0&&(route.Shunting||conflicts.Any(r=>!r.Route.Shunting)))throw new RouteConflictException(conflicts);
             if(!world.PathValid(route))throw new InvalidOperationException("Fahrwegzuordnung ungültig. Fahrweg zuerst aktualisieren.");
-            if(conflicts.Length==0&&!RequestClear(route,world))throw new InvalidOperationException("Fahrweg/Weichenbereich belegt oder nicht lesbar.");
+            if(conflicts.Length==0){var obstruction=RequestObstruction(route,world);if(obstruction!=null)throw new InvalidOperationException(obstruction);}
             var run=new RouteRun{Route=route,Stage=conflicts.Length==0?RouteStage.Preparing:RouteStage.WaitingProtection,StartedAt=clock(),WaitUntil=clock()+(conflicts.Length==0?0:wait)};
             run.Reason=conflicts.Length==0?"Fahrstraße läuft ein; Signale Halt":"Rangierzustimmung zurückgenommen; Schutzwartezeit und Freiprüfung";
             run.WithdrawnRoutes=conflicts.Select(r=>r.Route.Id).ToArray();
-            foreach(var old in conflicts){old.Stage=RouteStage.Cancelled;old.Reason="Zugfahrt angefordert: Rangierzustimmung zurückgenommen; Verschlüsse bis zur Freiprüfung behalten.";}
+            foreach(var old in conflicts){old.Stage=RouteStage.Cancelled;old.Reason=LocalText.Get("Zugfahrt angefordert: Rangierzustimmung zurückgenommen; Verschlüsse bis zur Freiprüfung behalten.");}
             active.Add(route.Id,run);
             RefreshChains();
         }
         void ContinueWithdrawal(RouteRun run,IInterlockingWorld world) {
             if(clock()>run.WaitUntil+300)throw new InvalidOperationException("Rücknahme nicht abgeschlossen. Restverschlüsse prüfen.");
             if(!world.PathValid(run.Route))throw new InvalidOperationException("Fahrweg während der Rücknahme geändert.");
-            if(clock()<run.WaitUntil){run.Reason="Rangiersignale Halt; Schutzwartezeit noch "+Math.Ceiling(run.WaitUntil-clock())+" s";return;}
+            if(clock()<run.WaitUntil){run.Reason=LocalText.Get("Rangiersignale Halt; Schutzwartezeit noch ")+Math.Ceiling(run.WaitUntil-clock())+" s";return;}
             foreach(string id in run.WithdrawnRoutes) {
                 RouteRun old;if(!active.TryGetValue(id,out old))continue;
-                if(!world.PathValid(old.Route)||Read(old.HeldSections,world)!=TrackOccupancy.Clear){old.ApproachStopChecks=0;old.ApproachStopIdentity=null;run.Reason="Warten auf "+old.Route.Code+": "+BlockingReason(old,world);return;}
-                string protection;if(!ReleaseApproach(old,world,out protection)){run.Reason="Warten auf "+old.Route.Code+": "+protection;return;}active.Remove(id);
+                if(!world.PathValid(old.Route)||Read(old.HeldSections,world)!=TrackOccupancy.Clear){old.ApproachStopChecks=0;old.ApproachStopIdentity=null;run.Reason=LocalText.Get("Warten auf ")+old.Route.Code+": "+BlockingReason(old,world);return;}
+                string protection;if(!ReleaseApproach(old,world,out protection)){run.Reason=LocalText.Get("Warten auf ")+old.Route.Code+": "+protection;return;}active.Remove(id);
             }
-            if(!RequestClear(run.Route,world)){run.Reason="Schutzwartezeit abgelaufen; Fahrweg noch belegt oder nicht lesbar.";return;}
-            run.Stage=RouteStage.Preparing;run.StartedAt=clock();run.Reason="Fahrweg frei; Weichen werden geprüft und festgelegt.";
+            var obstruction=RequestObstruction(run.Route,world);if(obstruction!=null){run.Reason=obstruction;return;}
+            run.Stage=RouteStage.Preparing;run.StartedAt=clock();run.Reason=LocalText.Get("Fahrweg frei; Weichen werden geprüft und festgelegt.");
         }
         void ContinuePreparation(RouteRun run,IInterlockingWorld world) {
             CheckFlanks(run,world);
             if(clock()-run.StartedAt>120)throw new InvalidOperationException("Weichen-/Endlagenprüfung nach 120 Sekunden nicht abgeschlossen.");
-            if(!world.PathValid(run.Route)||!RequestClear(run.Route,world))throw new InvalidOperationException("Einlaufen abgebrochen: Fahrweg geändert, belegt oder nicht lesbar.");
+            if(!world.PathValid(run.Route))throw new InvalidOperationException("Fahrwegzuordnung ungültig. Fahrweg zuerst aktualisieren.");
+            var obstruction=RequestObstruction(run.Route,world);if(obstruction!=null)throw new InvalidOperationException(obstruction);
             bool ready=true;var feedback=world as ISwitchFeedbackWorld;
             foreach(var point in run.Route.Switches) {
                 bool actual;if(!world.SwitchPosition(point.Node,out actual))throw new InvalidOperationException("Weiche nicht verfügbar: "+point.Node);
@@ -52,20 +54,22 @@ namespace EnusDE.Signaltechnik {
             }
             run.AlignmentChecks=ready?run.AlignmentChecks+1:0;
             if(run.AlignmentChecks<2){run.Reason=ready?"Endlagen bestätigt; abschließende Freiprüfung":"Fahrstraße läuft ein / Weichenumlauf; Signale Halt";return;}
-            if(!RequestClear(run.Route,world)||!world.PathValid(run.Route))throw new InvalidOperationException("Abschließende Fahrwegprüfung fehlgeschlagen.");
-            run.Stage=RouteStage.Set;run.Reason="Fahrstraße festgelegt; alle Endlagen und Freiprüfungen bestätigt.";
+            obstruction=RequestObstruction(run.Route,world);if(obstruction!=null)throw new InvalidOperationException(obstruction);
+            if(!world.PathValid(run.Route))throw new InvalidOperationException("Abschließende Fahrwegprüfung fehlgeschlagen.");
+            run.Stage=RouteStage.Set;run.Reason=LocalText.Get("Fahrstraße festgelegt; alle Endlagen und Freiprüfungen bestätigt.");
         }
         public void RequestRelease(string id,string selection,double fallback=15) {
             RouteRun run;if(!active.TryGetValue(id,out run))throw new InvalidOperationException("Fahrstraße nicht aktiv.");
             if(run.ReleaseSelection!=null)throw new InvalidOperationException("Hilfsauflösung läuft bereits.");
             bool valid=selection=="all"||run.Route.Switches.Any(p=>selection=="point:"+p.Node&&!run.ReleasedSwitches.Contains(p.Node))||run.HeldSections.Any(s=>selection=="section:"+s.Key);
             if(!valid)throw new InvalidOperationException("Restverschluss nicht vorhanden.");
-            run.ReleaseSelection=selection;run.ReleaseAt=clock()+WaitSeconds(run.Route,fallback);run.Stage=RouteStage.Cancelled;run.Reason="Halt; geprüfte Hilfsauflösung angefordert";run.ReleaseStatus="Schutzwartezeit läuft";
-            run.ApproachStopChecks=0;run.ApproachStopIdentity=null;RefreshChains();
+            run.ReleaseSelection=selection;run.ReleaseAt=clock()+WaitSeconds(run.Route,fallback);run.Stage=RouteStage.Cancelled;run.Reason=LocalText.Get("Halt; geprüfte Hilfsauflösung angefordert");run.ReleaseStatus="Schutzwartezeit läuft";
+            run.ReleaseWaitCompleted=false;run.ApproachStopChecks=0;run.ApproachStopIdentity=null;RefreshChains();
         }
         public void ConfirmOperatorRelease(string id){RouteRun run;if(!active.TryGetValue(id,out run)||run.ReleaseSelection==null||run.Stage!=RouteStage.Cancelled)throw new InvalidOperationException("Zuerst Halt und eine konkrete Hilfsauflösung anfordern.");run.OperatorReleaseConfirmed=true;run.ReleaseStatus="Vom Fahrdienstleiter örtlich geprüft und bestätigt; Schutzwartezeit bleibt wirksam.";}
         bool ProcessRelease(RouteRun run,IInterlockingWorld world) {
             if(clock()<run.ReleaseAt){run.ReleaseStatus="Noch "+Math.Ceiling(run.ReleaseAt-clock())+" s Schutzwartezeit";return false;}
+            run.ReleaseWaitCompleted=true;
             if(run.OperatorReleaseConfirmed)return ApplyRelease(run,"Fdl-bestätigte Hilfsauflösung; physische Belegung unverändert");
             if(!world.PathValid(run.Route)){run.ReleaseStatus="Blockiert: Fahrwegzuordnung nicht lesbar/ungültig.";return false;}
             if(Read(run.HeldSections,world)!=TrackOccupancy.Clear){run.ApproachStopChecks=0;run.ApproachStopIdentity=null;run.ReleaseStatus="Blockiert: "+BlockingReason(run,world);return false;}

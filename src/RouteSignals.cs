@@ -31,6 +31,9 @@ namespace EnusDE.Signaltechnik {
         }
         public static string Anchor(MarkerRecord row)=>row.Anchor.Segment+":"+row.Anchor.Meters.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+":"+row.FacingReverse;
         public static bool TargetContains(RouteDefinition route,TrackSection section)=>route.Shunting&&route.OccupiedTarget!=null&&route.OccupiedTarget.Any(t=>t.Segment==section.Segment&&t.From<=section.From&&t.To>=section.To);
+        public static bool ShuntOccupationAllowed(RouteDefinition route,TrackSection section)=>route.Shunting&&
+            (route.Path==null?TargetContains(route,section):route.Path.Any(p=>p.Section.Segment==section.Segment&&p.Section.From<=section.From&&p.Section.To>=section.To)&&
+            !route.Switches.Any(p=>p.Protection?.Any(s=>s.Overlaps(section))==true));
         public static double TargetStart(RouteDefinition route) {
             double distance=0;foreach(var piece in route.Path){if(TargetContains(route,piece.Section))return distance;distance+=piece.Section.To-piece.Section.From;}return double.PositiveInfinity;
         }

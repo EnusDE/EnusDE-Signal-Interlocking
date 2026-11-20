@@ -8,11 +8,11 @@ namespace EnusDE.Signaltechnik {
         readonly HashSet<string> signals,points;
         readonly ILookup<string,TrackSection> sections;
         public readonly string Id,Name;
-        public readonly int Fields,OwnedPoints,LinkedAreas;
+        public readonly int Fields,OwnedPoints,LinkedAreas,LinkedLines;
 
         public DeskRemoval(DeskLibrary library,string id) {
             var desk=library.Desks.SingleOrDefault(d=>d.Id==id)??throw new InvalidOperationException("Stellwerk fehlt.");
-            if(desk.Global)throw new InvalidOperationException("Das übergeordnete ESTW wird als Übersicht benötigt.");
+            LinkedLines=library.FreeLines.Count(l=>l.StationA==id||l.StationB==id);
             Id=id;Name=desk.Code+" · "+desk.Name;world=library.WorldKey;
             var tiles=desk.Panel.Tiles;
             Fields=tiles.Count;
@@ -39,10 +39,23 @@ namespace EnusDE.Signaltechnik {
         public DeskLibrary Apply(DeskLibrary library,IEnumerable<RouteDefinition> active) {
             if(library.WorldKey!=world)throw new InvalidOperationException("Das Stellwerk gehört zu einer anderen Welt.");
             var current=new DeskRemoval(library,Id);
-            if(active.Any(current.RelatesTo))throw new InvalidOperationException("Zuerst betroffene Fahrstraßen und Restverschlüsse auflösen.");
+            if(active.Any(r=>current.LinkedLines>0||current.RelatesTo(r)))throw new InvalidOperationException("Zuerst betroffene Fahrstraßen und Restverschlüsse auflösen.");
             var next=library.Clone();
+            var removed=next.Desks.Single(d=>d.Id==Id);
+            var lines=new HashSet<string>(next.FreeLines.Where(l=>l.StationA==Id||l.StationB==Id).Select(l=>l.Id));
+            next.FreeLines.RemoveAll(l=>lines.Contains(l.Id));
+            foreach(var tile in next.Desks.SelectMany(d=>d.Panel.Tiles).Where(t=>t.Kind==PanelTileKind.LinePermission&&lines.Contains(t.Reference)))tile.Reference="";
+            foreach(var tile in next.Desks.SelectMany(d=>d.Panel.Tiles).Where(t=>t.Target!=null&&lines.Contains(t.Target.PermissionLine)))tile.Target.PermissionLine="";
+            next.Modules.RemoveAll(m=>m.Desk==Id||MasterDiagram.Owner(next,m)==Id);
+            next.Desks.RemoveAll(d=>d.Id==Id);next.Automation.PausedStations.Remove(Id);
+            var remainingTargets=AuxiliaryTarget.Index(next.Desks.SelectMany(d=>d.Panel.Tiles));
+            foreach(var tile in next.Desks.SelectMany(d=>d.Panel.Tiles).Where(t=>t.PermissionAuxiliary!=null&&!remainingTargets.ContainsKey(t.PermissionAuxiliary)))tile.PermissionAuxiliary=null;
+            if(removed.Global) {
+                var replacement=next.Desks.FirstOrDefault(d=>d.MasterView);
+                if(replacement==null){replacement=new DeskDefinition{MasterView=true,Code=RouteNaming.DeskCode("ESTW",next.Desks.Select(d=>d.Code)),Name=LocalText.Select("Master interlocking","Übergeordnetes Stellwerk"),Panel=new PanelDocument{WorldKey=world,Columns=96,Rows=48}};next.Desks.Add(replacement);}
+                replacement.Global=true;
+            }
             var global=next.Desks.Single(d=>d.Global);
-            next.Desks.RemoveAll(d=>d.Id==Id);
             foreach(var point in next.Points.Values.Where(p=>p.Desk==Id))point.Desk=global.Id;
             foreach(var desk in next.Desks)desk.Panel.Areas.RemoveAll(a=>a.Desk==Id);
             next.Validate(world);

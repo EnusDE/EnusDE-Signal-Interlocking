@@ -83,7 +83,7 @@ namespace EnusDE.Signaltechnik
         {
             builder.VScrollView(content=>
             {
-                content.AddLabel("Einstellungen der unterstützten Mods. Die Speicherung bestimmt die jeweilige Mod.");
+                content.AddLabel(LocalText.Get("Einstellungen der unterstützten Mods. Die Speicherung bestimmt die jeweilige Mod."));
                 var slot=Slot(false);if(slot==null)return;
                 Action<UIPanelBuilder>[] contributors;
                 lock(slot)contributors=slot.ToArray();

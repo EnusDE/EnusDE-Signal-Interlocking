@@ -76,10 +76,23 @@ namespace EnusDE.Signaltechnik {
             return paths.OrderBy(p=>p.Length).ToList();
         }
 
+        public static List<CircuitPath> Find(NetworkInput graph,MarkerRecord from,MarkerRecord to,out bool limited) {
+            var paths=Find(graph,from?.Anchor,to?.Anchor,out limited);
+            bool Same(PlanCut c,MarkerAnchor a)=>a!=null&&c.Segment==a.Segment&&Math.Abs(c.Meters-a.Meters)<.005;
+            return paths.Where(p=>CircuitIdentity.Accepts(from,p.Sections[0].Reverse,true)&&CircuitIdentity.Accepts(to,p.Sections.Last().Reverse,false)&&
+                !graph.Cuts.Any(c=>c.Boundary!=null&&!Same(c,from.Anchor)&&!Same(c,to.Anchor)&&p.Sections.Any(s=>s.Section.Segment==c.Segment&&c.Meters>=s.Section.From-.005&&c.Meters<=s.Section.To+.005))).ToList();
+        }
+        public static bool InteriorClear(TrackBlock block,MarkerRecord from,MarkerRecord to,IEnumerable<MarkerRecord> boundaries) {
+            bool Same(MarkerAnchor a,MarkerAnchor b)=>a!=null&&b!=null&&a.Segment==b.Segment&&Math.Abs(a.Meters-b.Meters)<.005;
+            return !boundaries.Where(CircuitIdentity.Enabled).Any(c=>!Same(c.Anchor,from?.Anchor)&&!Same(c.Anchor,to?.Anchor)&&
+                block.Path.Any(s=>s.Section.Segment==c.Anchor.Segment&&c.Anchor.Meters>=s.Section.From-.005&&c.Anchor.Meters<=s.Section.To+.005));
+        }
+
         public static bool EndsMatch(TrackBlock block,MarkerRecord a,MarkerRecord b) {
             if(!IsBoundary(a)||!IsBoundary(b)||block.Path.Count==0)return false;
             var first=block.Path[0];
             var last=block.Path[block.Path.Count-1];
+            if(!CircuitIdentity.Accepts(a,first.Reverse,true)||!CircuitIdentity.Accepts(b,last.Reverse,false))return false;
             return a.Anchor!=null&&b.Anchor!=null&&first.Section.Segment==a.Anchor.Segment&&
                 last.Section.Segment==b.Anchor.Segment&&
                 Math.Abs((first.Reverse?first.Section.To:first.Section.From)-a.Anchor.Meters)<.005&&

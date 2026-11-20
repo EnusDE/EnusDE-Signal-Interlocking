@@ -15,6 +15,7 @@ namespace EnusDE.Signaltechnik {
             else if(kind=="STW"){line(4,5,28,5);line(28,5,28,27);line(28,27,4,27);line(4,27,4,5);line(4,16,28,16);line(16,5,16,27);}
             else if(kind=="GO"){line(6,27,6,6);line(6,6,12,12);line(12,12,17,4);line(17,4,21,7);line(21,7,16,15);line(16,15,26,15);line(26,15,6,27);}
             else if(kind=="EDIT"){line(6,5,10,13);line(10,13,23,26);line(23,26,27,22);line(27,22,14,9);line(14,9,6,5);line(10,13,14,9);}
+            else if(kind=="LOCK"){line(7,5,25,5);line(25,5,25,18);line(25,18,7,18);line(7,18,7,5);line(11,18,11,24);line(11,24,16,28);line(16,28,21,24);line(21,24,21,18);line(16,9,16,14);}
             else if(kind=="FS"){line(3,8,12,8);line(12,8,21,23);line(21,23,29,23);line(3,23,12,23);line(12,23,21,8);line(21,8,29,8);line(4,5,4,11);line(28,20,28,26);}
             else if(kind=="BAU"){line(8,5,21,22);line(5,8,18,25);line(16,27,24,19);line(18,29,27,20);line(24,19,27,20);line(16,27,18,29);}
             else if(kind=="ID"){line(3,6,29,6);line(29,6,29,26);line(29,26,3,26);line(3,26,3,6);line(9,10,9,22);line(16,10,16,22);line(16,22,22,19);line(22,19,22,13);line(22,13,16,10);}

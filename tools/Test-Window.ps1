@@ -9,6 +9,7 @@ $compiler=$sdk.Compiler
 $arguments=@('/nologo','/target:exe','/langversion:9','/nostdlib+',('/out:"'+(Join-Path $output 'WindowChecks.dll')+'"'))
 Get-ChildItem -LiteralPath $sdk.ReferenceAssemblies -Filter '*.dll' | ForEach-Object {$arguments+='/reference:"'+$_.FullName+'"'}
 $arguments+='"'+(Join-Path $PSScriptRoot 'WindowFixture.cs')+'"'
+foreach($name in @('LocalText','BuiltInLanguage')){$arguments+='"'+(Join-Path $project ('src\'+$name+'.cs'))+'"'}
 $arguments+='"'+(Join-Path $project 'src\DiagnosticWindow.cs')+'"'
 $arguments+='"'+(Join-Path $project 'src\LiveViewCache.cs')+'"'
 $response=Join-Path $output 'compiler.rsp'

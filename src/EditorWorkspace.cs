@@ -7,6 +7,7 @@ using UnityEngine.UI;
 
 namespace EnusDE.Signaltechnik {
     public sealed partial class SignalRuntime {
+        UIPanel catalogueInspector;
         EditorSurface editorSurface;
         string editorCatalogueForm,editorViewDesk;
         bool editorLinksAfterSelection;
@@ -29,16 +30,13 @@ namespace EnusDE.Signaltechnik {
                 WindowText("Choose the interlocking you want to edit.","Wähle das Stellwerk, das du bearbeiten möchtest."):
                 status);
             if(!catalogue) {
-                void Add(string label,string glyph,Action action,Func<bool> selected)=>
-                    surface.Tool(label,glyph,()=>{if(editorSurface==surface&&PanelVisible)action();},selected);
-                Add(WindowText("Interlockings","Stellwerke"),"STW",OpenEditorCatalogue,()=>false);
-                Add(WindowText("Select","Auswählen"),"GO",()=>SelectEditorTool(1),()=>panelPage==1&&editorMode==1);
-                Add(WindowText("Add fields","Felder setzen"),"ADD",()=>SelectEditorTool(3),()=>panelPage==1&&editorMode==3);
-                Add(WindowText("Draw track","Gleis zeichnen"),"TRACK",()=>SelectEditorTool(0),()=>panelPage==1&&editorMode==0);
-                Add(WindowText("Regions","Bereiche"),"REGION",()=>SelectEditorTool(2),()=>panelPage==1&&editorMode==2);
-                Add(WindowText("Routes","Fahrstraßen"),"FS",()=>WorkspacePage(2),()=>panelPage==2);
-                Add(WindowText("World links","Zuordnungen"),"ID",()=>WorkspacePage(3),()=>panelPage==3);
-                Add(WindowText("Handbook","Handbuch"),"?",()=>WorkspacePage(5),()=>panelPage==5);
+                surface.CloseDetails=()=>{if(editorSurface==surface&&PanelVisible)CloseWorkspaceContext();};
+                surface.ShowDetails(editorDetailsOpen);
+                RectTransform menu=null;
+                menu=EditorSurface.Button(surface.Header,WindowText("Menu","Menü"),()=>{
+                    if(editorSurface==surface&&PanelVisible)Act(()=>ShowEditorCategories(-1,-1,menu));
+                }).GetComponent<RectTransform>();
+                WorkspaceSurface.Place(menu,new WorkspaceBox(12,9,84,32));
                 BuildEditorZoom(surface);
                 BuildWorkspaceDiagram(surface.ViewportFrame,()=>editorSurface==surface,true);
             }
@@ -46,16 +44,18 @@ namespace EnusDE.Signaltechnik {
         }
 
         void BuildEditorPanelContent(UIPanelBuilder builder,EditorSurface surface,bool catalogue) {
+            if(!catalogue)return; // Object tools live in their own window, never beside the diagram.
             Action<UIPanelBuilder> fields=catalogue?BuildEditorCatalogue:BuildEditorFields;
-            var content=builder.VScrollView(c=>inspector=c.AddRebuildableSection(fields));
+            var content=builder.VScrollView(c=>catalogueInspector=c.AddRebuildableSection(fields));
             content.SetParent(surface.Content,false);
             WorkspaceSurface.Fill(content,catalogue?14:0,catalogue?14:0,catalogue?14:0,catalogue?14:0);
             (content.GetComponent<LayoutElement>()??content.gameObject.AddComponent<LayoutElement>()).ignoreLayout=true;
-            inspector.OnRebuild+=surface.ThemeSoon;
+            catalogueInspector.OnRebuild+=surface.ThemeSoon;
             surface.ThemeSoon();
         }
 
         void OpenEditorCatalogue() {
+            if(manager?.GetCustomWindow(EditorToolsWindowId)!=null)manager.CloseWindow(EditorToolsWindowId);
             if(panelScroll!=null){RememberPanelScroll();SaveEditorView();}
             editorCatalogueForm=null;
             pendingDeskRemoval=null;
@@ -72,11 +72,13 @@ namespace EnusDE.Signaltechnik {
             }
             panelPage=editorLinksAfterSelection||assigningPoint?3:1;
             editorLinksAfterSelection=false;
+            editorDetailsOpen=panelPage!=1;editorFieldCategory=EditorFieldCategory.Properties;
             if(assigningPoint)pointOwner=id;
             status=panel.Tiles.Count==0?
                 WindowText("Empty diagram. Choose Add fields or Draw track.","Leere Tafel. Felder setzen oder Gleis zeichnen wählen."):
-                WindowText("Click a field to view its properties.","Feld anklicken, um seine Eigenschaften zu öffnen.");
+                WindowText("Left-click to select; right-click for categories.","Linksklick wählt aus; Rechtsklick öffnet die Kategorien.");
             Rebuild(false);
+            if(editorDetailsOpen)OpenEditorToolsWindow();
         }
 
         void SaveEditorView() {
@@ -108,10 +110,9 @@ namespace EnusDE.Signaltechnik {
             float width=viewport.rect.width,height=viewport.rect.height;
             var fit=EditorLayout.Fit(panel,width,height);
             ChangeZoom((float)fit.Zoom);
-            float sx=PanelGeometry.CellWidth*panelZoom,sy=PanelGeometry.CellHeight*panelZoom;
-            float dx=panel.Columns*sx-width,dy=panel.Rows*sy-height;
-            panelScroll.normalizedPosition=new Vector2(dx<=0?0:Mathf.Clamp01(((float)fit.CenterX*sx-width/2)/dx),
-                dy<=0?1:1-Mathf.Clamp01(((float)fit.CenterY*sy-height/2)/dy));
+            Canvas.ForceUpdateCanvases();var desired=viewport.TransformPoint(viewport.rect.center);
+            var current=panelView.rectTransform.TransformPoint(new Vector3((float)fit.CenterX*PanelGeometry.CellWidth*panelZoom,-(float)fit.CenterY*PanelGeometry.CellHeight*panelZoom));
+            panelScroll.StopMovement();panelScroll.content.anchoredPosition+=(Vector2)panelScroll.content.parent.InverseTransformVector(desired-current);
         }
 
         void SelectEditorTool(int mode) {
@@ -123,18 +124,36 @@ namespace EnusDE.Signaltechnik {
         }
 
         string ReadEditorPaneTitle() {
+            if(panelPage==15)return WindowText("Setup assistant","Einrichtungsassistent");
+            if(panelPage==13)return WindowText("World GFM setup","GFM-Welteinrichtung");
+            if(panelPage==12)return WindowText("GFM inspection","GFM-Prüfung");
+            if(panelPage==11)return WindowText("Existing diagram detection","GFM im vorhandenen Gleisbild");
+            if(panelPage==9)return WindowText("Open line / GWB","Freie Strecke / GWB");
+            if(panelPage==10)return WindowText("Automatic recognition","Automatische Erkennung");
+            if(panelPage==4)return WindowText("Interlocking management","Stellwerksverwaltung");
+            if(panelPage==8)return WindowText("Master modules","ESTW-Module");
+            if(panelPage==7)return WindowText("Automation and AI","Automatisierung und KI");
             if(panelPage==2)return WindowText("Configure routes","Fahrstraßen einrichten");
             if(panelPage==3)return WindowText("World links","Spielwelt-Zuordnung");
             if(panelPage==5)return WindowText("Handbook","Handbuch");
             if(pendingDelete!=null)return WindowText("Confirm removal","Löschen bestätigen");
             if(editorMode==0)return WindowText("Draw track","Gleis zeichnen");
-            if(editorMode==2)return WindowText("Regions and canvas","Bereiche und Fläche");
+            if(editorMode==2)return WindowText("Selection and diagram tools","Auswahl- und Tafelwerkzeuge");
             if(editorMode==3)return WindowText("Add fields","Felder setzen");
-            return WindowText("Field properties","Feldeigenschaften");
+            return FieldCategoryCaption(editorFieldCategory);
         }
 
         void BuildEditorFields(UIPanelBuilder c) {
             if(!WorkspaceEditable){c.AddLabel(WindowText("Editor unavailable.","Editor nicht verfügbar."));return;}
+            if(panelPage==15){BuildSetupAssistant(c);return;}
+            if(panelPage==14){BuildInstallationAudit(c);return;}
+            if(panelPage==13){BuildWorldGfmSetup(c);return;}
+            if(panelPage==12){BuildGfmInspection(c);return;}
+            if(panelPage==11){BuildExistingDetection(c);return;}
+            if(panelPage==9){BuildFreeLines(c);return;}
+            if(panelPage==10){BuildRecognition(c);return;}
+            if(panelPage==8){BuildMasterMenu(c);return;}
+            if(panelPage==7){BuildAutomationMenu(c);return;}
             if(panelPage==5){BuildHelp(c);return;}
             if(panelPage==2){BuildRoutes(c);return;}
             if(panelPage==3){BuildIdentifiers(c);BuildNetworkMenu(c);return;}
@@ -146,14 +165,13 @@ namespace EnusDE.Signaltechnik {
                 c.AddButton(WindowText("Finish drawing","Zeichnen beenden"),()=>SelectEditorTool(1));
                 return;
             }
-            BuildHistory(c);
             if(tileDraft==null) {
                 c.AddLabel(WindowText("Click a field on the diagram.","Klicke ein Feld auf der Tafel an."));
                 return;
             }
-            c.AddButton(WindowText("Insert row above","Zeile davor einfügen"),()=>Act(()=>InsertSpace(true)));
-            c.AddButton(WindowText("Insert column before","Spalte davor einfügen"),()=>Act(()=>InsertSpace(false)));
-            BuildFieldAssignment(c);
+            if(editorFieldCategory==EditorFieldCategory.Properties)c.AddButton(WindowText("Insert row above","Zeile davor einfügen"),()=>Act(()=>InsertSpace(true)));
+            if(editorFieldCategory==EditorFieldCategory.Properties)c.AddButton(WindowText("Insert column before","Spalte davor einfügen"),()=>Act(()=>InsertSpace(false)));
+            BuildEditorFieldCategory(c);
         }
 
         void BuildFieldPalette(UIPanelBuilder c) {
@@ -165,6 +183,7 @@ namespace EnusDE.Signaltechnik {
             PaletteButton(second,PanelTileKind.Label,"TEXT",WindowText("Text","Text"));
             PaletteButton(second,PanelTileKind.TrainNumber,"ID",WindowText("Train no.","Zugnummer"));
             var third=c.HStack(_=>{});
+            PaletteButton(third,PanelTileKind.LinePermission,"FS",WindowText("Line permission","Streckenerlaubnis"));
             PaletteButton(third,PanelTileKind.AuxiliaryTarget,"GO",WindowText("Auxiliary destination","Hilfsziel"));
             c.AddButton(WindowText("Switch to Select","Zu Auswählen wechseln"),()=>SelectEditorTool(1));
         }

@@ -5,6 +5,10 @@ static class WorkspaceTests {
     static void Check(bool condition,string text){if(!condition)throw new Exception("FAIL: "+text);System.Console.WriteLine("PASS: "+text);}
     static bool Inside(WorkspaceBox b,double w,double h)=>b.X>=0&&b.Y>=0&&b.Width>0&&b.Height>0&&b.X+b.Width<=w+.001&&b.Y+b.Height<=h+.001;
     public static void Run() {
+        foreach(var size in new[]{(W:784d,H:650d),(W:1084d,H:800d),(W:1630d,H:1010d),(W:3824d,H:2110d)}){
+            var layout=MasterLayoutGeometry.For(size.W,size.H);var boxes=new[]{layout.Header,layout.Sidebar,layout.Diagram,layout.Footer};
+            Check(boxes.All(b=>Inside(b,size.W,size.H))&&layout.Sidebar.X+layout.Sidebar.Width<layout.Diagram.X&&layout.Header.Y+layout.Header.Height<layout.Diagram.Y&&layout.Diagram.Y+layout.Diagram.Height<layout.Footer.Y,"master module controls, header, status and diagram remain separate and bounded at "+size.W+"x"+size.H);
+        }
         foreach(var size in new[]{(W:784d,H:508d),(W:1264d,H:908d),(W:1904d,H:1038d),(W:3824d,H:2118d),(W:704d,H:1228d)}){
             var a=WorkspaceLayout.For(size.W,size.H);var b=WorkspaceLayout.For(size.W,size.H,true,99999,99999);
             Check(new[]{a.Diagram,a.Header,a.Status,a.Popup,b.Popup}.All(r=>Inside(r,size.W,size.H)),"own workspace retains visible diagram, status and bounded normal/large popups at "+size.W+"x"+size.H);
@@ -42,6 +46,13 @@ static class WorkspaceTests {
             return new[]{editor.Tools,editor.Diagram,editor.Details,editor.Footer,editor.Header,editor.Catalogue}.All(b=>Inside(b,s.W,s.H))
                 &&editor.Tools.X+editor.Tools.Width<editor.Diagram.X&&editor.Diagram.X+editor.Diagram.Width<editor.Details.X;
         }),"independent editor layout gives the catalogue and working panes stable, non-overlapping geometry");
+        foreach(var size in new[]{(W:640d,H:420d),(W:784d,H:498d),(W:1904d,H:1038d)}) {
+            var closed=EditorLayout.For(size.W,size.H,false,false);var properties=EditorLayout.For(size.W,size.H,true,false);
+            Check(Inside(closed.Diagram,size.W,size.H)&&Inside(properties.Diagram,size.W,size.H)&&Inside(properties.Details,size.W,size.H)&&
+                closed.Diagram.X==12&&closed.Diagram.Width==size.W-24&&properties.Diagram.Width<closed.Diagram.Width&&
+                properties.Diagram.X+properties.Diagram.Width<properties.Details.X,
+                "context editor reclaims both side rails while closed and keeps requested properties separate at "+size.W+"x"+size.H);
+        }
         var empty=new PanelDocument{WorldKey="editor",Columns=512,Rows=320};
         Check(EditorLayout.Fit(empty,480,336).Zoom==1&&EditorLayout.Fit(empty,320,300).Zoom>=.65&&EditorLayout.GridStride(3)==4,
             "empty editor fits a workable visible grid instead of shrinking to the entire reserved canvas");

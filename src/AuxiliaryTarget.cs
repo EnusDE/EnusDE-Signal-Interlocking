@@ -4,24 +4,41 @@ using System.IO;
 using System.Linq;
 
 namespace EnusDE.Signaltechnik {
+    public enum AuxiliaryFunction { RouteDestination,LinePermission }
     public sealed class AuxiliaryTarget {
         public string Id=Guid.NewGuid().ToString("N");
         public string Name="";
         public MarkerAnchor Anchor;
         public bool Reverse,Train=true,Shunt;
+        public AuxiliaryFunction Function;
+        public string PermissionLine="";
+        public string ReferenceSignal="";
         public AuxiliaryTarget Clone(){var copy=(AuxiliaryTarget)MemberwiseClone();copy.Anchor=Anchor?.Clone();return copy;}
         [Newtonsoft.Json.JsonIgnore]
         public string Caption=>string.IsNullOrWhiteSpace(Name)?"HZ-"+Id.Substring(0,6).ToUpperInvariant():Name;
         public void Validate() {
             if(!Guid.TryParseExact(Id,"N",out _)||Name==null||Name.Length>48||Name.Any(char.IsControl)||
-                Anchor==null||!Train&&!Shunt)throw new InvalidDataException("Hilfsziel benötigt Gleisposition und mindestens eine Fahrart.");
-            Anchor.Validate();
+                !Enum.IsDefined(typeof(AuxiliaryFunction),Function)||PermissionLine==null||PermissionLine!=""&&!Guid.TryParseExact(PermissionLine,"N",out _)||ReferenceSignal==null||ReferenceSignal!=""&&!Guid.TryParseExact(ReferenceSignal,"N",out _)||Function==AuxiliaryFunction.RouteDestination&&(Anchor==null||!Train&&!Shunt))throw new InvalidDataException(LocalText.Select("A route destination needs a track position and movement type; check the auxiliary function and line binding.","Ein Fahrstraßenziel benötigt Gleisposition und Fahrart; Hilfstastenfunktion und Streckenzuordnung prüfen."));
+            Anchor?.Validate();
         }
-        public bool SamePath(AuxiliaryTarget b)=>b!=null&&Id==b.Id&&Train==b.Train&&Shunt==b.Shunt&&Reverse==b.Reverse&&
+        public bool SamePath(AuxiliaryTarget b)=>b!=null&&Id==b.Id&&Function==b.Function&&PermissionLine==b.PermissionLine&&ReferenceSignal==b.ReferenceSignal&&Train==b.Train&&Shunt==b.Shunt&&Reverse==b.Reverse&&
             Anchor?.Segment==b.Anchor?.Segment&&Anchor?.Meters==b.Anchor?.Meters;
         public bool SameContent(AuxiliaryTarget b)=>SamePath(b)&&Name==b.Name;
-        public MarkerRecord Endpoint()=>new MarkerRecord{Id=Id,Name=Caption,Kind=MarkerRecord.Auxiliary,Anchor=Anchor,
-            FacingReverse=Reverse,AllowHp1=Train,AllowHp2=Train,AllowSh1=Shunt};
+        public MarkerRecord Endpoint(Func<string,MarkerRecord> resolve=null) {
+            if(Function!=AuxiliaryFunction.RouteDestination)return null;
+            var reference=ReferenceSignal!=""&&resolve!=null?resolve(ReferenceSignal):null;
+            if(ReferenceSignal!=""&&resolve!=null&&(reference?.Kind!=MarkerRecord.Main||reference.Planned))return null;
+            return new MarkerRecord{Id=Id,Name=Caption,Kind=MarkerRecord.Auxiliary,Anchor=reference?.Anchor.Clone()??Anchor,
+                FacingReverse=reference==null?Reverse:!reference.FacingReverse,AllowHp1=Train,AllowHp2=Train,AllowSh1=Shunt};
+        }
+
+        public void SelectDestination(PanelButtons buttons,bool shunting,Func<string,bool> valid) {
+            if(buttons.Start==null)throw new InvalidOperationException("Zuerst das Startsignal wählen. Die Hilfstaste ist ausschließlich ein Ziel.");
+            if(!Accepts(Endpoint(),shunting))throw new InvalidOperationException("Hilfsziel unterstützt die gewählte Fahrart nicht.");
+            if(buttons.Start==Id||!valid(buttons.Start)||!valid(Id))throw new InvalidOperationException("Startsignal oder Hilfsziel ist nicht mehr verfügbar.");
+            buttons.ClearEnd();
+            buttons.Press(Id,valid);
+        }
 
         public static bool IsEndpoint(MarkerRecord row)=>row!=null&&row.Kind==MarkerRecord.Auxiliary;
         public static bool Accepts(MarkerRecord row,bool shunting)=>row!=null&&(IsEndpoint(row)?
@@ -35,6 +52,12 @@ namespace EnusDE.Signaltechnik {
                 result[target.Id]=target;
             }
             return result;
+        }
+        public static AuxiliaryTarget[] LinkedForSignal(IEnumerable<PanelTile> tiles,string signal) {
+            if(string.IsNullOrEmpty(signal))return Array.Empty<AuxiliaryTarget>();
+            var fields=tiles.ToArray();var index=Index(fields);
+            return fields.Where(t=>t.Kind==PanelTileKind.Signal&&(t.Reference==signal||t.AlternateSignal==signal)&&t.LinkedAuxiliary!=null)
+                .Select(t=>t.LinkedAuxiliary).Distinct().Where(index.ContainsKey).Select(id=>index[id]).OrderBy(t=>t.Caption,StringComparer.Ordinal).ToArray();
         }
 
         public static bool HasBlockingSignal(IEnumerable<DirectedRouteSection> path,IEnumerable<MarkerRecord> signals,
@@ -58,9 +81,22 @@ namespace EnusDE.Signaltechnik {
     }
 
     public static class SignalCellLayout {
-        public static bool ShuntHalf(PanelTile tile,bool right)=>tile.AlternateSignal!=null&&right!=tile.SwapSignalHalves;
-        public static string SignalAt(PanelTile tile,bool right)=>ShuntHalf(tile,right)?tile.AlternateSignal:tile.Reference;
-        public static int TargetDirection(PanelTile tile)=>(tile.Rotation+(tile.Target?.Reverse==true?2:0))%4;
+        public static bool HasAuxiliaryHalf(PanelTile tile)=>tile?.Kind==PanelTileKind.Signal&&tile.Target!=null;
+        public static bool AuxiliaryAt(PanelTile tile,bool second)=>HasAuxiliaryHalf(tile)&&second==(MainDirection(tile)>=2);
+        public static bool ShuntHalf(PanelTile tile,bool right)=>HasAuxiliaryHalf(tile)?!AuxiliaryAt(tile,right):tile.AlternateSignal!=null&&right!=tile.SwapSignalHalves;
+        public static string SignalAt(PanelTile tile,bool right)=>AuxiliaryAt(tile,right)?null:ShuntHalf(tile,right)&&tile.AlternateSignal!=null?tile.AlternateSignal:tile.Reference;
+        public static void RotateAuxiliaryField(PanelTile tile) {
+            tile.Rotation=(tile.Rotation+1)%4;
+            if(tile.MainSignalDirection.HasValue)tile.MainSignalDirection=(tile.MainSignalDirection.Value+1)%4;
+        }
+        public static int AuxiliaryDirection(PanelTile tile)=>(MainDirection(tile)+2)%4;
+        public static PanelPoint HalfPoint(PanelTile tile,bool target) {
+            int direction=MainDirection(tile);float sign=target?-1:1;
+            return direction==0?new PanelPoint(18*sign,0):direction==1?new PanelPoint(0,-12*sign):
+                direction==2?new PanelPoint(-18*sign,0):new PanelPoint(0,12*sign);
+        }
+        public static int TargetDirection(PanelTile tile)=>tile.Rotation%4;
+        public static int HeadSideDirection(PanelTile tile)=>MainDirection(tile);
         public static int MainDirection(PanelTile tile)=>tile.MainSignalDirection??tile.Rotation;
         public static int ShuntDirection(PanelTile tile)=>tile.ShuntSignalDirection??tile.Rotation;
     }

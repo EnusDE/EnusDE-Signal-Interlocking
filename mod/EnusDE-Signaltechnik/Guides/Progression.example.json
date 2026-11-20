@@ -1,0 +1,5 @@
+{
+  "Schema": 1,
+  "Mode": "purchase",
+  "Prerequisite": "my-map-bridge"
+}
