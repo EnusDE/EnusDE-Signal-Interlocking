@@ -1,3 +1,13 @@
+# 0.7.62-P0 – Materialkauf am Interchange
+
+- Fehlende native Übergabelieferanten für Signalbaumaterial und Signaltechnik ergänzt. Wagenauswahl und MOW-Lager bleiben erhalten.
+- Isolierte Industrie-DTO vor nativem Aufbau/Registrierung vorbereiten. Originale Übergabegleise verwenden, andere Lieferanten und zwischengespeicherte Kartendaten erhalten; mehrdeutige/leere Definitionen überspringen.
+- Einkauf über native Wagenziele mit Preisen/Gebühren, Zahlung, Außenweltbedienung und Rücklieferung. Kein Sofortfüllen und kein zweites Kaufmenü.
+- Kaufhinweise und Anleitung Englisch/Deutsch. Keine Chatbefehle nötig. Erwartete generische FM-Kisten, FL-Skelettgrenzen und geschlossenes XM-Aussehen erklärt; keine eigenen Texturen enthalten.
+- Elf produktive Lieferanten-/Prefix-/API-Regressionen ergänzt. Tatsächlicher Einkauf, Zahlung, Hin-/Rücklieferung, Ladungsdarstellung und Mehrspielerabnahme offen. Vorherige Bauleiste/Wagenauswahl vom Nutzer bestätigt; das belegt den neuen Kaufweg noch nicht.
+
+Siehe Guides/INTERCHANGE-0.7.62.de.md. Manuell installieren; alle benötigen 0.7.62 und vollständigen Neustart.
+
 # 0.7.61-P0 – Baumodus und native MOW-Logistik
 
 - Ausdrücklicher Baumodus mit rechter Symbolleiste, Werkzeuganzeige und Beenden-Taste. Fenster-X und Moduswechsel beenden den Bau; bestätigte Pläne bleiben.

@@ -1,10 +1,12 @@
-# Development status and continuation — 0.7.61
+# Development status and continuation — 0.7.62
 
 [Deutsch](#deutsch) · [Project overview](../README.md) · [Build instructions](BUILD.md)
 
 ## Current change
 
-`main` is the canonical source. Version **0.7.61**, Early Alpha for **Railroader 0.6.3**, adds explicit local Build sessions and native MOW material logistics. The compact right-hand icon palette stays open during placement. End/X/workspace switch cancels unconfirmed cursor work, retaining accepted plans. The local builder sees virtual models; ordinary viewers see original cone/barrier worksites for confirmed unfinished objects. Completed models and host editing restrictions remain.
+`main` is the canonical source. Version **0.7.62** fixes missing native interchange suppliers: a copied interchange IndustryDTO gains the two stable signal cargos before the native factory registers component IDs and schedules. Buy destinations, price/payment, handling, off-map service and return remain native. Existing supplier entries and cached map data remain unchanged. Ambiguous/empty interchange definitions are skipped. See [English buying/model guide](../mod/EnusDE-Signaltechnik/Guides/INTERCHANGE-0.7.62.en.md) or [Deutsch](../mod/EnusDE-Signaltechnik/Guides/INTERCHANGE-0.7.62.de.md).
+
+Previous version **0.7.61**, Early Alpha for **Railroader 0.6.3**, adds explicit local Build sessions and native MOW material logistics. The compact right-hand icon palette stays open during placement. End/X/workspace switch cancels unconfirmed cursor work, retaining accepted plans. The local builder sees virtual models; ordinary viewers see original cone/barrier worksites for confirmed unfinished objects. Completed models and host editing restrictions remain.
 
 Both stable signal cargo IDs now use native captive-wagon ordering and matched existing MOW material loader/unloader pairs. Native inventory, prices and wagon capacity remain native. FL and legacy FM carry building supplies; XM carries equipment. Active MOW work-train completion consumes these cargos from coupled owned supply cars. Material overview and milestone show pending requirements/status. Legacy balances are retained with explicit capacity-limited transfer, rollback and saved receipts against duplicate restoration. Point wiring retains its one-time nearby-stock charge and is not yet work-car-driven.
 
@@ -14,15 +16,18 @@ See [English workflow and acceptance steps](../mod/EnusDE-Signaltechnik/Guides/B
 
 ## Checks and limits
 
-The full **Test.ps1** run on **20 November 2026** passed **1,828 PASS, 0 FAIL**. Production compiles against the local original game libraries; Unity player metadata identifies **0.6.3**. Results include:
+The full **Test.ps1** run on **20 November 2026** passed **1,839 PASS, 0 FAIL**. Production compiles against the local original game libraries; Unity player metadata identifies **0.6.3**. Results include:
 
+- 11 additional production import-preparation/prefix checks, using actual game DTO types, cover unchanged original data, native tracks/filters/accounting, existing suppliers, repetition, key collisions and ambiguous/empty interchanges.
 - 22 checks compiling the actual native-material adapter, transfer and point-payment code against controlled stand-ins: registration, targeted wagon filters, real-unit capacity, no duplicate stock, host checks, fractional/partial transfer, rollback, receipts, point deduplication and ownership cleanup.
 - Seven local build policy, site geometry and distinct icon checks, plus five installed-game material API/definition checks.
 - Existing production UI callbacks, settings lifecycle, localization, route/occupancy/network and IL/API checks. The console has one fewer PASS line than RESULTS.txt because one package assertion is recorded only in the latter.
 
 The real map definitions were read: Bryson and East Whittier have paired MOW material storage components. The real storage-service IL multiplies carload storage/rates by each load's nominal quantity. This is static evidence, not successful delivery in a running game. Fixture transactions use controlled stand-ins; they do not prove Unity or network rollback.
 
-No game has been launched or installation performed. New ordering/payment, warehouse loading/unloading, active work-train completion, terrain/transparent rendering, repeated mode switches, save/reload, late join and host/client visibility need copied-save acceptance tests. No blanket performance or multiplayer acceptance is claimed. Package CRC, manifest, own-DLL-only content, both language catalogs and byte comparison to the tested runtime/template are checked separately before delivery. Earlier 0.7.60 packages remain unchanged; that historical complete run recorded 1,794 PASS, 0 FAIL.
+The user confirmed the previous build panel and compatible wagon selection work sufficiently for further testing. This is not a completed purchase/delivery test. Native FM volume/wildcard-crate definitions, FL skeleton log-specific model and closed XM exterior were inspected read-only; no dedicated cargo textures were added.
+
+No game has been launched or installation performed by the assistant. New ordering/payment, warehouse loading/unloading, active work-train completion, terrain/transparent rendering, repeated mode switches, save/reload, late join and host/client visibility need copied-save acceptance tests. No blanket performance or multiplayer acceptance is claimed. Package CRC, manifest, own-DLL-only content, both language catalogs and byte comparison to the tested runtime/template are checked separately before delivery. Earlier 0.7.60 packages remain unchanged; that historical complete run recorded 1,794 PASS, 0 FAIL.
 
 ## Continue work
 
@@ -32,8 +37,8 @@ Game libraries, binaries/packages, live-world data, settings, diagnoses/logs and
 
 ## Deutsch
 
-**0.7.61 für Railroader 0.6.3, Early-Alpha-Testfassung.** Ausdrücklicher Baumodus mit rechter Symbolleiste und Beenden-Taste; bestätigte Pläne bleiben erhalten. Der lokale Erbauer sieht virtuelle Modelle, andere normale Ansichten zeigen Baustellen. Native Materialwagenbestellung, MOW-Lager und aktive MOW-Arbeitszugfertigstellung sind verbunden. Altbestände werden ausdrücklich und kapazitätsbegrenzt übernommen; Restbestände bleiben. Weichenverdrahtung verwendet weiterhin einmalig nahe Lagerbestände, noch keinen Arbeitswagen an der Weiche.
+**0.7.62 für Railroader 0.6.3, Early-Alpha-Testfassung.** Fehlende native Interchange-Lieferanten für den Materialkauf ergänzt. Originale Karten-/Lieferantendaten bleiben erhalten; normale Kaufen-/Bezahl-/Bedien-/Rücklieferungslogik bleibt zuständig. Ausdrücklicher Baumodus mit rechter Symbolleiste und Beenden-Taste; bestätigte Pläne bleiben erhalten. Der lokale Erbauer sieht virtuelle Modelle, andere normale Ansichten zeigen Baustellen. Native Materialwagenbestellung, MOW-Lager und aktive MOW-Arbeitszugfertigstellung sind verbunden. Altbestände werden ausdrücklich und kapazitätsbegrenzt übernommen; Restbestände bleiben. Weichenverdrahtung verwendet weiterhin einmalig nahe Lagerbestände, noch keinen Arbeitswagen an der Weiche.
 
-**1.828 PASS, 0 FAIL** im vollständigen Test.ps1-Lauf am 20.11.2026 gegen lokale Spielbibliotheken mit 0.6.3-Player-Metadaten. Darunter 22 produktive Materialadapter-/Übernahmeprüfungen mit kontrollierten Spiel-Stellvertretern, sieben Modus-/Geometrie-/Symbolprüfungen und fünf native Material-API-Prüfungen. Statische Prüfung echter MOW-Lager und Speicher-IL ersetzt keine Lieferung im Spiel.
+**1.839 PASS, 0 FAIL** im vollständigen Test.ps1-Lauf am 20.11.2026 gegen lokale Spielbibliotheken mit 0.6.3-Player-Metadaten. Darunter elf neue produktive Lieferanten-/Prefixprüfungen mit echten Spiel-DTOs, 22 produktive Materialadapter-/Übernahmeprüfungen mit kontrollierten Spiel-Stellvertretern, sieben Modus-/Geometrie-/Symbolprüfungen und fünf native Material-API-Prüfungen. Statische Prüfung echter MOW-Lager und Speicher-IL ersetzt keine Lieferung im Spiel.
 
 Spiel-/Darstellungs-/Liefer-/Mehrspielerabnahme bleibt offen; kein Spielstart und keine Installation durch den Assistenten. Die Anleitung enthält konkrete Tests mit kopiertem Spielstand. Native Lagerbestände benötigen eine passende vollständige Spielstandsicherung. Einstellungen bleiben am Zahnrad. Alte Pakete unverändert behalten; abgeschlossene Quellen auf GitHub sichern und den Remote-Commit prüfen.

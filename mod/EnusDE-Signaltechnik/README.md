@@ -1,4 +1,6 @@
-# EnusDE Signal & Interlocking 0.7.61-P0
+# EnusDE Signal & Interlocking 0.7.62-P0
+
+0.7.62 adds missing native interchange Buy suppliers for both signal cargos. The wagon selection is retained. [Buying and cargo appearance](Guides/INTERCHANGE-0.7.62.en.md) · [Einkauf und Ladungsdarstellung](Guides/INTERCHANGE-0.7.62.de.md). Manual install, full restart and matching 0.7.62 for all participants. Actual buying/service/return and rendering still require game acceptance.
 
 0.7.61 adds explicit right-hand Build mode, local virtual plans/ordinary construction sites and native MOW wagon ordering/storage. Existing stock is retained with explicit partial transfer. [English workflow and tests](Guides/BUILD-MOW-0.7.61.en.md) · [Deutsche Anleitung und Spieltests](Guides/BUILD-MOW-0.7.61.de.md). Manual install and full restart; all participants need 0.7.61. New game/delivery/rendering/multiplayer acceptance remains open.
 

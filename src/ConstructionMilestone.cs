@@ -39,6 +39,7 @@ namespace EnusDE.Signaltechnik {
                 harmony.Patch(AccessTools.Method(typeof(UI.CarInspector.CarInspector),"BuildLoads"),postfix:new HarmonyMethod(typeof(ConstructionIntegration),nameof(CarLoads)));
                 harmony.Patch(AccessTools.Method(typeof(Game.Mow.WorkCar),"PerformWork",new[]{typeof(float),typeof(List<Track.TrackSegment>)}),postfix:new HarmonyMethod(typeof(ConstructionIntegration),nameof(Work)));
             }catch{Dispose();throw;}
+            try{NativeMaterialImports.Patch(harmony);}catch(Exception e){warning?.Invoke("Native signal material imports: "+e.Message);}
         }
         static void BeforeConfigure(Progression __instance) {
             ConstructionMapRules.Reset();

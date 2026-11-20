@@ -1,3 +1,13 @@
+# 0.7.62-P0 – Native interchange purchases
+
+- Added the missing two native interchange suppliers for signal building supplies and signal equipment; existing Equipment wagon selection and MOW storage remain.
+- Prepare an isolated industry DTO before native component creation/indexing. Reuse original interchange tracks; preserve other suppliers and cached map data, skip ambiguous/empty interchange definitions.
+- Buying uses native wagon destinations, prices/handling, payment, off-map service and return. No instant-fill command or second purchasing menu.
+- Added English/German purchase hints and a step-by-step guide. No chat command needed. Explained expected generic FM crates, FL skeleton limits and closed XM appearance; no dedicated textures shipped.
+- Added 11 production preparation/prefix/native-contract regressions. Game purchase/payment, delivery/return, visible loads and MP acceptance remain open. User confirmed previous panel/wagon selection; this does not prove the new purchase path.
+
+See Guides/INTERCHANGE-0.7.62.en.md. Manually install; all participants need 0.7.62 and a full restart.
+
 # 0.7.61-P0 – Build mode and native MOW logistics
 
 - Explicit Build mode with a right-hand icon palette, selected-tool feedback and End action. Native X and workspace switches leave Build; confirmed plans survive.

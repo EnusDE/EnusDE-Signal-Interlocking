@@ -2,7 +2,7 @@
 
 [Deutsche Zusammenfassung](#deutsch) · [Build from source](docs/BUILD.md) · [Development status](docs/DEVELOPMENT.md)
 
-**Current source: 0.7.61 — Early Alpha for Railroader 0.6.3.** The `main` branch is the canonical source checkpoint. A source commit is not a GitHub release or an installable download; obtain an explicitly published package from the author's distribution channel, or build from source. This README does not assert that a matching GitHub release asset exists.
+**Current source: 0.7.62 — Early Alpha for Railroader 0.6.3.** The `main` branch is the canonical source checkpoint. A source commit is not a GitHub release or an installable download; obtain an explicitly published package from the author's distribution channel, or build from source. This README does not assert that a matching GitHub release asset exists.
 
 Place configurable railway signals, draw an interlocking diagram, connect it to the in-game railway, and operate train and shunting routes. Track occupancy, train-number displays, line permission and configurable automation support larger installations.
 
@@ -20,6 +20,8 @@ Place configurable railway signals, draw an interlocking diagram, connect it to 
 - Standalone settings through the launcher gear, available before milestone unlock; native game mod-management pages are preserved.
 - Built-in English/German interfaces and F1 help. English is the default; German does not require another mod.
 
+0.7.62 adds the missing native interchange purchase suppliers for signal cargos. [Buying and cargo appearance](mod/EnusDE-Signaltechnik/Guides/INTERCHANGE-0.7.62.en.md) · [Einkauf und Ladungsdarstellung](mod/EnusDE-Signaltechnik/Guides/INTERCHANGE-0.7.62.de.md).
+
 0.7.61 reorganizes building and material logistics, preserving existing installations and legacy stock. [English instructions and game tests](mod/EnusDE-Signaltechnik/Guides/BUILD-MOW-0.7.61.en.md) · [Deutsche Anleitung und Spieltests](mod/EnusDE-Signaltechnik/Guides/BUILD-MOW-0.7.61.de.md).
 
 0.7.60 moved settings entirely into the launcher. [English instructions](mod/EnusDE-Signaltechnik/Guides/SETTINGS-0.7.60.en.md) · [Deutsche Anleitung](mod/EnusDE-Signaltechnik/Guides/SETTINGS-0.7.60.de.md).
@@ -28,9 +30,9 @@ Place configurable railway signals, draw an interlocking diagram, connect it to 
 
 ## Compatibility and validation
 
-The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.61**.
+The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.62**.
 
-The author reports working gameplay of earlier builds, including GWB, but this remains an Early Alpha. The new code compiles against the local game libraries; the installation metadata identifies Railroader 0.6.3. The complete offline build/check run on 20 November 2026 passed **1,828 checks**, including targeted native-material integration and local build-view policy checks. **The new ordering, loading, construction views and multiplayer behavior still require in-game validation.** See [development status and continuation](docs/DEVELOPMENT.md) for the evidence and limits.
+The author reports working gameplay of earlier builds, including GWB, but this remains an Early Alpha. The new code compiles against the local game libraries; the installation metadata identifies Railroader 0.6.3. The complete offline build/check run on 20 November 2026 passed **1,839 checks**, including native interchange supplier preparation, material integration and local build-view policy checks. **The new ordering, loading, construction views and multiplayer behavior still require in-game validation.** See [development status and continuation](docs/DEVELOPMENT.md) for the evidence and limits.
 
 ## Install and start
 
@@ -57,8 +59,8 @@ See [Third-party notices](THIRD_PARTY_NOTICES.md) and the included MIT component
 
 ## Deutsch
 
-**Aktueller Quellstand: 0.7.61, Early Alpha für Railroader 0.6.3.** `main` ist der maßgebliche Quellstand für die Weiterentwicklung. Ein Quellcode-Commit ist kein GitHub-Release und kein installierbares Paket.
+**Aktueller Quellstand: 0.7.62, Early Alpha für Railroader 0.6.3.** `main` ist der maßgebliche Quellstand für die Weiterentwicklung. Ein Quellcode-Commit ist kein GitHub-Release und kein installierbares Paket.
 
 Die Mod ergänzt eigene Signale, Gleisbildstellwerke, Zug-/Rangierfahrstraßen, Gleisfreimeldung, Zugnummern sowie GWB- und Blockbetrieb. Der GWB-Assistent führt schrittweise durch die Einrichtung; Blockansichten sind verschiebbar, spiegelbar und um 180 Grad drehbar. Zusätzliche Tafeln können vereinfachte Ansichten zeigen. Englisch und Deutsch sind eingebaut; im Mehrspieler brauchen alle dieselbe Modversion.
 
-0.7.61 ergänzt den ausdrücklichen Baumodus mit rechter Symbolleiste und Baustellendarstellung sowie normale Materialwagenbestellung und MOW-Lageranbindung. Alte Anlagen und Bestände bleiben erhalten. Der Code kompiliert gegen die lokalen 0.6.3-Spielbibliotheken; 1.828 Offline-Prüfungen sind bestanden. Die neuen Liefer-, Bau-, Darstellungs- und Mehrspielerabläufe müssen noch im Spiel geprüft werden. Einstellungen bleiben am Zahnrad im Auswahlfenster. Vor Updates Spielstand und Konfiguration sichern. [Prüfstand und Weiterarbeit](docs/DEVELOPMENT.md#deutsch) · [Selbst bauen](docs/BUILD.md).
+0.7.62 ergänzt fehlende native Interchange-Lieferanten für den Materialkauf. 0.7.61 ergänzte den ausdrücklichen Baumodus mit rechter Symbolleiste und Baustellendarstellung sowie normale Materialwagenbestellung und MOW-Lageranbindung. Alte Anlagen und Bestände bleiben erhalten. Der Code kompiliert gegen die lokalen 0.6.3-Spielbibliotheken; 1.839 Offline-Prüfungen sind bestanden. Die neuen Liefer-, Bau-, Darstellungs- und Mehrspielerabläufe müssen noch im Spiel geprüft werden. Einstellungen bleiben am Zahnrad im Auswahlfenster. Vor Updates Spielstand und Konfiguration sichern. [Prüfstand und Weiterarbeit](docs/DEVELOPMENT.md#deutsch) · [Selbst bauen](docs/BUILD.md).

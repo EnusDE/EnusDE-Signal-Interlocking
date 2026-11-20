@@ -1,6 +1,6 @@
 # EnusDE Signal and Interlocking — Tutorial / User Guide
 
-**WORK IN PROGRESS — build/material sections updated for 0.7.61-P0, Railroader 0.6.3.**
+**WORK IN PROGRESS — build/material sections updated for 0.7.62-P0, Railroader 0.6.3.**
 
 [Baumodus und MOW-Materialien auf Deutsch](BUILD-MOW-0.7.61.de.md). Older operating sections remain a developing alpha guide.
 
@@ -20,7 +20,7 @@ If construction is locked, check the signalling unlock in **Materials and constr
 
 Choose **Build** in the launcher to enter the local build session. The compact right-hand icon palette remains open while placing signals. Hover an icon for its name; the selected tool is highlighted. Right-mouse camera control remains available. **Escape** cancels the cursor. **End build mode**, the native X or a workspace change exits Build and retains confirmed plans.
 
-With material requirements enabled, the local builder sees cyan virtual models; ordinary viewers see confirmed sites as cones/barriers. Use **Material → Open native wagon ordering** for captive FL/FM building supplies and XM signal equipment. Store/reload at an existing MOW warehouse, then build using an active owned MOW work car and coupled loaded supply cars within 250 track metres. Existing legacy stocks can be transferred explicitly without discarding excess. See the [full material workflow, backup boundary and game tests](BUILD-MOW-0.7.61.en.md).
+With material requirements enabled, the local builder sees cyan virtual models; ordinary viewers see confirmed sites as cones/barriers. Use **Material → Open native wagon ordering** for captive FL/FM building supplies and XM signal equipment. To buy cargo, separately choose its native **Buy** destination at an interchange under **EnusDE Signal & Interlocking**, deliver the wagon and await normal service/return. No chat command is required. See [purchasing and native cargo model expectations](INTERCHANGE-0.7.62.en.md). Store/reload at an existing MOW warehouse, then build using an active owned MOW work car and coupled loaded supply cars within 250 track metres. Existing legacy stocks can be transferred explicitly without discarding excess. See the [full material workflow, backup boundary and game tests](BUILD-MOW-0.7.61.en.md).
 
 In Build, click a signal to configure it. Outside Build, click its information and choose **Edit in build mode** as host. Verify its real track position and direction, available train/shunting aspects, role and any distant-signal target. Each enabled face of a two-sided mast has its own logical direction.
 
