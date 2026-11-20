@@ -1,3 +1,16 @@
+# 0.7.60-P0 – Settings in the launcher
+
+- Added a fourth gear button opening a separate resizable settings window.
+- Settings remain reachable before milestone unlock, for clients and when an old file hid the toolbar button.
+- Removed the former Company mod-list selector and dedicated preferences tab; native mod management remains native.
+- Preserved settings storage, world data, host authority and the three existing workspace symbols.
+- Updated active menu/help references and both language packs.
+- Added production picker/window callback and lifecycle regressions.
+- Fixed the existing vehicle-tab hook lookup for the renamed 0.6.3 BuildContent callback. Exact signatures remain required; unknown/ambiguous callbacks are rejected.
+- Compiles against the local game libraries with 0.6.3 player metadata; in-game/UI/multiplayer acceptance remains pending.
+
+See Guides/SETTINGS-0.7.60.en.md. All multiplayer participants require 0.7.60 and a complete restart.
+
 # 0.7.59-P0 – Continue editing saved block views
 
 Open with a prepared preview; option changes refresh it while retaining placement. Apply rebases the open editor to the saved state, allowing another edit/save. Widening views can grow the panel instead of resetting position. Old native-render callbacks are rejected. Added four-section rotated-view and repeated save/reload/reopen tests. See Guides/BLOCK-VIEW-REEDIT-0.7.59.en.md. Gameplay/UI acceptance remains pending.

@@ -1,4 +1,6 @@
-# EnusDE Signal & Interlocking 0.7.59-P0
+# EnusDE Signal & Interlocking 0.7.60-P0
+
+Settings now open from the **gear in IXL / STW beside the clock**, including before milestone unlock. The former Company/Preferences entries are removed, preserving the native mod list. Existing settings and world data are retained. [English instructions](Guides/SETTINGS-0.7.60.en.md) · [Deutsche Anleitung](Guides/SETTINGS-0.7.60.de.md). In-game acceptance remains pending.
 
 Block views open ready to edit and remain editable after saving, with staged position retained through option changes. [English notes](Guides/BLOCK-VIEW-REEDIT-0.7.59.en.md) · [Deutsche Hinweise](Guides/BLOCK-VIEW-REEDIT-0.7.59.de.md). Gameplay/UI acceptance remains pending.
 
@@ -18,7 +20,7 @@ Diagram-first setup: click a green field, select its real signal/point in the wo
 
 GWB connection deletion fix: confirmed cleanup of permission links and associated automation, retaining world objects and drawings. [English instructions](Guides/LINE-REMOVAL-0.7.51.en.md) · [Deutsche Anleitung](Guides/LINE-REMOVAL-0.7.51.de.md). Gameplay acceptance remains pending.
 
-Setup-assistant test build for Railroader 0.6.3. [English guide](Guides/SETUP-ASSISTANT-0.7.50.en.md) · [Deutsche Anleitung](Guides/SETUP-ASSISTANT-0.7.50.de.md). New workflows require gameplay and multiplayer testing. Local compilation uses the older available game libraries and the existing path adapter.
+Setup-assistant test build for Railroader 0.6.3. [English guide](Guides/SETUP-ASSISTANT-0.7.50.en.md) · [Deutsche Anleitung](Guides/SETUP-ASSISTANT-0.7.50.de.md). New workflows require gameplay and multiplayer testing. That historical 0.7.50 check used older available game libraries and the existing path adapter. Version 0.7.60 compiles against the local installation with 0.6.3 player metadata.
 
 The user reported successful 0.7.49 operation, including GWB, on Railroader 0.6.3. This new test build still requires gameplay acceptance. The earlier [compatibility verification record](Guides/GAME-063-0.7.49.en.md) describes the local library limitation.
 
@@ -64,7 +66,7 @@ New in 0.7.30: optional German Hl main/distant models with combined advance indi
 
 Unverified compatibility candidate for **Railroader 0.6.3**. Install this ZIP with your mod manager, restart the game and enable the mod. Host and clients must use the same version. Open **IXL / STW** beside the clock for Build, Editor and Dispatcher.
 
-English is the default. Select Deutsch in Company → Settings → Mods → Signal & Interlocking, or use Automatic to follow the optional EnusDE translation mod. The previous preferences page links to the new location. Native F1 help includes signal meanings and operation; host permissions also reveal construction, automation and backup chapters.
+English is the default. Open the gear in the IXL / STW launcher beside the clock and select Deutsch, or use Automatic to follow the optional EnusDE translation mod. The former Company and preferences pages are no longer used. Native F1 help includes signal meanings and operation; host permissions also reveal construction, automation and backup chapters.
 
 New in 0.7.29: unbound signals show invalidity crosses; connected signals and interlockings can be explicitly taken out of service with identification lights and native AI bypass. Only points owned exclusively by disabled areas return to native AI control. World-menu Edit point opens its configuration directly. See [English setup/tests](Guides/TEST-0.7.29.en.md) or [Deutsche Einrichtung/Tests](Guides/TEST-0.7.29.de.md). Gameplay validation remains pending.
 

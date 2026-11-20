@@ -10,7 +10,7 @@ In 0.7.42 route requests enter a preparation queue. You can choose another start
 
 Install the matching mod ZIP through your mod manager, restart Railroader and enable the mod. Host and clients need the same version. Begin with a test save or a copy of your existing save.
 
-Open **IXL / STW** beside the clock. The main work areas are **Build**, **Editor** and **Dispatcher**. Settings are under **Company → Options → Mods → Signal & Interlocking**. English is available without another mod; German can also be selected.
+Open **IXL / STW** beside the clock. The main work areas are **Build**, **Editor** and **Dispatcher**. Settings are under **IXL / STW launcher → gear → Settings**. English is available without another mod; German can also be selected.
 
 If construction is locked, check the signalling unlock in **Materials and construction costs**. The standard map can inherit native signalling prerequisites without requiring purchase of native CTC. Sandbox and existing unlocks remain available. Custom maps and host overrides may use different prerequisites. See [Map-dependent progression](PROGRESSION.en.md).
 
@@ -111,7 +111,7 @@ Use **Editor → Menu → Refresh and inspect installation…** to reload elemen
 
 Configuration backups and diagnostic exports have different purposes. Backups support installation recovery. A diagnostic ZIP records the current configuration, route attempts, occupancy and vehicle data for investigation.
 
-Reproduce a problem on the host, then use **Company → Options → Mods → Signal & Interlocking → Optional local diagnostics → Export diagnostic ZIP**. The result shows the full filename. Recording/export folders are visible in settings; an optional user-synchronized local export folder is supported. No automatic upload or remote-control connection is created.
+Reproduce a problem on the host, then use **IXL / STW launcher → gear → Settings → Optional local diagnostics → Export diagnostic ZIP**. The result shows the full filename. Recording/export folders are visible in settings; an optional user-synchronized local export folder is supported. No automatic upload or remote-control connection is created.
 
 Include mod/game versions, start and destination, chosen movement, relevant signal/point/GFM identities and the exact error. **Occupied**, **unknown**, **unmonitored** and **locked** describe different conditions.
 

@@ -42,7 +42,7 @@ namespace EnusDE.Signaltechnik {
             if(recoverySource!=source) {
                 recoverySource=source;
                 RecoveryNotice=backups.Worlds(map).Any(w=>w.Sources.Contains(source))?
-                    "Im Spielstand fehlen Signaltechnik-Anlagendaten. Externe Sicherungen gefunden. Unter Spieloptionen → Signaltechnik → Anlagensicherung einen Stand wählen oder ausdrücklich ohne Wiederherstellung beginnen.":null;
+                    "Im Spielstand fehlen Signaltechnik-Anlagendaten. Externe Sicherungen gefunden. Unter Auswahlfenster → Einstellungen → Anlagensicherung einen Stand wählen oder ausdrücklich ohne Wiederherstellung beginnen.":null;
             }
             return RecoveryNotice!=null;
         }

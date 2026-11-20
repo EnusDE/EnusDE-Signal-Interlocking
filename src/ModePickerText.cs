@@ -29,6 +29,7 @@ namespace EnusDE.Signaltechnik {
 
     public static class ModePickerText {
         public static string ToolbarCaption(bool german)=>german?"STW":"IXL";
+        public static string SettingsCaption(bool german)=>german?"Einstellungen":"Settings";
 
         public static bool UsesGerman(string language,bool translateInterface) {
             if(!translateInterface)return false;
@@ -53,7 +54,7 @@ namespace EnusDE.Signaltechnik {
             if(!access.Host)
                 return german?"Gleisbild nur zur Ansicht. Der Host baut und bedient.":"View only. The host builds and operates.";
             if(!access.BuildReady)
-                return german?"Baumodus nicht verfügbar. Prüfe die Objektanzeige unter Mods.":"Build mode unavailable. Check object visibility under Mods.";
+                return german?"Baumodus nicht verfügbar. Prüfe die Objektanzeige über Einstellungen im Auswahlfenster.":"Build mode unavailable. Check object visibility in the launcher settings.";
             if(!access.EditorReady)
                 return german?"Der Editor ist für diese Anlage gerade nicht verfügbar.":"The editor is currently unavailable for this layout.";
             return "";

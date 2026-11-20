@@ -16,28 +16,27 @@ namespace EnusDE.Signaltechnik {
         readonly ModePickerLanguage language=new ModePickerLanguage();
         readonly Func<ModePickerAccess> readAccess;
         readonly Action<WorkspaceMode> openMode;
+        readonly Action openSettings;
+        const int SettingsButton=3;
         WindowManager manager;
         CustomWindowDefinition definition;
         Button[] buttons;
         RawImage[] icons;
-        readonly Texture2D[] textures=new Texture2D[3];
-        WorkspaceMode? hovered;
+        readonly Texture2D[] textures=new Texture2D[4];
+        int? hovered;
         ModePickerAccess access;
         public bool German {get;private set;}
 
-        public ModePicker(Func<ModePickerAccess> readAccess,Action<WorkspaceMode> openMode) {
+        public ModePicker(Func<ModePickerAccess> readAccess,Action<WorkspaceMode> openMode,Action openSettings) {
             this.readAccess=readAccess;
             this.openMode=openMode;
+            this.openSettings=openSettings??throw new ArgumentNullException(nameof(openSettings));
             toolbar=new BuildToolbar(Toggle);
         }
 
-        public void Update(bool showToolbar) {
+        public void Update() {
             German=language.ReadGerman();
-            if(showToolbar)toolbar.Ensure(ModePickerText.ToolbarCaption(German));
-            else {
-                toolbar.Dispose();
-                Close();
-            }
+            toolbar.Ensure(ModePickerText.ToolbarCaption(German));
             if(OwnsWindow()&&CustomWindowHandle.Create(Id)?.IsOpen()==true)Refresh();
         }
 
@@ -50,12 +49,12 @@ namespace EnusDE.Signaltechnik {
                 manager=current;
             }
             if(!OwnsWindow()) {
-                var size=new Vector2Int(310,142);
+                var size=new Vector2Int(410,164);
                 definition=new CustomWindowDefinition {
                     Identifier=Id,
                     Title=Title,
                     BuilderAction=Build,
-                    Config=WindowConfig.Resizable(size,size,new Vector2Int(440,180),Window.Position.CenterRight)
+                    Config=WindowConfig.Resizable(size,new Vector2Int(382,164),new Vector2Int(600,230),Window.Position.CenterRight)
                 };
                 manager.RegisterCustomWindow(definition);
             }
@@ -71,12 +70,12 @@ namespace EnusDE.Signaltechnik {
             layout.childControlWidth=layout.childControlHeight=true;
             layout.childForceExpandWidth=true;
             layout.childForceExpandHeight=false;
-            buttons=new Button[3];
-            icons=new RawImage[3];
+            buttons=new Button[4];
+            icons=new RawImage[4];
             hovered=null;
             for(int i=0;i<buttons.Length;i++) {
-                var mode=(WorkspaceMode)i;
-                var created=UIBuilderAssets.Shared.CreateButton(UIBuilderAssets.ButtonStyle.Compact,row,()=>Select(mode));
+                int index=i;
+                var created=UIBuilderAssets.Shared.CreateButton(UIBuilderAssets.ButtonStyle.Compact,row,()=>Select(index));
                 var rect=created.Item1;
                 var sizing=rect.GetComponent<LayoutElement>()??rect.gameObject.AddComponent<LayoutElement>();
                 sizing.minWidth=72;
@@ -91,22 +90,22 @@ namespace EnusDE.Signaltechnik {
                 iconRect.sizeDelta=new Vector2(46,46);
                 iconRect.gameObject.AddComponent<LayoutElement>().ignoreLayout=true;
                 var icon=icons[i]=iconRect.gameObject.AddComponent<RawImage>();
-                icon.texture=textures[i]??(textures[i]=CreateIcon(mode));
+                icon.texture=textures[i]??(textures[i]=CreateIcon(index));
                 icon.raycastTarget=false;
                 var hint=rect.gameObject.AddComponent<ModePickerHint>();
-                hint.Enter=()=>hovered=mode;
-                hint.Exit=()=>{if(hovered==mode)hovered=null;};
+                hint.Enter=()=>hovered=index;
+                hint.Exit=()=>{if(hovered==index)hovered=null;};
             }
             builder.AddLabel(ReadHint,UIPanelBuilder.Frequency.Periodic);
             Refresh();
         }
 
-        static Texture2D CreateIcon(WorkspaceMode mode) {
-            var alpha=ModeIconRaster.Alpha(mode);
+        static Texture2D CreateIcon(int index) {
+            var alpha=index==SettingsButton?ModeIconRaster.SettingsAlpha():ModeIconRaster.Alpha((WorkspaceMode)index);
             var colors=new Color32[alpha.Length];
             for(int i=0;i<colors.Length;i++)colors[i]=new Color32(255,255,255,alpha[i]);
             var texture=new Texture2D(ModeIconRaster.Size,ModeIconRaster.Size,TextureFormat.RGBA32,false) {
-                name="EnusDE "+mode,hideFlags=HideFlags.HideAndDontSave,
+                name="EnusDE "+index,hideFlags=HideFlags.HideAndDontSave,
                 filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp
             };
             texture.SetPixels32(colors);
@@ -116,7 +115,8 @@ namespace EnusDE.Signaltechnik {
 
         string ReadHint() {
             if(!hovered.HasValue)return ModePickerText.Status(access,German);
-            var mode=hovered.Value;
+            if(hovered.Value==SettingsButton)return ModePickerText.SettingsCaption(German);
+            var mode=(WorkspaceMode)hovered.Value;
             string caption=ModePickerText.Caption(mode,German);
             if(!access.CanOpen(mode))return caption+" · "+(German?"nicht verfügbar":"unavailable");
             if(mode==WorkspaceMode.Dispatcher&&!access.Host)return caption+" · "+(German?"nur Ansicht":"view only");
@@ -128,18 +128,21 @@ namespace EnusDE.Signaltechnik {
             if(buttons==null)return;
             for(int i=0;i<buttons.Length;i++) {
                 if(buttons[i]==null)continue;
-                var mode=(WorkspaceMode)i;
-                bool allowed=access.CanOpen(mode);
+                bool allowed=i==SettingsButton||access.CanOpen((WorkspaceMode)i);
                 buttons[i].interactable=allowed;
                 icons[i].color=allowed?WorkspaceSurface.Ink:new Color(.43f,.48f,.51f);
             }
         }
 
-        void Select(WorkspaceMode mode) {
-            if(StateManager.IsUnloading||!readAccess().CanOpen(mode))return;
+        void Select(int index) {
+            if(StateManager.IsUnloading)return;
+            if(index==SettingsButton){SelectSettings();return;}
+            if(index<0||index>=SettingsButton||!readAccess().CanOpen((WorkspaceMode)index))return;
             Close();
-            openMode(mode);
+            openMode((WorkspaceMode)index);
         }
+
+        void SelectSettings(){Close();openSettings();}
 
         bool OwnsWindow()=>manager!=null&&definition!=null&&ReferenceEquals(manager.GetDefinition(Id),definition);
         void Close(){hovered=null;if(OwnsWindow()&&!StateManager.IsUnloading&&CustomWindowHandle.Create(Id)?.IsOpen()==true)manager.CloseWindow(Id);}

@@ -66,7 +66,7 @@ namespace EnusDE.Signaltechnik {
             Builds++;RefreshValues();layoutDirty=false;
             builder.VScrollView(b=>{
                 b.AddTitle(LocalText.Get("EnusDE Signaltechnik"),"P0 · Wählbare Diagnose v"+Entry.Version);
-                b.AddLabel(LocalText.Get("Einstellungen: Spieloptionen → Signaltechnik."));
+                b.AddLabel(LocalText.Get("Einstellungen: Auswahlfenster → Einstellungen."));
                 b.AddLabel(LocalText.Get("Werte stammen aus der letzten Aufzeichnung. Die Scrollposition bleibt bei Messwertänderungen erhalten."));
                 if(config.ShowRecorder)b.AddSection(LocalText.Get("Hintergrundaufzeichnung"),section=>{
                     section.AddField(LocalText.Select("Recording folder","Aufzeichnungsordner"),()=>Entry.RecordingsDirectory,UIPanelBuilder.Frequency.Periodic);

@@ -48,7 +48,7 @@ namespace EnusDE.Signaltechnik {
         }
         void CommitAutomaticPlan(RouteChainPlan plan) {
             RequireDispatcher();
-            if(!aiEnabled)throw new InvalidOperationException("AE-Anbindung unter Spieloptionen → Signaltechnik einschalten.");
+            if(!aiEnabled)throw new InvalidOperationException("AE-Anbindung unter Auswahlfenster → Einstellungen einschalten.");
             PrepareRequestedPlan(plan);
             ApplyRoutePlan(plan);ClearAutomaticRouteChoices();
         }

@@ -8,10 +8,7 @@ $managed=Get-RailroaderManagedDirectory $GameDirectory
 $checker=Join-Path $PSScriptRoot 'build\checks\RelayChecks.dll'
 $script=Join-Path $PSScriptRoot 'mod\EnusDE-Signaltechnik\Scripts\Main.rl'
 $results=@()
-$result=& (Join-Path $PSScriptRoot 'tools\Test-Preferences.ps1') 2>&1
-$results+=$result
-$result | ForEach-Object {Write-Output $_}
-$result=& (Join-Path $PSScriptRoot 'tools\Test-CompanySettings.ps1') 2>&1
+$result=& (Join-Path $PSScriptRoot 'tools\Test-SettingsWindow.ps1') 2>&1
 $results+=$result
 $result | ForEach-Object {Write-Output $_}
 $result=& (Join-Path $PSScriptRoot 'tools\Test-Window.ps1') 2>&1
@@ -39,7 +36,7 @@ foreach($mode in @('native','bridge')){
 }
 $mod=Join-Path $PSScriptRoot 'mod\EnusDE-Signaltechnik'
 $manifest=Get-Content -LiteralPath (Join-Path $mod 'Info.json') -Raw | ConvertFrom-Json
-if($manifest.identifier -ne 'enusde/signaltechnik' -or $manifest.version -ne '0.7.59'){throw 'Unerwartete Paketkennung/Version.'}
+if($manifest.identifier -ne 'enusde/signaltechnik' -or $manifest.version -ne '0.7.60'){throw 'Unerwartete Paketkennung/Version.'}
 if($manifest.dependencies.required.Count -ne 1 -or $manifest.dependencies.required[0] -ne 'rr/game ==0.6.3'){throw 'Unerwartete Spiel-/Mod-Abhängigkeit.'}
 if($manifest.scope -ne 'unscoped' -or $manifest.assemblies.Count -ne 1 -or $manifest.assemblies[0] -ne 'EnusDE.Signaltechnik.dll'){throw 'Gemeinsame Anlage muss dieselbe Pflichtversion und nur die eigene Assembly deklarieren.'}
 if(Get-ChildItem -LiteralPath $mod -Recurse -File | Where-Object {$_.Extension -in @('.dll','.exe','.ps1')}){throw 'Testwerkzeug im spielbaren Paket gefunden.'}
@@ -47,6 +44,6 @@ $results+='PASS: mandatory matching multiplayer scope, exact game dependency and
 if(!(Test-Path -LiteralPath (Join-Path $managed '0Harmony.dll'))){throw 'Getestete Harmony-Laufzeit der Spielinstallation fehlt.'}
 if(!(Test-Path -LiteralPath (Join-Path $mod 'LICENSE-ModsTab.txt'))){throw 'MIT-Lizenzhinweis für Mods-Reiter fehlt.'}
 if(!(Test-Path -LiteralPath (Join-Path $mod 'LICENSE-NativeWindow.txt'))){throw 'MIT-Lizenzhinweis für Fensterbereinigung fehlt.'}
-$results+='PASS: preferences integration retains its license and uses the installed game Harmony; no menu dependency'
+$results+='PASS: retained component notices and the installed game Harmony; no menu dependency'
 $results[-1]
 $results | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'build\checks\RESULTS.txt') -Encoding utf8

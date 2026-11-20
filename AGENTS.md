@@ -17,3 +17,10 @@
 - A clearly labelled intermediate source checkpoint is allowed when useful. Report tests actually run and remaining limitations; do not claim a checkpoint is a tested release or that an unconfirmed upload is backed up.
 - Exclude game libraries, binaries/install ZIPs, SDKs, saves/world or installation data, personal settings, diagnostics/logs, secrets, caches and private working notes/chat handoffs. Review the staged/new files, not just ignore patterns.
 - This workflow runs at task checkpoints, not as a continuously running background synchronization service. Releases, tags, runtime installation and game launches require a separate request. Keep existing prepared archives unchanged.
+
+## Settings entry point (owner decision, 20 November 2026)
+
+- Open all mod settings through the gear in the clock-toolbar launcher, in an independent window. This fully replaces the previous Company/Preferences settings entry points.
+- Keep this access available before milestone unlock and for clients editing local preferences. Retain host authority for shared settings and all existing operating/build permissions.
+- Do not replace, wrap or add a selector to the game's installed-mod list, or register another preferences/Mods tab. Preserve other mods' menu entries.
+- Keep the launcher reachable even if an older settings file disabled its former visibility option. Retain saved settings and installation data; moving the UI does not require data migration.

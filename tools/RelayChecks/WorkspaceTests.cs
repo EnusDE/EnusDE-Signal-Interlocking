@@ -20,7 +20,7 @@ static class WorkspaceTests {
         Check(compact.Popup.Height<100&&normal.Popup.Height>compact.Popup.Height*3&&compact.Diagram.Height==normal.Diagram.Height,
             "signal actions use a single compact popup row without shrinking the track diagram");
         bool rejected=false;try{WorkspaceLayout.For(double.NaN,900);}catch(ArgumentOutOfRangeException){rejected=true;}Check(rejected,"unresolved or nonfinite window geometry is rejected before positioning UI controls");
-        Check(new[]{"DISPATCH","BUILD","MAPEDIT","TRACK","REGION","STW","GO","EDIT","FS","BAU","ID","?"}.All(k=>WorkspaceSymbols.For(k).Count>=4&&WorkspaceSymbols.For(k).All(l=>l.Length==4&&l.All(v=>v>=0&&v<=32)&&(l[0]!=l[2]||l[1]!=l[3]))),"own vector tool symbols stay within their interactive button and contain no degenerate drawing segments");
+        Check(new[]{"DISPATCH","BUILD","MAPEDIT","SETTINGS","TRACK","REGION","STW","GO","EDIT","FS","BAU","ID","?"}.All(k=>WorkspaceSymbols.For(k).Count>=4&&WorkspaceSymbols.For(k).All(l=>l.Length==4&&l.All(v=>v>=0&&v<=32)&&(l[0]!=l[2]||l[1]!=l[3]))),"own vector tool symbols stay within their interactive button and contain no degenerate drawing segments");
         var modes=new[]{WorkspaceMode.Dispatcher,WorkspaceMode.Build,WorkspaceMode.Editor};
         var host=new ModePickerAccess(true,true,true,true);
         var client=new ModePickerAccess(false,true,true,true);
@@ -34,6 +34,7 @@ static class WorkspaceTests {
         Check(ModePickerText.UsesGerman(" de-DE ",true)&&ModePickerText.UsesGerman("de",true)&&!ModePickerText.UsesGerman("en",true)&&!ModePickerText.UsesGerman("fr",true)&&!ModePickerText.UsesGerman(null,true)&&!ModePickerText.UsesGerman("de",false),"mode picker honors the optional German interface setting and defaults to English");
         Check(modes.Select(m=>ModePickerText.Caption(m,false)).SequenceEqual(new[]{"Dispatcher","Build mode","Editor"})&&modes.Select(m=>ModePickerText.Caption(m,true)).SequenceEqual(new[]{"Fahrdienstleiter","Baumodus","Editor"})&&ModePickerText.Status(client,true).Contains("nur zur Ansicht")&&ModePickerText.Status(client,false).Contains("View only"),"mode captions and client read-only explanation are available in English and German");
         Check(ModePickerText.ToolbarCaption(true)=="STW"&&ModePickerText.ToolbarCaption(false)=="IXL","toolbar abbreviation follows the selected interface language");
+        Check(ModePickerText.SettingsCaption(true)=="Einstellungen"&&ModePickerText.SettingsCaption(false)=="Settings","launcher settings caption is available independently in English and German");
         var rasters=modes.Select(ModeIconRaster.Alpha).ToArray();
         int iconSize=ModeIconRaster.Size;
         Check(rasters.All(alpha=>{

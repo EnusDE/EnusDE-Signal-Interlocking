@@ -147,10 +147,18 @@ public static class SignalApiTests {
             &&References("BuildDispatcherWindow").Contains("BuildDispatcherFields")
             &&References("BuildEditorWindow").Contains("BuildEditorPanelContent")&&!References("BuildEditorWindow").Contains("CreateWorkspaceSurface")
             &&References("BuildEditorPanelContent").Contains("BuildEditorFields")&&References("BuildEditorPanelContent").Contains("BuildEditorCatalogue"),"editor and dispatcher register different native windows and use different control builders");
-        var prefs=typeof(UI.Builder.UIPanelBuilder).Assembly.GetType("UI.PreferencesWindow.PreferencesBuilder",true);
-        Check(prefs.GetMethod("BuildTabs",local,null,new[]{typeof(UI.Builder.UITabbedPanelBuilder)},null)!=null&&
-            Calls(typeof(Entry).GetMethod("OnModLoad")).Contains("SignalPreferencesRegistration.Register"),
-            "dedicated Signaltechnik tab registers through the actual installed preferences API");
+        var entryCalls=Calls(typeof(Entry).GetMethod("OnModLoad"));
+        var picker=typeof(Entry).Assembly.GetType("EnusDE.Signaltechnik.ModePicker",true);
+        var settingsWindow=typeof(Entry).Assembly.GetType("EnusDE.Signaltechnik.SettingsWindow",true);
+        var entryConstructors=Instructions(typeof(Entry).GetMethod("OnModLoad"),code,table).Cast<object>()
+            .Select(r=>operand.GetValue(r) as ConstructorInfo).Where(m=>m!=null);
+        Check(entryConstructors.Any(c=>c.DeclaringType==settingsWindow)&&
+            !entryCalls.Any(c=>c.Contains("PreferencesRegistration")||c.Contains("CompanySettingsRegistration"))&&
+            Calls(typeof(Entry).GetMethod("OpenSettings")).Contains("SettingsWindow.Open")&&
+            Calls(picker.GetMethod("SelectSettings",local)).Contains("ModePicker.Close")&&
+            !Calls(picker.GetMethod("SelectSettings",local)).Any(c=>c.Contains("CanOpen")||c.Contains("OpenWorkspaceMode"))&&
+            Calls(settingsWindow.GetMethod("Open")).Contains("WindowManager.RegisterCustomWindow"),
+            "launcher settings use their own native window without patching Company or preferences pages or gating access on workspace permissions");
         var automatic=Calls(runtime.GetMethod("CommitAutomaticPlan",local));
         var prepare=Calls(runtime.GetMethod("PrepareRequestedPlan",local));
         Check(automatic.Contains("SignalRuntime.RequireDispatcher")&&automatic.Contains("SignalRuntime.PrepareRequestedPlan")&&

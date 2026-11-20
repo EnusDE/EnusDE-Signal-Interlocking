@@ -18,4 +18,4 @@ namespace EnusDE.Signaltechnik {
 '''
 source += ''.join('            {' + quote(k) + ',' + quote(v) + '},\n' for k, v in sorted(en.items()))
 source += '        };\n    }\n}\n'
-(root / 'src/BuiltInLanguage.cs').write_text(source, encoding='utf-8')
+(root / 'src/BuiltInLanguage.cs').write_text(source, encoding='utf-8', newline='\n')

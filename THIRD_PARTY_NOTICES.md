@@ -1,12 +1,12 @@
 # Third-party notices
 
-## Shared Mods preferences tab
+## Historical shared Mods preferences helper
 
-`src/ModsPreferencesRegistration.cs` adapts the MIT-licensed registration helper from EnusDE Disconnect Emergency Brake 1.2.6 Test. Signaltechnik uses its own namespace and patch identifier. [Full MIT notice](mod/EnusDE-Signaltechnik/LICENSE-ModsTab.txt)
+Earlier versions adapted the MIT-licensed registration helper from EnusDE Disconnect Emergency Brake 1.2.6 Test. The mod now uses a standalone settings window and no longer registers or replaces a game settings tab. The [full MIT notice](mod/EnusDE-Signaltechnik/LICENSE-ModsTab.txt) is retained.
 
 ## Window cleanup and toolbar layout
 
-`src/DiagnosticWindow.cs` and `src/BuildToolbar.cs` adapt the MIT-licensed window cleanup and toolbar layout patterns from EnusDE Mod Menu 0.1.2. [Full MIT notice](mod/EnusDE-Signaltechnik/LICENSE-NativeWindow.txt)
+`src/DiagnosticWindow.cs`, `src/SettingsWindow.cs` and `src/BuildToolbar.cs` adapt the MIT-licensed window cleanup and toolbar layout patterns from EnusDE Mod Menu 0.1.2. [Full MIT notice](mod/EnusDE-Signaltechnik/LICENSE-NativeWindow.txt)
 
 ## Runtime libraries
 

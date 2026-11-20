@@ -5,7 +5,6 @@ using UI.Builder;
 
 namespace EnusDE.Signaltechnik {
     public sealed class SettingsMenu {
-        readonly UIState<bool> expanded=new UIState<bool>(false);
         readonly UIState<bool> markerExpanded=new UIState<bool>(false);
         readonly UIState<bool> materialExpanded=new UIState<bool>(false),controlsExpanded=new UIState<bool>(false),diagnosticsExpanded=new UIState<bool>(false);
         readonly UIState<bool> placementExpanded=new UIState<bool>(true),automationExpanded=new UIState<bool>(false),backupExpanded=new UIState<bool>(false);
@@ -20,12 +19,8 @@ namespace EnusDE.Signaltechnik {
             this.read=read;this.save=save;this.path=path;draft=read();
             foreach(string key in DiagnosticSettings.Categories)sections[key]=new UIState<bool>(false);
         }
-        public void Build(UIPanelBuilder builder){builder.AddExpandable(LocalText.Get("EnusDE Signaltechnik"),expanded,Content,ExpandableStyle.SectionHeader);}
         public void BuildStandalone(UIPanelBuilder builder)=>Content(builder);
-        public void BuildMovedNotice(UIPanelBuilder builder) {
-            builder.AddLabel(LocalText.Select("Settings have moved to Company → Settings → Mods → Signal & Interlocking. Your existing settings are retained.","Die Einstellungen sind nach Company → Optionen → Mods → Signaltechnik umgezogen. Vorhandene Einstellungen bleiben erhalten."));
-            builder.AddButton(LocalText.Select("Open Company mod settings","Company-Mod-Einstellungen öffnen"),CompanySettingsRegistration.Open);
-        }
+        public void ResetDraft(){draft=read();dirty=false;message=LocalText.Get("Änderungen mit Anwenden & Speichern übernehmen.");}
         public static string Caption(string key) {
             switch(key){case "vehicles":return "Züge und Fahrzeuge";case "signals":return "Signale";case "blocks":return "Belegungen und Stellwerk";case "switches":return "Weichen";case "signs":return "Schilder";case "game_log":return "Relevante Spielmeldungen";case "performance":return "Leistung";default:return key;}
         }
@@ -107,7 +102,7 @@ namespace EnusDE.Signaltechnik {
             Toggle(b,LocalText.Get("Farbigen Lichthof anzeigen"),()=>draft.Markers.Glow.Halo,v=>draft.Markers.Glow.Halo=v);
             Choose(b,LocalText.Get("Stärke des Lichthofs"),new double[]{.1,.25,.5,.75,1,1.5,2},draft.Markers.Glow.HaloStrength,v=>draft.Markers.Glow.HaloStrength=v,"×");
             b.AddLabel(LocalText.Get("Rot, Grün, Gelb und Weiß folgen dem tatsächlich angezeigten Signalbegriff. Die Darstellung ist pro Rechner einstellbar; Änderungen unten anwenden und speichern."));
-            Toggle(b,LocalText.Get("Signaltechnik-Symbol an der Uhrleiste anzeigen"),()=>draft.Markers.ShowBuildButton,v=>draft.Markers.ShowBuildButton=v);
+            b.AddLabel(LocalText.Select("The clock-toolbar launcher remains available for settings, including before construction is unlocked.","Das Auswahlfenster an der Uhrleiste bleibt für Einstellungen erreichbar, auch vor der Baufreischaltung."));
             Toggle(b,LocalText.Get("Experimentelle AE-Signalanbindung einschalten"),()=>draft.Markers.EnableAiSignals,v=>draft.Markers.EnableAiSignals=v);
             Choose(b,LocalText.Get("Schutzwartezeit nach Rücknahme / Hilfsauflösung"),new double[]{0,5,10,15,20,30,60,90,120,180,300},draft.Markers.ProtectionWaitSeconds,v=>draft.Markers.ProtectionWaitSeconds=v," s");
             b.AddLabel(LocalText.Get("AE-Anbindung registriert eigene Haupt-/Rangiersignale im Gleisnetz und aktiviert den Fahrstraßenprototyp. Reale KI-Reaktion noch zu prüfen. Aktive Fahrstraßen vor Abschalten sicher auflösen."));

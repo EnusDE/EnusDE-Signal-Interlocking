@@ -34,7 +34,7 @@ namespace EnusDE.Signaltechnik {
                         c.AddButton(plan.Name+" ohne Material fertigstellen (Sandbox)",()=>SupplyAction(()=>shared.FinishSandbox(id)));
                 }
             }
-            if(StateManager.IsHost)c.AddLabel(LocalText.Get("Betriebsart und Materialfaktor: Spieloptionen → Signaltechnik. Tafelzeichnen und Tafelkopien sind kostenlos."));
+            if(StateManager.IsHost)c.AddLabel(LocalText.Get("Betriebsart und Materialfaktor: Auswahlfenster → Einstellungen. Tafelzeichnen und Tafelkopien sind kostenlos."));
             c.AddButton(LocalText.Get("Anzeige aktualisieren"),RebuildTool);
         }
         void BuildReadOnly(UI.Builder.UIPanelBuilder c) {var row=Selected;if(row==null){c.AddLabel(LocalText.Get("Objekt nicht mehr vorhanden."));return;}c.AddTitle(row.Name,MarkerRecord.KindLabel(row.Kind));c.AddLabel(row.Planned?"Baustelle · noch nicht betriebsbereit":"Signalbild: "+Entry.SignalAspect(row.Id));c.AddLabel(LocalText.Get("Die Konfiguration übernimmt der Host."));}

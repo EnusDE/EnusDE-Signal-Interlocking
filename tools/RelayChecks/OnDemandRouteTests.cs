@@ -7,6 +7,7 @@ using EnusDE.Signaltechnik;
 static class OnDemandRouteTests {
     static void Check(bool ok,string text){if(!ok)throw new Exception("FAIL: "+text);System.Console.WriteLine("PASS: "+text);}
     static bool Reject(Action action){try{action();return false;}catch(InvalidOperationException){return true;}}
+    static bool RejectTab(Type type){try{AutomationHooks.VehicleTabTarget(type);return false;}catch(MissingMethodException){return true;}}
     static TrackSection S(string id)=>new TrackSection{Segment=id,From=0,To=100};
     static RouteDefinition Route()=>new RouteDefinition{Code="existing",Entry="A",Exit="B",Sections=new List<TrackSection>{S("track")},
         Approach=new List<TrackSection>{S("approach")},Path=new List<DirectedRouteSection>{new DirectedRouteSection{Section=S("track")}},ViaSignals=new List<RouteViaSignal>()};
@@ -20,6 +21,13 @@ static class OnDemandRouteTests {
     }
     public static void Run() {
         Check(AutomationHooks.VehicleTabTarget()!=null,"vehicle signalling hooks target the separate native tab builder instead of appending to the fixed car panel");
+        Check(AutomationHooks.VehicleTabTarget(typeof(LegacyInspector)).Name.StartsWith("<PopulatePanel>",StringComparison.Ordinal)&&
+            AutomationHooks.VehicleTabTarget(typeof(CurrentInspector)).Name.StartsWith("<BuildContent>",StringComparison.Ordinal),
+            "vehicle tab resolution supports the legacy and actual 0.6.3 callback names with the same exact builder signature");
+        Check(RejectTab(typeof(UnknownInspector))&&RejectTab(typeof(WrongBuilderInspector)),
+            "unknown callback names or a fixed-panel builder cannot be selected as a vehicle tab hook");
+        Check(RejectTab(typeof(AmbiguousInspector)),
+            "ambiguous native vehicle tab callbacks fail explicitly instead of patching an arbitrary method");
         var configured=Route();var request=RouteRequestPolicy.ForRequest(configured);
         var repeat=configured.Clone();repeat.Id=Guid.NewGuid().ToString("N");repeat.Code="renamed";
         Check(request.Id==RouteRequestPolicy.ForRequest(repeat).Id&&request.Id!=configured.Id&&configured.Code=="existing",
@@ -59,6 +67,26 @@ static class OnDemandRouteTests {
         buttons.Press("A",id=>true);buttons.Press("B",id=>true);now=100;
         Check(!buttons.ExpireSelection()&&buttons.End=="B","a complete start-destination request is not cancelled by the selection timer");
         TargetedSearch();
+    }
+    sealed class LegacyInspector {
+        Action<UI.Builder.UITabbedPanelBuilder> callback;int calls;
+        void PopulatePanel(){callback=b=>calls++;}
+    }
+    sealed class CurrentInspector {
+        Action<UI.Builder.UITabbedPanelBuilder> callback;int calls;
+        void BuildContent(){callback=b=>calls++;}
+    }
+    sealed class UnknownInspector {
+        Action<UI.Builder.UITabbedPanelBuilder> callback;int calls;
+        void OtherPanel(){callback=b=>calls++;}
+    }
+    sealed class WrongBuilderInspector {
+        Action<UI.Builder.UIPanelBuilder> callback;int calls;
+        void BuildContent(){callback=b=>calls++;}
+    }
+    sealed class AmbiguousInspector {
+        Action<UI.Builder.UITabbedPanelBuilder> first,second;int calls;
+        void BuildContent(){first=b=>calls++;second=b=>calls--;}
     }
     static void TargetedSearch() {
         var graph=new NetworkInput();

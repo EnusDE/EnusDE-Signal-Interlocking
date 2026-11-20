@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 
 namespace EnusDE.Signaltechnik {
     public sealed class Entry : IModEntryPoint,IWorldLifecycle {
-        public const string Version="0.7.59";
+        public const string Version="0.7.60";
         static Recorder current;
         static DiagnosticWindow diagnostic;
         static MarkerRuntime markers;
@@ -36,8 +36,7 @@ namespace EnusDE.Signaltechnik {
         static SettingsStore store;
         GameObject root;
         IModLogger log;
-        IDisposable preferences;
-        IDisposable companyPreferences;
+        static SettingsWindow settingsWindow;
         ConstructionIntegration constructionIntegration;
         HandbookIntegration handbookIntegration;
         SettingsMenu menu;
@@ -61,13 +60,10 @@ namespace EnusDE.Signaltechnik {
             var registered=ModuleRegistry.GetModule("railroader");
             if(registered!=null&&!ReferenceEquals(registered,RailroaderModule.Shared))RegisterBridge(registered);
             menu=new SettingsMenu(SettingsSnapshot,SaveSettings,store.FilePath);
-            try{companyPreferences=new CompanySettingsRegistration(menu.BuildStandalone,message=>log.Warning(message));}
-            catch(Exception e){log.Warning("Company-Einstellungen nicht verfügbar: "+e.Message);}
-            try{preferences=SignalPreferencesRegistration.Register(companyPreferences==null?menu.BuildStandalone:menu.BuildMovedNotice,message=>log.Warning(message));}
-            catch(Exception e){log.Warning("Signaltechnik-Einstellungen nicht verfügbar: "+e.Message);}
+            settingsWindow=new SettingsWindow(menu.BuildStandalone,message=>log.Warning(message));
             try{trackMenu=new TrackMenuIntegration();trackMenu.Start(()=>markers!=null&&!Game.State.StateManager.IsUnloading&&Game.State.StateManager.IsHost&&settings.Markers.Visible,(at,kind)=>markers?.FromTrack(at,kind),message=>log.Warning(message),()=>signals?.PickingPoint==true,node=>signals?.TryAssignWorldPoint(node)==true);}
             catch(Exception e){log.Warning("Gleis-Kontextmenü nicht verfügbar: "+e.Message);}
-            log.Info("Signaltechnik "+Version+": Einstellungen unter Company > Optionen > Mods > Signaltechnik.");
+            log.Info("Signal & Interlocking "+Version+": settings in the clock-toolbar launcher.");
         }
         public static void SaveSettings(DiagnosticSettings value) {
             var next=value.Clone();
@@ -139,6 +135,7 @@ namespace EnusDE.Signaltechnik {
         }
         public void OnWorldLoad() {
             OnWorldUnload();
+            menu?.ResetDraft();
             try {
                 root=new GameObject("EnusDE Signaltechnik recorder");
                 shared=root.AddComponent<SharedRuntime>();shared.Initialize(log,Path.Combine(Application.persistentDataPath,"EnusDE-Signaltechnik"));
@@ -152,6 +149,7 @@ namespace EnusDE.Signaltechnik {
             }catch(Exception e){startupError=e.Message;log.Error(e,"Recorder konnte nicht gestartet werden.");}
         }
         public void OnWorldUnload() {
+            settingsWindow?.Release();
             try{tooltipHooks?.Dispose();}catch(Exception e){log?.Warning("Schild-Tooltip-Bereinigung: "+e.Message);}finally{tooltipHooks=null;}
             try{signals?.Shutdown();}catch(Exception e){log?.Warning("Stellwerk-Bereinigung: "+e.Message);}finally{signals=null;}
             try{if(markers!=null)markers.Shutdown();}catch(Exception e){log?.Warning("Grenzzeichen-Bereinigung: "+e.Message);}finally{markers=null;}
@@ -160,7 +158,7 @@ namespace EnusDE.Signaltechnik {
             if(current!=null)current.DisposeRecorder();current=null;
             if(root!=null)UnityEngine.Object.Destroy(root);root=null;
         }
-        public void OnModUnload(){try{handbookIntegration?.Dispose();}catch(Exception e){log?.Warning("Guide cleanup: "+e.Message);}finally{handbookIntegration=null;}try{constructionIntegration?.Dispose();}catch(Exception e){log?.Warning("Construction cleanup: "+e.Message);}finally{constructionIntegration=null;}trackMenu?.Dispose();trackMenu=null;OnWorldUnload();transfers?.Dispose();transfers=null;preferences?.Dispose();preferences=null;companyPreferences?.Dispose();companyPreferences=null;menu=null;store=null;}
+        public void OnModUnload(){try{handbookIntegration?.Dispose();}catch(Exception e){log?.Warning("Guide cleanup: "+e.Message);}finally{handbookIntegration=null;}try{constructionIntegration?.Dispose();}catch(Exception e){log?.Warning("Construction cleanup: "+e.Message);}finally{constructionIntegration=null;}trackMenu?.Dispose();trackMenu=null;OnWorldUnload();transfers?.Dispose();transfers=null;settingsWindow?.Dispose();settingsWindow=null;menu=null;store=null;}
         public static string MarkerCommand(string command)=>markers==null?"Grenzzeichen-Werkzeug nicht bereit: erst eine Spielwelt laden.":markers.Command(command);
         public static void RecordMarkerEvent(string action,MarkerRecord row){if(current!=null)current.LocalMarkerEvent(action,row);}
         public static LocalSignalAspect SignalAspect(string id)=>signals?.Aspect(id)??LocalSignalAspect.Stop;
@@ -202,6 +200,7 @@ namespace EnusDE.Signaltechnik {
         internal static bool IgnoresOwnSignal(string id)=>signals?.IgnoreOwnSignal(id)==true;
         internal static void PlaceAutomationContact(Track.Location at)=>signals?.PlaceAutomationContact(at);
         public static void OpenInterlocking()=>signals?.Open();
+        public static void OpenSettings()=>settingsWindow?.Open();
         internal static bool WorkspaceAvailable=>signals?.WorkspaceAvailable==true;
         internal static bool WorkspaceEditable=>signals?.WorkspaceEditable==true;
         internal static void OpenWorkspaceMode(bool editing)=>signals?.OpenMode(editing);

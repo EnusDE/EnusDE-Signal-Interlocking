@@ -57,7 +57,7 @@ namespace EnusDE.Signaltechnik {
             log=logger;
             directory=Path.Combine(path,"Markers");
             scene=new MarkerScene(geometry,transform);
-            modePicker=new ModePicker(PickerAccess,OpenFromPicker);
+            modePicker=new ModePicker(PickerAccess,OpenFromPicker,Entry.OpenSettings);
             units=new SignUnitPreference(Path.Combine(RailroaderPaths.Directory(),"ModSettings","enusde-translation.json"));
             units.Refresh();
             ApplySettings(Entry.SettingsSnapshot());
@@ -106,7 +106,7 @@ namespace EnusDE.Signaltechnik {
             EnsureRepository();
             if(repository==null||Entry.Shared==null||Entry.Shared.WorldKey!=scope){reason=repositoryError??"Kein lokaler Spielstandpfad verfügbar. Spielstand speichern und erneut versuchen.";return false;}
             if(!Entry.Shared.ConstructionUnlocked){reason=LocalText.Select("Unlock signalling in Milestones first. Check the map prerequisites and purchase price.","Signaltechnik zuerst unter Meilensteine freischalten. Kartenvoraussetzungen und Kaufpreis beachten.");return false;}
-            if(!options.Visible){reason="Objektanzeige unter Spieloptionen > Signaltechnik zuerst einschalten.";return false;}
+            if(!options.Visible){reason="Objektanzeige unter Auswahlfenster > Einstellungen zuerst einschalten.";return false;}
             return true;
         }
         void Update() {
@@ -117,7 +117,7 @@ namespace EnusDE.Signaltechnik {
         }
         void PreparePlacement() {
             try{EnsureRepository();EnsureWindow();}
-            finally{modePicker.Update(options.ShowBuildButton);}
+            finally{modePicker.Update();}
         }
         void ReadPlacementInput() {
             if(!IsPlacing)return;
@@ -418,7 +418,7 @@ namespace EnusDE.Signaltechnik {
             c.AddLabel(LocalText.Select("Signals use continuous placement: keep placing with left-click, finish with Escape, then click individual signals to edit them.","Signale fortlaufend setzen: mit Linksklick weiterbauen, mit Escape beenden, danach einzelne Signale zum Bearbeiten anklicken."));
             var defaults=Defaults;
             c.AddLabel(LocalText.Get("Host-Vorgaben: ")+SignUnits.Number(defaults.Lateral)+" m seitlich · "+SignUnits.Number(defaults.Height)+" m Höhe.");
-            c.AddLabel(LocalText.Get("Vorgaben ändern: Spieloptionen → Signaltechnik."));
+            c.AddLabel(LocalText.Get("Vorgaben ändern: Auswahlfenster → Einstellungen."));
         }
         void BuildObjects(UIPanelBuilder c) {
             c.AddButton(LocalText.Get("Weichen-Gleisfreimeldung"),()=>Navigate(Page.PointCircuits));

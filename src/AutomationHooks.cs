@@ -23,9 +23,14 @@ namespace EnusDE.Signaltechnik {
         static readonly MethodInfo ctc=typeof(TrackNode).GetProperty("IsCTCSwitch").GetGetMethod();
         static readonly MethodInfo unlocked=typeof(TrackNode).GetProperty("IsCTCSwitchUnlocked").GetGetMethod();
         public static MethodInfo SwitchSearchTarget()=>typeof(AutoEngineerPlanner).GetMethod("CheckThrowable",BindingFlags.Static|BindingFlags.NonPublic);
-        public static MethodInfo VehicleTabTarget()=>typeof(UI.CarInspector.CarInspector)
-            .GetMethods(BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public)
-            .Single(m=>m.Name.StartsWith("<PopulatePanel>",StringComparison.Ordinal)&&m.GetParameters().Length==1&&m.GetParameters()[0].ParameterType==typeof(UITabbedPanelBuilder));
+        public static MethodInfo VehicleTabTarget()=>VehicleTabTarget(typeof(UI.CarInspector.CarInspector));
+        public static MethodInfo VehicleTabTarget(Type inspector) {
+            var matches=inspector.GetMethods(BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public|BindingFlags.DeclaredOnly)
+                .Where(m=>(m.Name.StartsWith("<BuildContent>",StringComparison.Ordinal)||m.Name.StartsWith("<PopulatePanel>",StringComparison.Ordinal))
+                    &&m.ReturnType==typeof(void)&&m.GetParameters().Length==1&&m.GetParameters()[0].ParameterType==typeof(UITabbedPanelBuilder)).ToArray();
+            if(matches.Length!=1)throw new MissingMethodException(inspector.FullName,"Unique vehicle tab builder (BuildContent/PopulatePanel, UITabbedPanelBuilder)");
+            return matches[0];
+        }
         public void Start(Func<string,bool> protect,Action<UIPanelBuilder,Car> panel) {
             Dispose();protectedPoint=protect;carPanel=panel;
             try {

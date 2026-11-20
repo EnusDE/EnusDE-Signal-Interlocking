@@ -1,3 +1,16 @@
+# 0.7.60-P0 – Einstellungen im Auswahlfenster
+
+- Viertes Symbol als Zahnrad: eigenes vergrößerbares Einstellungsfenster.
+- Einstellungen bleiben vor Meilensteinfreischaltung und für Mitspieler erreichbar; ältere Ausblendeinstellungen verstecken den Zugang nicht.
+- Company-Auswahl für die gesamte Modliste und eigener Spieloptionen-Reiter entfernt. Native Modverwaltung bleibt erhalten.
+- Einstellungsablage, Welt-/Anlagendaten, Host-Berechtigungen und die drei bisherigen Modussymbole bleiben erhalten.
+- Aktive Menü-/Handbuchverweise und beide Sprachpakete angepasst.
+- Regressionen für produktive Tastenrückrufe und Fensterlebenszyklus ergänzt.
+- Bestehende Fahrzeugreiter-Anbindung an den umbenannten BuildContent-Rückruf in 0.6.3 angepasst. Exakte Signatur bleibt erforderlich; unbekannte/mehrdeutige Rückrufe werden abgewiesen.
+- Kompiliert gegen lokale Spielbibliotheken mit 0.6.3 in den Player-Metadaten; Spiel-/UI-/Mehrspielerabnahme bleibt offen.
+
+Anleitung: Guides/SETTINGS-0.7.60.de.md. Im Mehrspieler benötigen alle 0.7.60 und einen vollständigen Neustart.
+
 # 0.7.59-P0 – Gespeicherte Blockansichten weiterbearbeiten
 
 Öffnen mit vorbereiteter Vorschau; Einstellungsänderungen aktualisieren sie mit erhaltener Platzierung. Übernehmen setzt den offenen Editor auf den gespeicherten Stand zurück, sodass weitere Änderungen direkt möglich sind. Breitere Ansichten können die Tafel erweitern, statt die Position zurückzusetzen. Alte Rückrufe eines früheren nativen Aufbaus werden abgewiesen. Tests mit vier Abschnitten, 180°-Drehung und wiederholtem Speichern/Laden/Wiederöffnen ergänzt. Details: Guides/BLOCK-VIEW-REEDIT-0.7.59.de.md. Spiel-/UI-Test steht aus.

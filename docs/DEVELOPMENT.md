@@ -1,54 +1,35 @@
-# Development status and continuation — 0.7.59
+# Development status and continuation — 0.7.60
 
 [Deutsch](#deutsch) · [Project overview](../README.md) · [Build instructions](BUILD.md)
 
-## Source checkpoint
+## Current change
 
-`main` in `EnusDE/EnusDE-Signal-Interlocking` is the canonical current source. The manifest and `Entry.Version` are **0.7.59**, with the exact dependency **Railroader 0.6.3**. This is an Early Alpha source checkpoint; creating a source commit does not create a release, tag, binary package or runtime installation.
+`main` is the canonical source. Version **0.7.60**, Early Alpha for **Railroader 0.6.3**, moves all mod settings into an independent window opened by the launcher gear. The three existing workspace icons remain. Settings stay reachable before milestone unlock and for clients; shared-settings and operating permissions retain their host checks.
 
-The checkpoint includes all 273 production C# files, build/check tooling and synthetic test fixtures, both language catalogs and generated English fallback code, mod definitions/Relay script, component notices and public guides. Historical versioned notes retain the status recorded when written. Private discussion drafts, handoffs, live-world data, local dependencies and build outputs are excluded.
+The former Company mod-list replacement and preferences-tab registrations are removed. The launcher cannot hide its only settings entrance through the former visibility option. Existing local settings and world/installation storage keep their paths and formats. No object, route, diagram, link or save migration is performed.
 
-## Last recorded executable checks
+See [English instructions](../mod/EnusDE-Signaltechnik/Guides/SETTINGS-0.7.60.en.md) and [German instructions](../mod/EnusDE-Signaltechnik/Guides/SETTINGS-0.7.60.de.md).
 
-The full `Test.ps1` run completed on **19 November 2026, 13:45:58 UTC** (14:45:58 Europe/Berlin). Its saved report records exit code 0. `build/checks/RESULTS.txt` contains **1,792 PASS and 0 FAIL**. The console log contains 1,791 PASS lines because one manifest/package check is collected in the results file without being printed.
+## Checks and limits
 
-This run includes **26 production-window callback checks** and **three serialize/reload/reopen cycles**, including the four-section, fourth-section-selected, 180-degree-rotated block-view case. The build's compiler response lists all 273 current production files; those files were present and no newer production sources were found during the source audit.
+The current production code compiles against the locally installed original game libraries. The installation's Unity player metadata identifies **0.6.3**. Production window/picker callbacks have passed 18 focused offline checks, including access before milestone unlock, client access, unchanged workspace restrictions, repeated open/close, pending edits, manager replacement, unload and ownership cleanup.
 
-The existing install archives with and without `TEST` in their names were separately checked for ZIP integrity and identical DLL content. Their shared SHA256 is:
+The first complete check attempt with the actual local 0.6.3 libraries exposed a pre-existing vehicle-tab hook assumption: the callback is now generated from BuildContent rather than PopulatePanel. The resolver now accepts these two known owners with the exact UITabbedPanelBuilder/void signature, requires one unique match, and rejects unknown/ambiguous targets. Three targeted regression checks cover both contracts and rejection. Vehicle controls and automation commands are unchanged.
 
-```text
-4474baa4a977d6a2accd9a1ba745ba2e402f6d1a61a9640b0824edef9e8bd2bb
-```
+The complete Build.ps1/Test.ps1 run on **20 November 2026** passed: **1,794 PASS, 0 FAIL**, including the 18 standalone picker/window checks, three callback-resolution compatibility checks, localization, production callback/IL and native game API checks. The console has 1,793 PASS lines because one package assertion is recorded only in RESULTS.txt. Package integrity and byte comparison against the staged runtime files are checked separately before delivery. The previous historical full run for 0.7.59 on 19 November 2026 recorded 1,792 PASS, 0 FAIL using the then available older libraries.
 
-The compiled mod DLL SHA256 is:
+No Unity/game session has been started for this change. Complete in-game/UI and multiplayer acceptance remains open. In particular, verify the visible gear/layout, language changes after Apply & Save, the native Company mod list, host/client settings restrictions and repeated world load/unload. Offline UI stand-ins do not prove the final Unity rendering or network behavior.
 
-```text
-53450e2b2ab30b1e2f73af2f6b72006ba0bf7427daef1b9e5832cb46c998abb1
-```
+## Continue work
 
-These are historical local verification results, not a claim that a new test run or GitHub CI occurred during source publication. Raw logs, DLLs and packages stay outside Git. Source-checkpoint preparation changes documentation/ignore rules only; production sources, test code, language packs and version numbers remain byte-for-byte unchanged. Unchanged large runtime suites need not be rerun solely for this documentation/Git checkpoint.
+Read [AGENTS.md](../AGENTS.md), inspect the live remote and local pending work, and preserve any concurrent changes. After requested work, run the appropriate checks, explicitly stage the intended source/tests/public guides, commit and upload, then verify the remote commit. Routine source uploads are authorized. Never force-push or silently overwrite another working copy.
 
-## Open validation
-
-- Local compilation used the available older game libraries and the adapter for `Game.HomeDirectory.UserPaths` (with the legacy fallback). The new API contract is covered by simulated checks. **Compilation against verified original Railroader 0.6.3 libraries remains to be recorded.**
-- The author has reported working in-game operation, including GWB. That report does not establish complete acceptance of every UI interaction, map, occupancy/reload case or multiplayer combination.
-- Full in-game/UI and multiplayer regression checks remain open. Use save copies and suitable game libraries for future acceptance work; never redistribute those libraries.
-- Tutorials and manuals remain in progress. Historical guides may contain older game versions and earlier pending-test statements.
-
-## Continue work safely
-
-Read [AGENTS.md](../AGENTS.md), inspect the live remote `main` and local pending work, then make only the requested change. Do not apply an older checkout over this checkpoint. Review any concurrent remote changes before integrating; never force-push or resolve conflicts by blindly choosing one side.
-
-After a completed requested change, run appropriate checks, explicitly stage and inspect the intended source/tests/public documentation, commit and upload, then verify the remote commit. Routine source uploads are authorized by the owner. A clearly marked intermediate checkpoint is permitted, with honest test and validation status. Report any failed or unconfirmed upload as unsaved remotely.
-
-This is an agent workflow at task checkpoints, not a continuously running sync service. Releases, tags, installation and game launches require separate requests. Preserve existing prepared packages unchanged. Select the next development task with the owner; this checkpoint does not authorize additional runtime features.
+Game libraries, binaries/packages, live-world data, settings, diagnoses/logs and private notes stay outside Git. Runtime installation, releases, tags and game launches remain separately requested actions. Preserve previously prepared archives. This is a task-checkpoint workflow, not a continuously running sync service.
 
 ## Deutsch
 
-`main` ist der aktuelle maßgebliche Quellstand **0.7.59 für Railroader 0.6.3**, weiterhin Early Alpha. Quellcode-Sicherung und Veröffentlichung eines installierbaren Releases sind getrennte Schritte.
+**0.7.60 für Railroader 0.6.3, weiterhin Early Alpha.** Einstellungen über das Zahnrad im Auswahlfenster an der Uhrleiste; eigenes Fenster, auch vor der Meilensteinfreischaltung und für Mitspieler. Die bisherigen Eingriffe in Company-Modliste und Spieloptionen entfallen. Gespeicherte Einstellungen und Anlagen bleiben erhalten; Host-Rechte werden nicht erweitert.
 
-Die letzte belegte vollständige Prüfung vom 19.11.2026 ergab **1.792 PASS, 0 FAIL**, einschließlich 26 Fenster-Callback-Prüfungen und drei Speicher-/Lade-/Wiederöffnungszyklen. Diese Ergebnisse stammen vom vorhandenen Lauf; bei der Quellcode-Sicherung wird kein neuer großer Testlauf behauptet. Produktionsquellen, Testcode, Sprachpakete und Versionsnummern bleiben bytegenau unverändert.
+Der Code kompiliert gegen die lokalen originalen Spielbibliotheken; die Unity-Player-Metadaten nennen 0.6.3. 18 gezielte Offline-Prüfungen der produktiven Fenster-/Tastenrückrufe sind bestanden. Der vollständige Build.ps1/Test.ps1-Lauf vom **20.11.2026** ist mit **1.794 PASS, 0 FAIL** bestanden, einschließlich Sprachkatalogen, produktiven Rückrufen und nativen API-Prüfungen. Zusätzlich wird das Installationsarchiv auf Integrität und bytegenaue Übereinstimmung mit den Laufzeitdateien geprüft. Die Fahrzeugreiter-Erkennung wurde für den umbenannten 0.6.3-Rückruf korrigiert; unbekannte oder mehrdeutige Treffer bleiben abgewiesen. Die frühere vollständige 0.7.59-Prüfung vom 19.11.2026 ergab 1.792 PASS, 0 FAIL und nutzte damals ältere Bibliotheken.
 
-Der lokale Build verwendete ältere Spielbibliotheken mit 0.6.3-Pfadadapter. Ein nachgewiesener Original-0.6.3-Build sowie vollständige Spiel-/UI-/Mehrspielertests stehen noch aus. Gemeldeter funktionierender Spielbetrieb ist keine vollständige Abnahme aller Kombinationen.
-
-Vor weiterer Arbeit Live-Remote und lokale Änderungen prüfen. Nach abgeschlossenen beauftragten Schritten passende Prüfungen ausführen, ausgewählten Quellcode committen/übertragen und den Remote-Commit bestätigen. Bei Fehlern offen berichten. Keine Force-Pushs, keine blinde Konfliktauflösung und keine dauerhaft laufende Hintergrundsynchronisierung. Releases, Tags, Installation und Spielstart bleiben gesondert beauftragt. Private Notizen, Spiel-/Anlagendaten, Bibliotheken, Pakete und Protokolle bleiben lokal.
+Spiel-/Darstellungs-/Mehrspielerabnahme bleiben offen. Kein Spielstart und keine Installation durch den Assistenten. Nach abgeschlossenen Aufgaben ausgewählten Quellcode auf GitHub sichern und den Remote-Commit bestätigen; ungesicherte Änderungen offen melden.

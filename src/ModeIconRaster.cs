@@ -12,10 +12,12 @@ namespace EnusDE.Signaltechnik {
             }
         }
 
-        public static byte[] Alpha(WorkspaceMode mode) {
+        public static byte[] Alpha(WorkspaceMode mode)=>Alpha(Symbol(mode));
+        public static byte[] SettingsAlpha()=>Alpha("SETTINGS");
+        static byte[] Alpha(string symbol) {
             var pixels=new byte[Size*Size];
             const double unitsPerPixel=32d/Size;
-            foreach(var line in WorkspaceSymbols.For(Symbol(mode))) {
+            foreach(var line in WorkspaceSymbols.For(symbol)) {
                 double dx=line[2]-line[0],dy=line[3]-line[1];
                 double length=dx*dx+dy*dy;
                 for(int y=0;y<Size;y++)for(int x=0;x<Size;x++) {
