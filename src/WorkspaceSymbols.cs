@@ -3,6 +3,7 @@ using System.Collections.Generic;
 namespace EnusDE.Signaltechnik {
     public static class WorkspaceSymbols {
         public static List<float[]> For(string kind){var result=new List<float[]>();Action<float,float,float,float> line=(x,y,a,b)=>result.Add(new[]{x,y,a,b});
+            if(kind.StartsWith("BUILD_",StringComparison.Ordinal))return BuildSymbols.For(kind);
             if(kind=="DISPATCH"){line(4,7,28,7);line(12,7,23,16);line(23,16,28,16);line(8,7,8,13);line(4,13,12,13);line(12,13,12,28);line(12,28,4,28);line(4,28,4,13);line(7,18,9,18);line(7,23,9,23);}
             else if(kind=="BUILD"){line(4,4,28,4);line(4,8,28,8);line(8,3,8,9);line(16,3,16,9);line(24,3,24,9);line(9,13,22,25);line(6,16,19,28);line(6,16,9,13);line(19,28,25,28);line(25,28,28,25);line(28,25,25,22);line(25,22,22,25);}
             else if(kind=="MAPEDIT"){line(3,8,10,12);line(10,12,18,8);line(18,8,25,12);line(25,12,25,16);line(3,8,3,23);line(3,23,10,27);line(10,27,17,23);line(10,12,10,27);line(15,13,16,18);line(15,13,20,14);line(16,18,26,28);line(26,28,30,24);line(30,24,20,14);line(24,26,28,22);}

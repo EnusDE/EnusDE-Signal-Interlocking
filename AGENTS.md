@@ -24,3 +24,10 @@
 - Keep this access available before milestone unlock and for clients editing local preferences. Retain host authority for shared settings and all existing operating/build permissions.
 - Do not replace, wrap or add a selector to the game's installed-mod list, or register another preferences/Mods tab. Preserve other mods' menu entries.
 - Keep the launcher reachable even if an older settings file disabled its former visibility option. Retain saved settings and installation data; moving the UI does not require data migration.
+
+## Build and materials (owner decision, 20 November 2026)
+
+- Build is an explicit local mode with a right-hand tool panel and an End build mode action. Keep unconfirmed cursor previews local; exiting cancels the cursor but retains confirmed plans. Ordinary viewers see unfinished confirmed objects as construction sites; the local builder sees virtual models. Do not grant operating authority from rendering state.
+- Use the native captive-wagon ordering and compatible existing MOW warehouse loading/unloading for the two stable signal cargo IDs. Keep active native MOW work-train completion and host authority. Do not recreate a parallel purchasing/depot interface.
+- Retain legacy balances and support explicit capacity-limited transfer with receipts. Native warehouse inventory belongs to the full game save, not an installation-configuration-only backup. Preserve stable object, route and cargo IDs.
+- Current point wiring retains the one-time nearby-stock charge; it is not yet work-car-driven. Document this boundary and require actual game/MP acceptance before claiming the new logistics or views tested in Unity.

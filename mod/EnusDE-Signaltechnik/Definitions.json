@@ -2,13 +2,37 @@
   "objects": [
     {
       "identifier": "enusde/signal-building",
-      "metadata": {"name": "Signalbaumaterial", "description": "Baupakete mit Mastteilen, Fertigfundamenten, Haltern und Kabelmaterial."},
-      "definition": {"kind": "Load", "description": "Signalbaumaterial", "units": "Quantity", "density": 30, "unitWeightInPounds": 5000, "importable": true, "costPerUnit": 250, "carTypeFilter": "FM"}
+      "metadata": {
+        "name": "Signal building supplies",
+        "description": "Construction packages with mast parts, foundations, brackets and cable."
+      },
+      "definition": {
+        "kind": "Load",
+        "description": "Signal building supplies",
+        "units": "Quantity",
+        "density": 30,
+        "unitWeightInPounds": 5000,
+        "importable": true,
+        "costPerUnit": 250,
+        "carTypeFilter": "FM,FL*"
+      }
     },
     {
       "identifier": "enusde/signal-technology",
-      "metadata": {"name": "Signaltechnik", "description": "Geschützte Baupakete mit Signalköpfen, Relais, Schaltkästen und Antrieben."},
-      "definition": {"kind": "Load", "description": "Signaltechnik", "units": "Quantity", "density": 20, "unitWeightInPounds": 1000, "importable": true, "costPerUnit": 500, "carTypeFilter": "XM"}
+      "metadata": {
+        "name": "Signal equipment",
+        "description": "Protected construction packages with signal heads, relays, cabinets and point equipment."
+      },
+      "definition": {
+        "kind": "Load",
+        "description": "Signal equipment",
+        "units": "Quantity",
+        "density": 20,
+        "unitWeightInPounds": 1000,
+        "importable": true,
+        "costPerUnit": 500,
+        "carTypeFilter": "XM"
+      }
     }
   ]
 }

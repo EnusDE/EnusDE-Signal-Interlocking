@@ -1,3 +1,16 @@
+# 0.7.61-P0 – Build mode and native MOW logistics
+
+- Explicit Build mode with a right-hand icon palette, selected-tool feedback and End action. Native X and workspace switches leave Build; confirmed plans survive.
+- Cyan virtual plans for the local builder; original cones/barrier for confirmed unfinished objects outside Build. Private cursor previews remain local; completed infrastructure retains its model.
+- Normal captive-wagon orders for both stable signal cargos, plus loading/unloading at compatible native MOW warehouses. FL/FM building supplies and XM signal equipment feed active owned MOW work-train construction.
+- Replaced manual purchasing/depot controls with native order access, warehouse stock and open-job/status overview, also in the construction milestone.
+- Explicit partial legacy-stock transfer with capacity checks, rollback and save receipts. Excess remains. Existing installations, routes and cargo IDs are retained.
+- First point wiring can debit nearby native warehouse stock; its existing one-time charge remains, without a work-car requirement at the point.
+- All settings remain in the launcher gear. English/German texts and focused material/API/mode checks included.
+- Compiles against local 0.6.3 libraries; no new Unity, delivery or multiplayer acceptance yet.
+
+See Guides/BUILD-MOW-0.7.61.en.md. All multiplayer participants need 0.7.61 and a complete restart.
+
 # 0.7.60-P0 – Settings in the launcher
 
 - Added a fourth gear button opening a separate resizable settings window.

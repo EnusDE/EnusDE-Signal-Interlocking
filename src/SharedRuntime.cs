@@ -68,6 +68,10 @@ namespace EnusDE.Signaltechnik {
             }
         }
         public string Error {get;private set;}
+        readonly NativeMaterialLogistics nativeMaterials=new NativeMaterialLogistics();
+        double nextNativeMaterialRefresh;
+        public IReadOnlyList<NativeMaterialWarehouse> MaterialWarehouses {get {nativeMaterials.Refresh();return nativeMaterials.Warehouses;}}
+        public string NativeMaterialError=>nativeMaterials.Error;
         public string WorldKey=>installation?.WorldKey;
         public string LegacyKey {get;private set;}
         public bool LiveFresh=>Ready&&lease.Fresh(Time.realtimeSinceStartup);
@@ -79,6 +83,7 @@ namespace EnusDE.Signaltechnik {
         public bool PlacementMatches(MarkerOptions value)=>installation?.Placement.Matches(value)??true;
         public void Initialize(IModLogger logger,string path) {
             log=logger;directory=path;backups=new InstallationBackups(Path.Combine(path,"Backups"));log.Info("Externe Anlagensicherungen: "+backups.DirectoryPath);properties=gameObject.AddComponent<KeyValueObject>();documents=new SharedDocuments(this);
+            try{nativeMaterials.Start();}catch(Exception e){log.Warning("Optional supply labels: "+e.Message);}
             StateManager.Shared.RegisterPropertyObject(ObjectId,properties,AuthorizationRequirement.HostOnly,null);
             // Host mutations already update the validated in-memory documents below. Only
             // initial restore or remote client commits need decompression/deserialization.
@@ -90,6 +95,7 @@ namespace EnusDE.Signaltechnik {
         void RequireHost(){if(stopped||StateManager.IsUnloading||!StateManager.IsHost||properties==null)throw new InvalidOperationException("Gemeinsame Anlage nur vom Host änderbar.");}
         void Update() {
             if(stopped||StateManager.IsUnloading||Time.realtimeSinceStartup<next||StateManager.Shared==null||!StateManager.Shared.IsSessionReady||!StateManager.Shared.HasRestoredProperties)return;next=Time.realtimeSinceStartup+.25;
+            if(Time.realtimeSinceStartup>=nextNativeMaterialRefresh){nextNativeMaterialRefresh=Time.realtimeSinceStartup+2;nativeMaterials.Refresh();}
             foreach(string channel in changed.ToArray())try{ReadChannel(channel);changed.Remove(channel);Error=null;}catch(Exception e){if(Error!=e.Message){Error=e.Message;log?.Warning("Anlagensynchronisation: "+e.Message);}}
             if(StateManager.IsHost&&Ready)try{SyncConstructionMilestone();}catch(Exception e){Error=e.Message;}
             if(StateManager.IsHost&&Time.realtimeSinceStartup>=nextBackupRetry)TryBackup();
@@ -170,11 +176,11 @@ namespace EnusDE.Signaltechnik {
         }
         public void PutObjects(MarkerDocument next){RequireHost();foreach(var marker in next.Markers){var old=installation.Objects.Markers.FirstOrDefault(m=>m.Id==marker.Id);if(HlTestFeature.RequiresEnable(old,marker))HlTestFeature.Require(Entry.SettingsSnapshot().Markers.EnableHlSignalsTest);if(old!=null&&(old.Kind!=marker.Kind||old.LowMain!=marker.LowMain||old.HlSignal!=marker.HlSignal)&&!Entry.MastCanModify(old))throw new InvalidOperationException("Signal is locked by a route.");}if(next.Markers.Any(m=>!installation.Objects.Markers.Any(old=>old.Id==m.Id)||m.LowMain&&!installation.Objects.Markers.Any(old=>old.Id==m.Id&&old.LowMain)))RequireConstruction();var value=MaterialEconomy.Markers(installation,next);CommitInstall(value);next.Markers=value.Objects.Markers.Select(m=>m.Clone()).ToList();}
         public void PutDesks(DeskLibrary next){RequireConstruction();next.Validate(WorldKey);if(sharedDesks!=null){var changed=LineConfigurationChanges.Changed(sharedDesks.FreeLines,next.FreeLines);if(changed.Length>0)Entry.CheckLineConfigurationChange(changed,next.FreeLines);var targets=LineTargetBindings.ChangedTargets(sharedDesks,next,out var lines);if(targets.Length>0)Entry.CheckLineConfigurationChange(lines,next.FreeLines,targets);}Atomic(()=>{documents.Write("desks",next,DeskLimit);sharedDesks=next.Clone();ConfigurationVersion++;});}
-        public void PutRoutes(IEnumerable<RouteDefinition> next){RequireConstruction();var doc=new InterlockingDocument{WorldKey=WorldKey,Routes=next.Select(r=>r.Clone()).ToList()};ValidateRoutes(doc);var value=MaterialEconomy.Connect(installation,doc.Routes.SelectMany(r=>r.Switches.Select(p=>p.Node)),DepotForPoint);Atomic(()=>{documents.Write("routes",doc,RouteLimit);CommitInstall(value);sharedRoutes=doc.Routes;ConfigurationVersion++;});}
+        public void PutRoutes(IEnumerable<RouteDefinition> next){RequireConstruction();var doc=new InterlockingDocument{WorldKey=WorldKey,Routes=next.Select(r=>r.Clone()).ToList()};ValidateRoutes(doc);WithConnectionMaterials(doc.Routes.SelectMany(r=>r.Switches.Select(p=>p.Node)),value=>{documents.Write("routes",doc,RouteLimit);CommitInstall(value);sharedRoutes=doc.Routes;ConfigurationVersion++;});}
         internal void ConnectRoutePoints(IEnumerable<string> points) {
             RequireHost();var added=points.Distinct().Where(p=>!installation.Economy.ConnectedPoints.Contains(p)).ToArray();
             if(added.Length==0)return;
-            var value=MaterialEconomy.Connect(installation,added,DepotForPoint);Atomic(()=>CommitInstall(value));
+            WithConnectionMaterials(added,value=>CommitInstall(value));
         }
         public void ApplyEconomy(bool enabled,double factor){RequireHost();if(!Ready||EconomyEnabled==enabled&&EconomyFactor==factor)return;var value=installation.Clone();value.Economy.Enabled=enabled;value.Economy.Factor=factor;value.Validate();CommitInstall(value);}
         public void ApplyPlacement(MarkerOptions options){RequireHost();if(!Ready||installation.Placement.Size!=null&&PlacementMatches(options))return;var value=installation.Clone();value.Placement=ServerPlacement.From(options);CommitInstall(value);}
@@ -183,6 +189,6 @@ namespace EnusDE.Signaltechnik {
             if(!Ready||!StateManager.IsHost||Time.realtimeSinceStartup<nextFrame)return;nextFrame=Time.realtimeSinceStartup+1;
             var frame=new SharedLiveFrame{Epoch=epoch,Sequence=++sequence};foreach(var row in signals.SignalObjects.Where(s=>s.IsSignal))frame.Aspects[row.Id]=signals.Aspect(row.Id);frame.Runs=signals.Engine.Active.Select(run=>{var state=SharedRouteStatus.From(run,signals.Engine.RemainingWait(run));if(!sharedRoutes.Any(r=>r.Id==run.Route.Id))state.Definition=run.Route.Clone();return state;}).ToList();frame.Automation=signals.AutomationFrame();frame.Validate();documents.Write("live",frame,FrameLimit);
         }
-        public void Shutdown(){if(stopped)return;TryBackup();stopped=true;observer?.Dispose();observer=null;try{if(StateManager.Shared!=null)StateManager.Shared.UnregisterPropertyObject(ObjectId);}finally{if(properties!=null)Destroy(properties);properties=null;changed.Clear();installation=null;sharedDesks=null;sharedRoutes=null;Live=null;}}
+        public void Shutdown(){if(stopped)return;TryBackup();stopped=true;try{nativeMaterials.Dispose();}finally{observer?.Dispose();observer=null;try{if(StateManager.Shared!=null)StateManager.Shared.UnregisterPropertyObject(ObjectId);}finally{if(properties!=null)Destroy(properties);properties=null;changed.Clear();installation=null;sharedDesks=null;sharedRoutes=null;Live=null;}}}
     }
 }

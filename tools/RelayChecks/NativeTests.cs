@@ -91,7 +91,7 @@ public static class NativeTests {
         EditorPerformanceTests.Run(root);
         ApproachReleaseTests.Run();
         ForecastTests.Run();
-        FlankTests.Run();WorkspaceTests.Run();SignalGlowTests.Run();
+        FlankTests.Run();WorkspaceTests.Run();ConstructionModeTests.Run();NativeMaterialApiTests.Run(root);SignalGlowTests.Run();
         PracticalSetupTests.Run(root);
         BlockUpdateTests.Run(root);
         GfmRepairTests.Run();

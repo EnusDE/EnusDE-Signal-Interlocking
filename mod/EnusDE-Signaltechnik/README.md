@@ -1,4 +1,6 @@
-# EnusDE Signal & Interlocking 0.7.60-P0
+# EnusDE Signal & Interlocking 0.7.61-P0
+
+0.7.61 adds explicit right-hand Build mode, local virtual plans/ordinary construction sites and native MOW wagon ordering/storage. Existing stock is retained with explicit partial transfer. [English workflow and tests](Guides/BUILD-MOW-0.7.61.en.md) · [Deutsche Anleitung und Spieltests](Guides/BUILD-MOW-0.7.61.de.md). Manual install and full restart; all participants need 0.7.61. New game/delivery/rendering/multiplayer acceptance remains open.
 
 Settings now open from the **gear in IXL / STW beside the clock**, including before milestone unlock. The former Company/Preferences entries are removed, preserving the native mod list. Existing settings and world data are retained. [English instructions](Guides/SETTINGS-0.7.60.en.md) · [Deutsche Anleitung](Guides/SETTINGS-0.7.60.de.md). In-game acceptance remains pending.
 
@@ -20,7 +22,7 @@ Diagram-first setup: click a green field, select its real signal/point in the wo
 
 GWB connection deletion fix: confirmed cleanup of permission links and associated automation, retaining world objects and drawings. [English instructions](Guides/LINE-REMOVAL-0.7.51.en.md) · [Deutsche Anleitung](Guides/LINE-REMOVAL-0.7.51.de.md). Gameplay acceptance remains pending.
 
-Setup-assistant test build for Railroader 0.6.3. [English guide](Guides/SETUP-ASSISTANT-0.7.50.en.md) · [Deutsche Anleitung](Guides/SETUP-ASSISTANT-0.7.50.de.md). New workflows require gameplay and multiplayer testing. That historical 0.7.50 check used older available game libraries and the existing path adapter. Version 0.7.60 compiles against the local installation with 0.6.3 player metadata.
+Setup-assistant test build for Railroader 0.6.3. [English guide](Guides/SETUP-ASSISTANT-0.7.50.en.md) · [Deutsche Anleitung](Guides/SETUP-ASSISTANT-0.7.50.de.md). New workflows require gameplay and multiplayer testing. That historical 0.7.50 check used older available game libraries and the existing path adapter. Version 0.7.61 compiles against the local installation with 0.6.3 player metadata.
 
 The user reported successful 0.7.49 operation, including GWB, on Railroader 0.6.3. This new test build still requires gameplay acceptance. The earlier [compatibility verification record](Guides/GAME-063-0.7.49.en.md) describes the local library limitation.
 

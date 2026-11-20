@@ -1,3 +1,16 @@
+# 0.7.61-P0 – Baumodus und native MOW-Logistik
+
+- Ausdrücklicher Baumodus mit rechter Symbolleiste, Werkzeuganzeige und Beenden-Taste. Fenster-X und Moduswechsel beenden den Bau; bestätigte Pläne bleiben.
+- Virtuelle türkise Pläne für den lokalen Erbauer; eigene Hütchen/Absperrung für bestätigte unfertige Objekte außerhalb des Baumodus. Mausvorschauen bleiben privat, fertige Modelle unverändert.
+- Normale captive Materialwagenbestellung sowie Be-/Entladung an passenden nativen MOW-Lagern. FL/FM für Signalbaumaterial, XM für Signaltechnik; Bau mit aktivem eigenem MOW-Arbeitszug.
+- Eigene Kauf-/Lagerbedienung durch native Bestellung, Lagerbestand und Übersicht offener Aufträge/Status ersetzt. Auch der Bau-Meilenstein zeigt offene Arbeit.
+- Ausdrückliche kapazitätsbegrenzte Altbestandsübernahme mit Restbestand, Rücknahme bei Fehlern und gespeichertem Übernahmebeleg. Anlagen, Straßen und Frachtkennungen bleiben erhalten.
+- Erstmalige Weichenanbindung kann nahe native Lagerbestände verwenden; einmaliger Bedarf bleibt, noch ohne Arbeitswagenpflicht an der Weiche.
+- Einstellungen bleiben am Zahnrad. Englisch/Deutsch sowie gezielte Material-, API- und Modusprüfungen enthalten.
+- Gegen lokale 0.6.3-Bibliotheken kompiliert; neue Spiel-, Liefer-, Darstellungs- und Mehrspielerabnahme offen.
+
+Siehe Guides/BUILD-MOW-0.7.61.de.md. Alle Mitspieler benötigen 0.7.61 und einen vollständigen Neustart.
+
 # 0.7.60-P0 – Einstellungen im Auswahlfenster
 
 - Viertes Symbol als Zahnrad: eigenes vergrößerbares Einstellungsfenster.

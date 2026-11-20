@@ -14,6 +14,7 @@ namespace EnusDE.Signaltechnik {
 
         public static byte[] Alpha(WorkspaceMode mode)=>Alpha(Symbol(mode));
         public static byte[] SettingsAlpha()=>Alpha("SETTINGS");
+        public static byte[] ForSymbol(string symbol)=>Alpha(symbol);
         static byte[] Alpha(string symbol) {
             var pixels=new byte[Size*Size];
             const double unitsPerPixel=32d/Size;

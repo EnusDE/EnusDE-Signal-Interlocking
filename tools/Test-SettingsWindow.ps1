@@ -8,7 +8,7 @@ $sdk=Get-BuildSdk
 $arguments=@('/nologo','/target:exe','/langversion:9','/nostdlib+',('/out:"'+(Join-Path $output 'SettingsWindowChecks.dll')+'"'))
 Get-ChildItem -LiteralPath $sdk.ReferenceAssemblies -Filter '*.dll' | ForEach-Object {$arguments+='/reference:"'+$_.FullName+'"'}
 $arguments+='"'+(Join-Path $PSScriptRoot 'SettingsWindowFixture.cs')+'"'
-foreach($name in @('LocalText','BuiltInLanguage','SettingsWindow','ModePicker','ModePickerText','ModeIconRaster','WorkspaceSymbols')){
+foreach($name in @('LocalText','BuiltInLanguage','SettingsWindow','ModePicker','ModePickerText','ModeIconRaster','WorkspaceSymbols','BuildSymbols')){
     $arguments+='"'+(Join-Path $project ('src/'+$name+'.cs'))+'"'
 }
 $response=Join-Path $output 'compiler.rsp'

@@ -1,6 +1,8 @@
 # EnusDE Signal and Interlocking — Tutorial / User Guide
 
-**WORK IN PROGRESS — draft for 0.7.42-P0, Railroader 0.6.2.**
+**WORK IN PROGRESS — build/material sections updated for 0.7.61-P0, Railroader 0.6.3.**
+
+[Baumodus und MOW-Materialien auf Deutsch](BUILD-MOW-0.7.61.de.md). Older operating sections remain a developing alpha guide.
 
 This guide describes the current alpha. Illustrations, a complete worked station example and gameplay verification are still being developed. Follow the latest version-specific notes where older instructions differ. The GWB permission module is implemented in 0.7.41; see the [current GWB setup guide](FREE-LINE-GWB.en.md), which supersedes older permission-operation descriptions below. Automatic renumbering remains a proposal.
 
@@ -16,9 +18,11 @@ If construction is locked, check the signalling unlock in **Materials and constr
 
 ## 2. Place and configure world signals
 
-Choose a signal type in Build and place it on the intended track. Placement remains active so you can build several signals in succession. Right-mouse camera control remains available. Press **Escape** or change mode to finish the series.
+Choose **Build** in the launcher to enter the local build session. The compact right-hand icon palette remains open while placing signals. Hover an icon for its name; the selected tool is highlighted. Right-mouse camera control remains available. **Escape** cancels the cursor. **End build mode**, the native X or a workspace change exits Build and retains confirmed plans.
 
-After placement, right-click a signal and choose **Edit**. Verify its real track position and direction, available train/shunting aspects, role and any distant-signal target. Each enabled face of a two-sided mast has its own logical direction.
+With material requirements enabled, the local builder sees cyan virtual models; ordinary viewers see confirmed sites as cones/barriers. Use **Material → Open native wagon ordering** for captive FL/FM building supplies and XM signal equipment. Store/reload at an existing MOW warehouse, then build using an active owned MOW work car and coupled loaded supply cars within 250 track metres. Existing legacy stocks can be transferred explicitly without discarding excess. See the [full material workflow, backup boundary and game tests](BUILD-MOW-0.7.61.en.md).
+
+In Build, click a signal to configure it. Outside Build, click its information and choose **Edit in build mode** as host. Verify its real track position and direction, available train/shunting aspects, role and any distant-signal target. Each enabled face of a two-sided mast has its own logical direction.
 
 New signals can include a GFM box by default; this is configurable in settings and does not rebuild existing signals. Optional Hl models require the **Test** setting for new builds or conversions. See [Hl models and limitations](HL-TEST.en.md).
 

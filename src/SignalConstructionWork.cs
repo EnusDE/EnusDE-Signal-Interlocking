@@ -13,20 +13,19 @@ using UnityEngine;
 namespace EnusDE.Signaltechnik {
     public sealed partial class SharedRuntime {
         double nextSignalWork;string signalWorkStatus="";
+        readonly Dictionary<string,string> signalWorkStates=new Dictionary<string,string>();
+        public string SignalWorkStatus(string id)=>signalWorkStates.TryGetValue(id,out var state)?state:LocalText.Select("Waiting for an active MOW work car and loaded supply wagons.","Wartet auf aktiven MOW-Arbeitswagen und beladene Materialwagen.");
         internal void BuildSignalSupplies(UIPanelBuilder c,Car car) {
             if(!Ready||car==null||!car.IsOwnedByPlayer)return;
-            string type=car.CarType.ToString();bool building=type.StartsWith("FM",StringComparison.Ordinal),technology=type.StartsWith("XM",StringComparison.Ordinal);
+            string type=car.CarType.ToString();bool building=type.StartsWith("FM",StringComparison.Ordinal)||type.StartsWith("FL",StringComparison.Ordinal),technology=type.StartsWith("XM",StringComparison.Ordinal);
             if(!building&&!technology&&!WorkCar.IsWorkCar(car))return;
             c.AddSection(LocalText.Select("Signal & Interlocking construction","Signaltechnik – Bau"));
             c.AddLabel(LocalText.Select("Pending material: ","Offenes Material: ")+ConstructionPolicy.TotalMissing(installation));
             if(!StateManager.IsHost){c.AddLabel(LocalText.Select("The host orders and consumes construction materials.","Der Host bestellt und verbraucht Baumaterial."));return;}
             if(!ConstructionUnlocked){c.AddLabel(LocalText.Select("Unlock construction in Milestones; check the map prerequisites and purchase price.","Signalbau unter Meilensteine freischalten; Kartenvoraussetzungen und Kaufpreis beachten."));return;}
-            if(building||technology)foreach(int amount in new[]{1,5,10}) {
-                int units=amount;string token=Guid.NewGuid().ToString("N");
-                c.AddButton(LocalText.Select("Order ","Bestellen: ")+units+" × "+LocalText.Select(technology?"signal technology":"building supplies",technology?"Signaltechnik":"Baumaterial"),()=>{
-                    try{RequireConstruction();Buy(car.id,technology,units,token);signalWorkStatus=LocalText.Select("Materials loaded.","Material beladen.");}
-                    catch(Exception e){signalWorkStatus=e.Message;}c.SetNeedsRebuild();
-                });
+            if(building||technology) {
+                c.AddLabel(LocalText.Select("Use the normal captive wagon order and MOW warehouse loading/unloading. Signal building supplies use FL/FM flat cars; signal equipment uses XM boxcars.","Normale Bestellung als captive Materialwagen und Be-/Entladung am MOW-Lager verwenden. Signalbaumaterial gehört in FL/FM-Flachwagen, Signaltechnik in XM-Güterwagen."));
+                c.AddButton(LocalText.Select("Open native wagon ordering","Normale Fahrzeugbestellung öffnen"),NativeMaterialLogistics.OpenOrders);
             }
             if(WorkCar.IsWorkCar(car))c.AddLabel(LocalText.Select("Activate the native MOW equipment. Stop within 250 m along the track of a planned signal, with the loaded supply wagons coupled. Signal materials are consumed when each installation is completed.","Native MOW-Ausrüstung aktivieren. Mit angekuppelten Materialwagen innerhalb von 250 Gleismetern bei einer geplanten Anlage anhalten. Das Signalbaumaterial wird beim Fertigstellen verbraucht."));
             c.AddLabel(()=>LocalText.Get(signalWorkStatus),UIPanelBuilder.Frequency.Periodic);
@@ -41,15 +40,16 @@ namespace EnusDE.Signaltechnik {
             if(!StateManager.IsHost||!Ready||StateManager.IsUnloading||!ConstructionUnlocked||Time.realtimeSinceStartup<nextSignalWork||TrainController.Shared==null)return;
             nextSignalWork=Time.realtimeSinceStartup+1;
             var plans=installation.Objects.Markers.Where(m=>m.Planned).ToArray();if(plans.Length==0)return;
+            signalWorkStates.Clear();
             int completed=0;
             foreach(var workCar in TrainController.Shared.Cars.Where(c=>c!=null&&c.IsOwnedByPlayer&&!c.IsDerailed&&!c.IsInBardo&&c.IsStopped(.05f)&&WorkCar.IsWorkCar(c)&&NativeMowEnabled(c))) {
                 var method=AccessTools.Method(typeof(WorkCar),"GetSupplyCars",new[]{typeof(Car)});
-                var supplies=(method?.Invoke(null,new object[]{workCar}) as IEnumerable<Car>)?.Where(c=>c!=null&&c.IsOwnedByPlayer&&!c.IsDerailed&&!c.IsInBardo&&c.IsStopped(.05f)&&!c.Waybill.HasValue).Distinct().ToArray()??new Car[0];
+                var supplies=(method?.Invoke(null,new object[]{workCar}) as IEnumerable<Car>)?.Where(c=>c!=null&&c.IsOwnedByPlayer&&!c.IsDerailed&&!c.IsInBardo&&c.IsStopped(.05f)).Distinct().ToArray()??new Car[0];
                 foreach(var plan in plans.Where(p=>installation.Objects.Markers.Any(m=>m.Id==p.Id&&m.Planned))) {
                     var distance=AutomationNative.Distance(plan.Anchor,false,workCar.OpsLocation,WorkRadius);
                     if(!distance.HasValue||Math.Abs(distance.Value)>WorkRadius)continue;
-                    try{CompleteFromWorkTrain(plan.Id,supplies);signalWorkStatus=plan.Name+LocalText.Select(" completed."," fertiggestellt.");if(++completed>=8)return;}
-                    catch(InvalidOperationException e){signalWorkStatus=plan.Name+": "+e.Message;}
+                    try{CompleteFromWorkTrain(plan.Id,supplies);signalWorkStates[plan.Id]=LocalText.Select("Completed","Fertiggestellt");signalWorkStatus=plan.Name+LocalText.Select(" completed."," fertiggestellt.");if(++completed>=8)return;}
+                    catch(InvalidOperationException e){signalWorkStates[plan.Id]=LocalText.Get(e.Message);signalWorkStatus=plan.Name+": "+e.Message;}
                 }
             }
         }

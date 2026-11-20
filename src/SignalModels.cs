@@ -42,7 +42,7 @@ namespace EnusDE.Signaltechnik {
             if(main!=null)return;
             Shader shader=ShaderPolicy.Find<Shader>(Shader.Find);
             if(shader==null)throw new InvalidOperationException("Kein Signalmodell-Shader verfügbar.");
-            frame=ColorOf(shader,new Color(.035f,.035f,.035f));post=ColorOf(shader,new Color(.45f,.48f,.45f));red=ColorOf(shader,Color.red);green=ColorOf(shader,Color.green);yellow=ColorOf(shader,Color.yellow);white=ColorOf(shader,Color.white);off=ColorOf(shader,new Color(.08f,.08f,.08f));blue=ColorOf(shader,Color.cyan);
+            frame=ColorOf(shader,new Color(.035f,.035f,.035f));post=ColorOf(shader,new Color(.45f,.48f,.45f));red=ColorOf(shader,Color.red);green=ColorOf(shader,Color.green);yellow=ColorOf(shader,Color.yellow);white=ColorOf(shader,Color.white);off=ColorOf(shader,new Color(.08f,.08f,.08f));blue=ColorOf(shader,Color.cyan);PreviewMaterials.Configure(blue);
             try{BuildGlow(shader);}catch(Exception e){GlowStatus="Signalleuchten: optionale Darstellung nicht verfügbar: "+e.Message;}
             main=MeshOf(MarkerMeshData.CreateSignal(false,false),"EnusDE original main signal");small=MeshOf(MarkerMeshData.CreateSignal(true,false),"EnusDE original shunt signal");distant=MeshOf(MarkerMeshData.CreateSignal(false,true),"EnusDE original distant signal");
             mast=MeshOf(MarkerMeshData.CreateMast(),"EnusDE common signal mast");mainHead=MeshOf(MarkerMeshData.CreateSignal(false,false,true),"EnusDE main head");smallHead=MeshOf(MarkerMeshData.CreateSignal(true,false,true),"EnusDE shunt head");distantHead=MeshOf(MarkerMeshData.CreateSignal(false,true,true),"EnusDE distant head");
@@ -53,7 +53,7 @@ namespace EnusDE.Signaltechnik {
         }
         public void Build(GameObject root,string kind,bool ghost,bool headOnly=false,bool label=true,bool low=false,bool hl=false) {
             Ensure();root.AddComponent<MeshFilter>().sharedMesh=hl?HlMesh(kind,headOnly):low?(kind==MarkerRecord.Main?lowHead:null):kind==MarkerRecord.Main?(headOnly?mainHead:main):kind==MarkerRecord.Shunt?(headOnly?smallHead:small):(headOnly?distantHead:distant);
-            var renderer=root.AddComponent<MeshRenderer>();renderer.sharedMaterials=new[]{ghost?blue:frame,post,frame};renderer.shadowCastingMode=ShadowCastingMode.Off;if(low&&kind==MarkerRecord.Shunt)renderer.enabled=false;
+            var renderer=root.AddComponent<MeshRenderer>();renderer.sharedMaterials=new[]{ghost?blue:frame,ghost?blue:post,ghost?blue:frame};renderer.shadowCastingMode=ShadowCastingMode.Off;if(low&&kind==MarkerRecord.Shunt)renderer.enabled=false;
             var positions=Array.ConvertAll((hl?HlSignalGeometry.Lamps(kind==MarkerRecord.Distant):low?(kind==MarkerRecord.Main?LowMainGeometry.Main:LowMainGeometry.Shunt):HvSignalGeometry.Lamps(kind)),p=>new Vector2(p[0],p[1]));
             var state=root.AddComponent<SignalLamps>();state.Lamps=new MeshRenderer[positions.Length];state.Halos=new MeshRenderer[positions.Length];state.Preview=ghost;state.Hl=hl;state.Owner=hl?this:null;
             float minX=float.MaxValue,maxX=float.MinValue,minY=float.MaxValue,maxY=float.MinValue;foreach(var p in positions){minX=Mathf.Min(minX,p.x);maxX=Mathf.Max(maxX,p.x);minY=Mathf.Min(minY,p.y);maxY=Mathf.Max(maxY,p.y);}
@@ -68,7 +68,7 @@ namespace EnusDE.Signaltechnik {
             if(label&&!ghost)BuildNameplate(state,root.transform,hl&&kind==MarkerRecord.Main?2.32f:low?.22f:kind==MarkerRecord.Shunt?.43f:headOnly?2.72f:2.5f);
         }
         public void BuildMast(GameObject root,bool ghost,bool low=false) {
-            Ensure();root.AddComponent<MeshFilter>().sharedMesh=low?lowPost:mast;var renderer=root.AddComponent<MeshRenderer>();renderer.sharedMaterials=new[]{ghost?blue:frame,ghost?blue:post,frame};renderer.shadowCastingMode=ShadowCastingMode.Off;var state=root.AddComponent<MastHeads>();state.Preview=ghost;state.Low=low;
+            Ensure();root.AddComponent<MeshFilter>().sharedMesh=low?lowPost:mast;var renderer=root.AddComponent<MeshRenderer>();renderer.sharedMaterials=new[]{ghost?blue:frame,ghost?blue:post,ghost?blue:frame};renderer.shadowCastingMode=ShadowCastingMode.Off;var state=root.AddComponent<MastHeads>();state.Preview=ghost;state.Low=low;
         }
         GameObject Head(GameObject parent,string kind,float y,bool label,bool ghost,bool hl=false) {
             var root=new GameObject("EnusDE attached "+kind);root.layer=2;root.transform.SetParent(parent.transform,false);root.transform.localPosition=new Vector3(0,y,0);Build(root,kind,ghost,true,label,false,hl);
@@ -117,7 +117,7 @@ namespace EnusDE.Signaltechnik {
             if(changed){state.LastAspect=aspect;state.LastAnnounced=announced;state.Combined=combined;state.LastGlowRevision=glowRevision;
                 state.HlPlan=state.Hl?HlLampPlan.Runtime(record.Kind,aspect,announced,combined):null;
                 state.Colors=state.Hl?state.HlPlan.At(Time.realtimeSinceStartup):SignalLensPlan.For(record.Kind,aspect);state.HlPhase=-1;
-                for(int i=0;i<state.Lamps.Length;i++){var color=state.Colors[i];if(state.Lamps[i]!=null)state.Lamps[i].sharedMaterial=LensMaterial(color,!state.Preview);if(state.Halos[i]!=null)state.Halos[i].sharedMaterial=HaloMaterial(color);}}
+                for(int i=0;i<state.Lamps.Length;i++){var color=state.Colors[i];if(state.Lamps[i]!=null)state.Lamps[i].sharedMaterial=state.Preview?blue:LensMaterial(color,true);if(state.Halos[i]!=null)state.Halos[i].sharedMaterial=HaloMaterial(color);}}
             var towardViewer=viewKnown?viewPosition-root.transform.position:Vector3.zero;bool haloVisible=SignalGlowOptions.ShowHalo(glowEnabled,haloEnabled,state.Preview,viewKnown,towardViewer.sqrMagnitude,Vector3.Dot(towardViewer,-root.transform.forward));if(changed||state.HaloVisible!=haloVisible){state.HaloVisible=haloVisible;for(int i=0;i<state.Halos.Length;i++)if(state.Halos[i]!=null)state.Halos[i].enabled=haloVisible&&state.Colors[i]!=SignalLensColor.Off&&HaloMaterial(state.Colors[i])!=off;}
             if(!state.Preview)ShowOperatingVisual(root,state,aspect);
         }

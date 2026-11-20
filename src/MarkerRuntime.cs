@@ -18,6 +18,9 @@ namespace EnusDE.Signaltechnik {
         const string WindowId="enusde.signaltechnik.grenzzeichen";
         readonly MarkerTrackGeometry geometry=new MarkerTrackGeometry();
         readonly MarkerEditSession edit=new MarkerEditSession();
+        readonly BuildModeSession buildMode=new BuildModeSession();
+        public bool BuildModeActive=>buildMode.Active;
+        bool buildWindowShown;
         MarkerScene scene;
         MarkerRepository repository;
         MarkerRecord[] records=new MarkerRecord[0];
@@ -79,6 +82,7 @@ namespace EnusDE.Signaltechnik {
                 return;
             }
             if(IsPlacing){edit.Cancel();scene.HidePreview();}
+            EndBuildMode();
             if(CustomWindowHandle.Create(WindowId)?.IsOpen()==true)CloseTool();
             Entry.OpenWorkspaceMode(mode==WorkspaceMode.Editor);
         }
@@ -94,7 +98,7 @@ namespace EnusDE.Signaltechnik {
             var shared=Entry.Shared;if(shared==null)return;if(!shared.Ready&&StateManager.IsHost)shared.ImportIfNeeded();
             if(!shared.Ready){status=shared.RecoveryNotice??shared.Error??"Anlagenbestand wird geladen / vom Host übertragen.";return;}
             string key=shared.WorldKey;
-            if(scope!=null&&scope!=key){buildTrack=null;DisposeCrosses();edit.Cancel();scene.Dispose();scene=new MarkerScene(geometry,transform);repository=null;records=new MarkerRecord[0];repositoryError=null;selectedId=null;sharedVersion=-1;}
+            if(scope!=null&&scope!=key){EndBuildMode();buildTrack=null;DisposeCrosses();edit.Cancel();scene.Dispose();scene=new MarkerScene(geometry,transform);repository=null;records=new MarkerRecord[0];repositoryError=null;selectedId=null;sharedVersion=-1;}
             scope=key;
             if(StateManager.IsHost&&repository==null)repository=new MarkerRepository(directory,key,StateManager.Shared.CurrentMapIdentifier,shared.Objects,shared.PutObjects);
             if(sharedVersion!=shared.InstallationVersion){records=shared.Objects().Markers.Select(m=>m.Clone()).ToArray();sharedVersion=shared.InstallationVersion;status=StateManager.IsHost?"Gemeinsamer Anlagenbestand bereit. Objekte: "+records.Length:"Anlagenansicht vom Host. Objekte: "+records.Length;}
@@ -111,6 +115,7 @@ namespace EnusDE.Signaltechnik {
         }
         void Update() {
             if(stopped||StateManager.IsUnloading)return;
+            if(buildMode.Active&&buildWindowShown&&CustomWindowHandle.Create(WindowId)?.IsOpen()!=true)EndBuildMode();
             if(quickCircuitActive&&(scope!=quickCircuitWorld||Keyboard.current?.escapeKey.wasPressedThisFrame==true)){quickCircuitActive=false;status=LocalText.Select("Detection tool stopped.","GFM-Werkzeug beendet.");RebuildTool();}
             workLoop?.Tick(Time.realtimeSinceStartup,edit.Aiming);
             try{RefreshCrosses();}catch(Exception e){crossError=e.Message;log?.Warning("Ungültigkeitskreuz: "+e.Message);nextCross=Time.realtimeSinceStartup+30;}
@@ -220,7 +225,7 @@ namespace EnusDE.Signaltechnik {
             if(StateManager.IsHost&&records.Any(r=>r.Id==id&&r.Kind==MarkerRecord.Main&&r.Name.StartsWith("RS-",StringComparison.OrdinalIgnoreCase)))Act(()=>{repository.NormalizeSignalCode(id);RefreshRecords();});
             if(QuickCircuitClick(id))return;
             if(!records.Any(r=>r.Id==id))return;
-            if(!StateManager.IsHost){selectedId=id;page=Page.ReadOnly;ShowTool();return;}
+            if(!StateManager.IsHost||!buildMode.Active){selectedId=id;directionTab=direction==1?1:0;page=Page.ReadOnly;ShowTool();return;}
             edit.Cancel();scene.HidePreview();selectedId=id;selectedEditFor=null;LoadDraft();directionTab=direction==1?1:0;page=Page.Configure;ShowTool();
         }
         internal void OpenObjectContext(string id,int direction) {
@@ -237,10 +242,15 @@ namespace EnusDE.Signaltechnik {
             draftSpeed=row.SpeedMph;speedInKmh=units.Mode!="original";speedInput=SignUnits.Number(draftSpeed*(speedInKmh?SignUnits.MphToKmh:1));speedDirty=false;directionTab=0;
         }
         void ShowTool() {
+            if(!buildMode.Active&&page!=Page.Materials&&page!=Page.ReadOnly) {
+                string reason;if(!CanEdit(out reason)){status=reason;return;}
+                buildMode.Begin(true);scene.Building=true;RefreshScene();
+            }
             EnsureWindow();
             if(manager==null||StateManager.IsUnloading)return;
             bool cached=manager.GetCustomWindow(WindowId)!=null;
             CustomWindowHandle.Create(WindowId)?.Show();
+            if(buildMode.Active)buildWindowShown=true;
             if(cached)RebuildTool();
         }
         public void ApplyHostPlacement(){string why;if(!CanEdit(out why))throw new InvalidOperationException(why);repository.ApplyHostPlacement(Defaults,Entry.MastCanModify);RefreshRecords();selectedEditFor=null;RefreshScene();status=LocalText.Get("Host-Vorgaben auf bestehende Masten mit Host-Bindung angewendet.");RebuildTool();}
@@ -255,7 +265,7 @@ namespace EnusDE.Signaltechnik {
             string why;if(!CanEdit(out why))throw new InvalidOperationException(why);
             if(records.Length>=MarkerRepository.Maximum)throw new InvalidOperationException("P0-Grenze von 128 Zeichen erreicht.");
             previewOptions=Defaults;
-            edit.Start(previewOptions,kind,repeating);placeAfter=Time.realtimeSinceStartup+.25;PrepareSpeedInput();UpdateAim();CloseTool();
+            edit.Start(previewOptions,kind,repeating);placeAfter=Time.realtimeSinceStartup+.25;PrepareSpeedInput();UpdateAim();page=Page.Build;ShowTool();
         }
         void Commit() {
             string why;if(!CanEdit(out why))throw new InvalidOperationException(why);
@@ -267,7 +277,7 @@ namespace EnusDE.Signaltechnik {
             scene.HidePreview();RefreshRecords();selectedId=row.Id;string reason;
             bool drawn=scene.Show(row,out reason,units.Mode);status=row.Name+" gespeichert."+(drawn?"":" Darstellung: "+reason);
             Entry.RecordMarkerEvent("placed_or_moved",row);selectedEditFor=null;
-            if(edit.Repeating){placeAfter=Time.realtimeSinceStartup+.25;page=Page.Build;CloseTool();return;}
+            if(edit.Repeating){placeAfter=Time.realtimeSinceStartup+.25;page=Page.Build;RebuildTool();return;}
             page=Page.Configure;LoadDraft();RebuildTool();
             setupAccepted?.Invoke(row.Clone());
         }
@@ -347,12 +357,20 @@ namespace EnusDE.Signaltechnik {
         void EnsureWindow() {
             if(manager==null)manager=WindowManager.Shared;if(manager==null)return;
             if(definition!=null&&ReferenceEquals(manager.GetDefinition(WindowId),definition))return;
-            definition=new CustomWindowDefinition{Identifier=WindowId,Title="Signaltechnik – Baumenü",BuilderAction=Build,
-                Config=WindowConfig.Resizable(new Vector2Int(600,640),new Vector2Int(420,350),new Vector2Int(1100,1000),Window.Position.CenterRight)};
+            definition=new CustomWindowDefinition{Identifier=WindowId,Title="EnusDE Signal & Interlocking",BuilderAction=Build,
+                Config=WindowConfig.Resizable(new Vector2Int(410,680),new Vector2Int(360,350),new Vector2Int(540,1200),Window.Position.CenterRight)};
             manager.RegisterCustomWindow(definition);
         }
-        void CloseTool(){if(page==Page.PointBox)scene.HidePreview();if(manager!=null&&!StateManager.IsUnloading)manager.CloseWindow(WindowId);}
-        internal void CloseForWorldSelection(){edit.Cancel();scene.HidePreview();CloseTool();}
+        void HideTool(){if(page==Page.PointBox)scene.HidePreview();if(manager!=null&&!StateManager.IsUnloading)manager.CloseWindow(WindowId);}
+        void CloseTool(){if(buildMode.Active)RebuildTool();else HideTool();}
+        public void EndBuildMode() {
+            if(!buildMode.End())return;
+            buildWindowShown=false;setupPlacementAccepted=null;quickCircuitActive=false;
+            edit.Cancel();scene.HidePreview();scene.Building=false;RefreshScene();
+            buildTrack=null;page=Page.Build;HideTool();
+            status=LocalText.Select("Build mode ended. Confirmed work orders remain.","Baumodus beendet. Bestätigte Bauaufträge bleiben erhalten.");
+        }
+        internal void CloseForWorldSelection(){edit.Cancel();scene.HidePreview();EndBuildMode();HideTool();}
         void RebuildTool(){if(manager!=null&&!StateManager.IsUnloading)CustomWindowHandle.Create(WindowId)?.SetNeedsRebuild();}
         string AnchorText(MarkerAnchor anchor)=>anchor==null?"Keine gültige Vorschau.":anchor.Segment+" · "+anchor.Meters.ToString("0.00")+" m ab Ende A · seitlich "+anchor.Lateral.ToString("0.00")+" m";
         readonly UIState<bool> technicalExpanded=new UIState<bool>(false);
@@ -363,13 +381,15 @@ namespace EnusDE.Signaltechnik {
         }
         void Build(UIPanelBuilder b) {
             b.VScrollView(c=>{
+                if(buildMode.Active) {
+                    c.AddTitle(LocalText.Select("Build mode active","Baumodus aktiv"),"");
+                    c.AddButton(LocalText.Select("End build mode","Baumodus beenden"),EndBuildMode);
+                }
                 c.HStack(row=>{
-                    if(StateManager.IsHost){row.AddButtonSelectable(LocalText.Get("Bauen"),page==Page.Build,()=>Navigate(Page.Build));row.AddButtonSelectable(LocalText.Get("Objekte"),page==Page.Objects||page==Page.Configure,()=>Navigate(Page.Objects));}
+                    if(buildMode.Active){row.AddButtonSelectable(LocalText.Get("Bauen"),page==Page.Build,()=>Navigate(Page.Build));row.AddButtonSelectable(LocalText.Get("Objekte"),page==Page.Objects||page==Page.Configure,()=>Navigate(Page.Objects));}
                     row.AddButton(LocalText.Get("Material"),OpenMaterials);
-                    row.AddButton(LocalText.Get("Stellwerk"),Entry.OpenInterlocking);
                 });
                 c.AddLabel(()=>status,UIPanelBuilder.Frequency.Periodic);
-                c.AddLabel(()=>signWarning==null?"":"Schildanzeige eingeschränkt: "+signWarning,UIPanelBuilder.Frequency.Periodic);
                 switch(page) {
                     case Page.Materials:BuildMaterials(c);break;
                     case Page.ReadOnly:BuildReadOnly(c);break;
@@ -382,7 +402,7 @@ namespace EnusDE.Signaltechnik {
                     case Page.Placement:BuildPlacement(c);break;
                     default:BuildHome(c);break;
                 }
-                c.AddButtonCompact(LocalText.Get("Schließen"),CloseTool);
+                if(!buildMode.Active)c.AddButtonCompact(LocalText.Get("Schließen"),CloseTool);
             });
         }
         void StartHomePlacement(string kind,bool hl=false) {
@@ -400,19 +420,13 @@ namespace EnusDE.Signaltechnik {
             c.AddTitle(LocalText.Get("Bauen"),buildTrack.HasValue&&buildTrack.Value.IsValid?"Vorgemerkte Gleisposition · "+buildTrack.Value.segment.id:
                 "Objekt wählen → Maus aufs Gleis → Linksklick");
             if(buildTrack.HasValue)c.AddButton(LocalText.Get("Position neu mit der Maus wählen"),()=>{buildTrack=null;RebuildTool();});
-            c.AddButtonLarge(LocalText.Get("Signalmast"),()=>Act(()=>StartHomePlacement(MarkerRecord.Main)));
-            c.AddButtonLarge(LocalText.Get("Vorsignal (einzeln)"),()=>Act(()=>StartHomePlacement(MarkerRecord.Distant)));
+            BuildPalette(c);
             if(options.EnableHlSignalsTest) {
                 c.AddButtonLarge(LocalText.Select("Hl main signal · test","Hl-Hauptsignal · Test"),()=>Act(()=>StartHomePlacement(MarkerRecord.Main,true)));
                 c.AddButtonLarge(LocalText.Select("Hl distant signal · test","Hl-Vorsignal · Test"),()=>Act(()=>StartHomePlacement(MarkerRecord.Distant,true)));
             }
-            c.AddButtonLarge(LocalText.Get("Rangiersignal"),()=>Act(()=>StartHomePlacement(MarkerRecord.Shunt)));
-            c.AddButtonLarge(LocalText.Get("Geschwindigkeitsschild"),()=>Act(()=>StartHomePlacement(MarkerRecord.Speed)));
-            c.AddButtonLarge(LocalText.Get("Grenzzeichen"),()=>Act(()=>StartHomePlacement(MarkerRecord.Clearance)));
-            c.AddButtonLarge(LocalText.Get("Gleisfreimeldekasten B"),()=>Act(()=>StartHomePlacement(MarkerRecord.CircuitB)));
-            c.AddButtonLarge(LocalText.Select("One-sided detection boundary C","Einseitige Freimeldegrenze C"),()=>Act(()=>StartHomePlacement(MarkerRecord.CircuitC)));
-            c.AddButtonLarge(LocalText.Get("Material und Bauaufträge"),OpenMaterials);
-            c.AddButtonLarge(LocalText.Get("Bestandssignale ungültig kennzeichnen"),()=>Act(OpenStockSignals));
+            c.AddButton(LocalText.Get("Material und Bauaufträge"),OpenMaterials);
+            c.AddButton(LocalText.Get("Bestandssignale ungültig kennzeichnen"),()=>Act(OpenStockSignals));
             c.AddLabel(LocalText.Get("Einen platzierten Mast anklicken, um seine Richtungen und Signalbegriffe einzurichten. Rangiersignale können auch einzeln stehen."));
             c.AddLabel(LocalText.Select("Escape cancels placement. Right mouse can still control the camera.","Escape bricht die Platzierung ab. Die rechte Maustaste bleibt für die Kamera verfügbar."));
             c.AddLabel(LocalText.Select("Signals use continuous placement: keep placing with left-click, finish with Escape, then click individual signals to edit them.","Signale fortlaufend setzen: mit Linksklick weiterbauen, mit Escape beenden, danach einzelne Signale zum Bearbeiten anklicken."));
@@ -647,13 +661,13 @@ namespace EnusDE.Signaltechnik {
                 c.AddFieldToggle(LocalText.Get("Unterbau"),()=>edit.Candidate?.GroundSupport==true,v=>Act(()=>PreviewGround(support:v)),true);
                 c.AddLabel(LocalText.Get("Unterbau ergänzt den Sockel; das Landschaftsgelände bleibt unverändert."));
             }
-            c.AddButton(LocalText.Get("Mit der Maus weiterbewegen"),()=>Act(()=>{if(edit.Candidate==null)throw new InvalidOperationException("Keine gültige Vorschau.");SyncSpeedInput();previewOptions=new MarkerOptions{Lateral=edit.Candidate.Lateral,Height=edit.Candidate.Height,Scale=edit.Candidate.Scale};edit.Aim();placeAfter=Time.realtimeSinceStartup+.25;CloseTool();}));
+            c.AddButton(LocalText.Get("Mit der Maus weiterbewegen"),()=>Act(()=>{if(edit.Candidate==null)throw new InvalidOperationException("Keine gültige Vorschau.");SyncSpeedInput();previewOptions=new MarkerOptions{Lateral=edit.Candidate.Lateral,Height=edit.Candidate.Height,Scale=edit.Candidate.Scale};edit.Aim();placeAfter=Time.realtimeSinceStartup+.25;RebuildTool();}));
             c.AddButton(LocalText.Get("An ausgewählte Fahrzeugfront"),()=>Act(FromVehicle));
             c.AddField(LocalText.Get("Gleisposition"),()=>AnchorText(edit.Candidate),UIPanelBuilder.Frequency.Periodic);
         }
         public void Shutdown() {
             Cleanup(DisposeCrosses);
-            if(stopped)return;stopped=true;edit.Cancel();Cleanup(()=>modePicker?.Dispose());Cleanup(()=>existingSigns.Dispose());Cleanup(()=>scene?.Dispose());records=new MarkerRecord[0];repository=null;Cleanup(RemoveWindow);manager=null;definition=null;
+            if(stopped)return;stopped=true;buildMode.End();edit.Cancel();Cleanup(DisposeBuildIcons);Cleanup(()=>modePicker?.Dispose());Cleanup(()=>existingSigns.Dispose());Cleanup(()=>scene?.Dispose());records=new MarkerRecord[0];repository=null;Cleanup(RemoveWindow);manager=null;definition=null;
         }
         void Cleanup(Action action){try{action();}catch(Exception e){log?.Warning("Baumenü-Bereinigung: "+e.Message);}}
         void RemoveWindow() {

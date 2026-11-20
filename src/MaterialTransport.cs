@@ -33,6 +33,7 @@ namespace EnusDE.Signaltechnik {
         }
         public void Finish(string id,string depotId) {
             RequireReady();var marker=installation.Objects.Markers.FirstOrDefault(m=>m.Id==id)??throw new InvalidOperationException("Bauauftrag nicht vorhanden.");if(!marker.Planned)return;
+            if(!StateManager.IsSandbox)throw new InvalidOperationException(LocalText.Select("Finish construction with an active MOW work train.","Bau mit einem aktiven MOW-Arbeitszug fertigstellen."));
             var depot=installation.Economy.Depots.FirstOrDefault(d=>d.Id==depotId);if(EconomyEnabled&&(depot==null||Distance(marker.Anchor,depot.Anchor)>WorkRadius))throw new InvalidOperationException("Materiallager muss höchstens 250 m von der Baustelle entfernt sein.");
             CommitInstall(MaterialEconomy.Complete(installation,id,depotId));
         }

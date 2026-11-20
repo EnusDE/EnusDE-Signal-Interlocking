@@ -18,7 +18,11 @@ namespace EnusDE.Signaltechnik {
             var snapshot=Entry.Shared?.Snapshot();
             if(snapshot==null){c.AddLabel(LocalText.Select("Load the installation first.","Anlagenbestand zuerst laden."));return;}
             c.AddField(LocalText.Select("Materials still required","Noch benötigtes Material"),ConstructionPolicy.TotalMissing(snapshot).ToString());
-            foreach(var plan in snapshot.Objects.Markers.Where(m=>m.Planned))c.AddLabel(plan.Name+" · "+LocalText.Get(MarkerRecord.KindLabel(plan.Kind))+" · "+MaterialEconomy.Missing(snapshot,plan));
+            c.AddField(LocalText.Select("Open work orders","Offene Bauaufträge"),snapshot.Objects.Markers.Count(m=>m.Planned).ToString());
+            foreach(var plan in snapshot.Objects.Markers.Where(m=>m.Planned)) {
+                string id=plan.Id;c.AddLabel(plan.DisplayTitle+" · "+LocalText.Get(MarkerRecord.KindLabel(plan.Kind))+" · "+MaterialEconomy.Missing(snapshot,plan));
+                c.AddField(LocalText.Select("Status","Status"),()=>Entry.Shared?.SignalWorkStatus(id)??"",UIPanelBuilder.Frequency.Periodic);
+            }
             if(!snapshot.Objects.Markers.Any(m=>m.Planned))c.AddLabel(LocalText.Select("No pending installations. The programme remains available.","Keine offenen Anlagen. Der Bauauftrag bleibt verfügbar."));
             c.AddButton(LocalText.Select("Open materials and work orders","Material und Bauaufträge öffnen"),Entry.OpenMaterials);
         }

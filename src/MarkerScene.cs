@@ -65,8 +65,10 @@ namespace EnusDE.Signaltechnik {
         readonly Transform owner;
         readonly Dictionary<string,GameObject> objects=new Dictionary<string,GameObject>();
         readonly Dictionary<string,int> revisions=new Dictionary<string,int>();
+        readonly Dictionary<string,ConstructionVisual> visualKinds=new Dictionary<string,ConstructionVisual>();
+        public bool Building {get;set;}
         readonly Dictionary<GameObject,WorldTransformer> movers=new Dictionary<GameObject,WorldTransformer>();
-        Mesh mesh;
+        Mesh mesh,siteMesh;
         Mesh speedMesh,circuitAMesh,circuitBMesh,circuitCMesh;
         Material white,red,gray,blue;
         Material black;
@@ -86,6 +88,8 @@ namespace EnusDE.Signaltechnik {
             Shader shader=ShaderPolicy.Find<Shader>(Shader.Find);
             if(shader==null)throw new InvalidOperationException("Kein geeigneter Darstellungs-Shader im Spiel verfügbar.");
             white=ColorMaterial(shader,Color.white);red=ColorMaterial(shader,new Color(.9f,.03f,.02f));gray=ColorMaterial(shader,new Color(.65f,.65f,.62f));blue=ColorMaterial(shader,new Color(.05f,.65f,1f));black=ColorMaterial(shader,Color.black);
+            PreviewMaterials.Configure(blue);
+            siteMesh=BuildMesh(MarkerMeshData.CreateConstructionSite(),"EnusDE original construction cones and barrier");
             var paintShader=ShaderPolicy.FindLit<Shader>(Shader.Find);
             circuitWhite=PaintMaterial(paintShader??shader,paintShader==null?new Color(.25f,.25f,.25f):new Color(.8f,.8f,.77f));
             circuitBlack=PaintMaterial(paintShader??shader,new Color(.025f,.025f,.025f));circuitGray=PaintMaterial(paintShader??shader,new Color(.45f,.45f,.43f));
@@ -111,16 +115,24 @@ namespace EnusDE.Signaltechnik {
             foreach(string key in new[]{"_Metallic","_Smoothness","_Glossiness","_EmissiveIntensity"})if(value.HasProperty(key))value.SetFloat(key,0);
             return value;
         }
-        GameObject Create(string name,bool ghost,string kind,bool low=false,bool hl=false) {
+        GameObject Create(string name,bool ghost,string kind,bool low=false,bool hl=false,bool site=false) {
             Resources();var root=new GameObject(name);root.layer=2;
             if(owner!=null)root.transform.SetParent(owner,false);
+            if(site) {
+                root.AddComponent<MeshFilter>().sharedMesh=siteMesh;
+                var siteRenderer=root.AddComponent<MeshRenderer>();siteRenderer.sharedMaterials=new[]{circuitWhite,red,circuitGray};
+                var labelRoot=new GameObject("EnusDE worksite label");labelRoot.layer=2;labelRoot.transform.SetParent(root.transform,false);labelRoot.transform.localPosition=new Vector3(0,1.12f,.34f);labelRoot.transform.localScale=Vector3.one*.1f;
+                var label=labelRoot.AddComponent<TextMeshPro>();label.font=TMP_Settings.defaultFontAsset;label.text=name.Replace("EnusDE ","");label.richText=false;label.alignment=TextAlignmentOptions.Center;label.color=Color.white;label.rectTransform.sizeDelta=new Vector2(15,3);label.fontSize=18;label.textWrappingMode=TextWrappingModes.NoWrap;
+                WorldTransformer siteMover;if(WorldTransformer.TryGetShared(out siteMover)){siteMover.AddObjectToMove(root.transform);movers[root]=siteMover;}
+                return root;
+            }
             if(kind==MarkerRecord.Main||kind==MarkerRecord.Distant||kind==MarkerRecord.Shunt) {
                 if(kind==MarkerRecord.Main){signals.BuildMast(root,ghost,low);BuildFoundation(root,ghost);}else signals.Build(root,kind,ghost,false,true,false,hl);WorldTransformer transformer;if(WorldTransformer.TryGetShared(out transformer)){transformer.AddObjectToMove(root.transform);movers[root]=transformer;}return root;
             }
             bool circuit=MarkerRecord.IsCircuitKind(kind);
             bool speed=kind==MarkerRecord.Speed;
             root.AddComponent<MeshFilter>().sharedMesh=circuit?(kind==MarkerRecord.CircuitC?circuitCMesh:circuitBMesh):speed?speedMesh:mesh;
-            var renderer=root.AddComponent<MeshRenderer>();renderer.sharedMaterials=ghost?new[]{blue,white,circuit?blue:gray}:circuit?new[]{circuitBlack,circuitWhite,circuitGray}:new[]{white,speed?black:red,gray};
+            var renderer=root.AddComponent<MeshRenderer>();renderer.sharedMaterials=ghost?new[]{blue,blue,blue}:circuit?new[]{circuitBlack,circuitWhite,circuitGray}:new[]{white,speed?black:red,gray};
             renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;
             if(circuit)signals.LabelCircuitBox(root,kind==MarkerRecord.CircuitC?"C":"B");
             if(speed) {
@@ -143,8 +155,10 @@ namespace EnusDE.Signaltechnik {
         public bool Show(MarkerRecord record,out string reason,string unitMode="original") {
             Vector3 p;Quaternion q;GameObject root;
             if(!geometry.Resolve(record.Anchor,out p,out q,out reason)){if(objects.TryGetValue(record.Id,out root))root.SetActive(false);return false;}
-            int revision;if(objects.TryGetValue(record.Id,out root)&&revisions.TryGetValue(record.Id,out revision)&&(revision!=record.VisualRevision||root.GetComponent<CircuitVisual>() is CircuitVisual circuit&&circuit.Variant!=CircuitIdentity.Variant(record))){Remove(record.Id);root=null;}
-            if(!objects.TryGetValue(record.Id,out root)){root=Create("EnusDE "+record.Name,record.Planned,record.Kind,record.LowMain,record.HlSignal);objects[record.Id]=root;revisions[record.Id]=record.VisualRevision;MarkerPickable.Attach(root,record);if(record.IsCircuitBox||record.IsSignal)BuildCircuitVisual(root,record);}
+            var visual=ConstructionViewPolicy.For(record.Planned,Building);
+            int revision;if(objects.TryGetValue(record.Id,out root)&&revisions.TryGetValue(record.Id,out revision)&&(revision!=record.VisualRevision||!visualKinds.TryGetValue(record.Id,out var previousVisual)||previousVisual!=visual||root.GetComponent<CircuitVisual>() is CircuitVisual circuit&&circuit.Variant!=CircuitIdentity.Variant(record))){Remove(record.Id);root=null;}
+            if(!objects.TryGetValue(record.Id,out root)){root=Create("EnusDE "+record.DisplayTitle,record.Planned,record.Kind,record.LowMain,record.HlSignal,visual==ConstructionVisual.Site);objects[record.Id]=root;revisions[record.Id]=record.VisualRevision;visualKinds[record.Id]=visual;MarkerPickable.Attach(root,record,site:visual==ConstructionVisual.Site);if(visual!=ConstructionVisual.Site&&(record.IsCircuitBox||record.IsSignal))BuildCircuitVisual(root,record);}
+            if(visual==ConstructionVisual.Site){var ground=record.Anchor.Clone();ground.FixedHeight=false;ground.Height=0;ground.Scale=1;Pose(root,ground,p-q*Vector3.up*(float)record.Anchor.Height,q);SetGroundPose(root,ground);return true;}
             Pose(root,record.Anchor,p,q);if(record.IsCircuitBox)root.transform.rotation=q*Quaternion.Euler(0,(float)CircuitIdentity.FacingDegrees(record),0);if(record.IsSignal||record.IsCircuitBox)SetGroundPose(root,record.Anchor);if(record.Kind==MarkerRecord.Main)signals.ShowMast(root,record);else if(record.IsSignal)signals.Show(root,record,Entry.SignalAspect(record.Id));else Caption(root,record.SpeedMph,unitMode);if(record.IsSignal||record.IsCircuitBox)PoseGroundSupport(root,record.IsCircuitBox?CircuitSupportAnchor(record):record.Anchor);PoseCircuit(root,record);return true;
         }
         void Caption(GameObject root,double mph,string mode) {
@@ -174,11 +188,12 @@ namespace EnusDE.Signaltechnik {
             try{if(movers.TryGetValue(root,out mover)&&mover!=null)mover.RemoveObjectToMove(root.transform);}catch{}
             finally{movers.Remove(root);captions.Remove(root);UnityEngine.Object.Destroy(root);}
         }
-        public void Remove(string id){GameObject root;if(objects.TryGetValue(id,out root)){DestroyObject(root);objects.Remove(id);revisions.Remove(id);}}
+        public void Remove(string id){GameObject root;if(objects.TryGetValue(id,out root)){DestroyObject(root);objects.Remove(id);revisions.Remove(id);visualKinds.Remove(id);}}
         public void Dispose() {
             signals.Dispose();DisposeGround();
             foreach(var root in objects.Values)DestroyObject(root);objects.Clear();DestroyObject(preview);preview=null;line=null;
             foreach(var material in new[]{white,red,gray,blue,black,circuitWhite,circuitBlack,circuitGray})if(material!=null)UnityEngine.Object.Destroy(material);
+            if(siteMesh!=null)UnityEngine.Object.Destroy(siteMesh);siteMesh=null;visualKinds.Clear();
             if(mesh!=null)UnityEngine.Object.Destroy(mesh);if(speedMesh!=null)UnityEngine.Object.Destroy(speedMesh);if(circuitAMesh!=null)UnityEngine.Object.Destroy(circuitAMesh);if(circuitBMesh!=null)UnityEngine.Object.Destroy(circuitBMesh);
             if(circuitCMesh!=null)UnityEngine.Object.Destroy(circuitCMesh);
             mesh=speedMesh=circuitAMesh=circuitBMesh=circuitCMesh=null;white=red=gray=blue=black=circuitWhite=circuitBlack=circuitGray=null;

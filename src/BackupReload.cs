@@ -4,7 +4,7 @@ using System.Linq;
 namespace EnusDE.Signaltechnik {
     public sealed partial class MarkerRuntime {
         internal void ReloadBackupConfiguration() {
-            CloseTool();edit.Cancel();scene.HidePreview();DisposeCrosses();scene.Dispose();scene=new MarkerScene(geometry,transform);scene.ApplyGlow(options.Glow);
+            EndBuildMode();HideTool();edit.Cancel();scene.HidePreview();DisposeCrosses();scene.Dispose();scene=new MarkerScene(geometry,transform);scene.ApplyGlow(options.Glow);
             repository=null;scope=null;records=new MarkerRecord[0];selectedId=null;repositoryError=null;sharedVersion=-1;EnsureRepository();
         }
     }
