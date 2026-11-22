@@ -30,12 +30,14 @@ public static class BridgeTests {
         var entry=new Entry();
         var vm=new Interpreter();vm.RegisterModule(Relay.StandardLibrary.CoreModule.Shared);
         vm.RegisterNamedModule(ModuleRegistry.GetModule("railroader"));
-        vm.Interpret("from railroader import enusdeRecorderStatus, enusdeRecorderCommand, enusdeVehicleSample, enusdeDiagnosticWindow, enusdeGrenzzeichen\nvar status = enusdeRecorderStatus()\nvar text = enusdeRecorderCommand(\"status\")\nvar sample = enusdeVehicleSample(\"missing\")\nvar window = enusdeDiagnosticWindow(\"toggle\")\nvar marker = enusdeGrenzzeichen(\"open\")", "actual-game-module-bridge.rl");
+        vm.Interpret("from railroader import enusdeRecorderStatus, enusdeRecorderCommand, enusdeVehicleSample, enusdeDiagnosticWindow, enusdeGrenzzeichen, enusdeAssetPacks\nvar packs = enusdeAssetPacks(\"enable\")\nvar status = enusdeRecorderStatus()\nvar text = enusdeRecorderCommand(\"status\")\nvar sample = enusdeVehicleSample(\"missing\")\nvar window = enusdeDiagnosticWindow(\"toggle\")\nvar marker = enusdeGrenzzeichen(\"open\")", "actual-game-module-bridge.rl");
         var state=vm.GetGlobal("status").AsDictionary();
         if(state[Value.String("recording")].AsBool() || !vm.GetGlobal("text").AsString().Contains("nicht bereit"))throw new Exception("Bridge did not return the inactive native state.");
         if(vm.GetGlobal("sample").Type!=Relay.ValueType.Null||!state.ContainsKey(Value.String("capture_signs")))throw new Exception("Settings/sample bridge missing.");
         if(!vm.GetGlobal("window").AsString().Contains("nicht bereit"))throw new Exception("Window bridge failed without an active world.");
         if(!vm.GetGlobal("marker").AsString().Contains("nicht bereit"))throw new Exception("Marker bridge must remain inactive without a loaded world.");
+        if(string.IsNullOrWhiteSpace(vm.GetGlobal("packs").AsString()))throw new Exception("Asset bridge must report the missing world without activating an experiment.");
+        System.Console.WriteLine("PASS: optional pack bridge remains inactive without a loaded world");
         entry.OnModUnload();
         System.Console.WriteLine("PASS: recorder bridge imports through the actual installed game's railroader module template");
     }

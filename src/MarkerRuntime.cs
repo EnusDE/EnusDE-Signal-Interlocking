@@ -161,7 +161,7 @@ namespace EnusDE.Signaltechnik {
             if(anchor!=null&&(MarkerRecord.IsCircuitKind(edit.Kind))) {
                 anchor=anchor.Clone();anchor.GroundSupport=row?.CircuitSupport??true;
             }
-            scene.ShowPreview(anchor,edit.Kind,edit.SpeedMph,units.Mode,edit.FacingReverse^(row?.CircuitReverse==true&&edit.Kind==MarkerRecord.CircuitC),edit.Kind==MarkerRecord.CircuitC?0:row?.CircuitYaw??0,row?.HlSignal??edit.HlSignal);
+            scene.ShowPreview(anchor,edit.Kind,edit.SpeedMph,units.Mode,edit.FacingReverse^(row?.CircuitReverse==true&&edit.Kind==MarkerRecord.CircuitC),edit.Kind==MarkerRecord.CircuitC?0:row?.CircuitYaw??0,row?.HlSignal??edit.HlSignal,row?.PresentationPack??edit.PresentationPack);
         }
         void PrepareSpeedInput(){speedInKmh=units.Mode!="original";speedInput=SignUnits.Number(edit.SpeedMph*(speedInKmh?SignUnits.MphToKmh:1));speedDirty=false;}
         public void FormatSignTooltip(Game.Mow.PlayerSign sign,ref TooltipInfo tooltip){if(options.AdaptExistingSpeedSigns&&units.Mode!="original"&&sign.Kind==Game.Mow.PlayerSign.KindSpeedRestriction&&sign.Mph.HasValue&&SignUnits.ValidSpeed(sign.Mph.Value))tooltip.Title="Geschwindigkeitsbeschränkung: "+SignUnits.Description(sign.Mph.Value,units.Mode);}
@@ -405,16 +405,23 @@ namespace EnusDE.Signaltechnik {
                 if(!buildMode.Active)c.AddButtonCompact(LocalText.Get("Schließen"),CloseTool);
             });
         }
-        void StartHomePlacement(string kind,bool hl=false) {
+        void StartHomePlacement(string kind,bool hl=false,string presentationPack=null) {
+            if(presentationPack!=null&&Entry.Shared?.CanPlacePresentation(presentationPack)!=true)throw new InvalidOperationException(LocalText.Select("Activate the experiment and world test license first.","Zuerst Experiment und Welt-Testlizenz freischalten."));
             if(hl)HlTestFeature.Require(options.EnableHlSignalsTest);
             if(buildTrack.HasValue) {
                 var at=buildTrack.Value;
                 buildTrack=null;
                 FromTrack(at,kind);
             } else StartPreview(kind);
-            edit.HlSignal=hl;RenderPreview();
+            edit.HlSignal=hl;edit.PresentationPack=presentationPack;RenderPreview();
         }
         void BuildHome(UIPanelBuilder c) {
+            foreach(var pack in SignalPresentationPacks.Installed)if(Entry.Shared?.CanPlacePresentation(pack.Id)==true) {
+                foreach(var kind in new[]{MarkerRecord.Main,MarkerRecord.Distant,MarkerRecord.Shunt}) {
+                    var id=pack.Id;var signalKind=kind;
+                    c.AddButton(pack.Name+" · "+MarkerRecord.KindLabel(kind),()=>Act(()=>StartHomePlacement(signalKind,false,id)));
+                }
+            }
             c.AddButton(LocalText.Select("Detection boundary quick tool","GFM-Schnellwerkzeug"),()=>Navigate(Page.QuickCircuits));
             c.AddButton(LocalText.Get("Weichen-Gleisfreimeldung"),()=>Navigate(Page.PointCircuits));
             c.AddTitle(LocalText.Get("Bauen"),buildTrack.HasValue&&buildTrack.Value.IsValid?"Vorgemerkte Gleisposition · "+buildTrack.Value.segment.id:
@@ -449,11 +456,21 @@ namespace EnusDE.Signaltechnik {
             var row=Selected;if(row==null){c.AddLabel(LocalText.Get("Objekt nicht mehr vorhanden."));return;}
             if(selectedEditFor!=row.Id)LoadDraft();
             c.AddTitle(row.IsCircuitBox?CircuitIdentity.Caption(row):row.Name,MarkerRecord.KindLabel(row.Kind));
-            if(row.Kind==MarkerRecord.Main||row.Kind==MarkerRecord.Distant)BuildHlModelSelection(c,row);
+            if(row.IsSignal) {
+                c.AddLabel(LocalText.Select("Presentation: ","Darstellung: ")+(row.PresentationPack??LocalText.Select("Built-in","Eingebaut")));
+                if(row.PresentationPack!=null) {
+                    if(SignalPresentationPacks.Find(row.PresentationPack)==null)c.AddLabel(LocalText.Select("Pack unavailable: built-in fallback is displayed. Signal IDs and routes remain intact.","Paket fehlt: eingebaute Ersatzdarstellung. Signal-IDs und Fahrstraßen bleiben erhalten."));
+                    c.AddButton(LocalText.Select("Use built-in presentation","Eingebaute Darstellung verwenden"),()=>Act(()=>{RequireSelectedChange();repository.ConfigurePresentation(row.Id,null);Saved(LocalText.Select("Presentation saved.","Darstellung gespeichert."));}));
+                }
+                foreach(var pack in SignalPresentationPacks.Installed)if(Entry.Shared?.CanPlacePresentation(pack.Id)==true&&row.PresentationPack!=pack.Id) {
+                    var id=pack.Id;c.AddButton(pack.Name,()=>Act(()=>{RequireSelectedChange();repository.ConfigurePresentation(row.Id,id);Saved(LocalText.Select("Presentation saved; signal IDs retained.","Darstellung gespeichert; Signal-IDs erhalten."));}));
+                }
+            }
+            if(row.PresentationPack==null&&(row.Kind==MarkerRecord.Main||row.Kind==MarkerRecord.Distant))BuildHlModelSelection(c,row);
             if(row.PreviousCode!=null)c.AddField(LocalText.Select("Previous code (inactive)","Frühere Kennung (inaktiv)"),()=>row.PreviousCode,UIPanelBuilder.Frequency.Periodic);
             if(row.Kind==MarkerRecord.Main) {
                 if(!row.HlSignal)c.AddLabel(LocalText.Select(row.LowMain?"Low main signal · Hp 0 / Hp 1 / Hp 2 / Sh 1":"Main signal on mast",row.LowMain?"Niedriges Hauptsignal · Hp 0 / Hp 1 / Hp 2 / Sh 1":"Hauptsignal am Mast"));
-                if(!row.HlSignal)c.AddButton(LocalText.Select(row.LowMain?"Convert to high mast":"Use low main signal model",row.LowMain?"Auf hohen Mast umrüsten":"Als niedriges Hauptsignal ausführen"),()=>Act(()=>{
+                if(!row.HlSignal&&row.PresentationPack==null)c.AddButton(LocalText.Select(row.LowMain?"Convert to high mast":"Use low main signal model",row.LowMain?"Auf hohen Mast umrüsten":"Als niedriges Hauptsignal ausführen"),()=>Act(()=>{
                     RequireSelectedChange();if(Selected.Id!=row.Id)throw new InvalidOperationException("Signal erneut auswählen.");
                     repository.ConfigureLowMain(row.Id,!row.LowMain);Saved("Bauart geändert. Fahrstraßen und Signal-ID bleiben erhalten.");
                 }));
@@ -479,7 +496,7 @@ namespace EnusDE.Signaltechnik {
                 if(row.Kind==MarkerRecord.Shunt||row.Kind==MarkerRecord.Distant) {
                     c.AddFieldToggle(LocalText.Get("Gegenrichtung"),()=>facingInput,v=>facingInput=v,true);
                     if(row.Kind==MarkerRecord.Shunt){c.AddLabel(LocalText.Get("Rangiersignal: Sh 0 / Sh 1."));
-                        c.AddButton(LocalText.Get("Zum niedrigen Hauptsignal aufwerten"),()=>Act(()=>{
+                        if(row.PresentationPack==null)c.AddButton(LocalText.Get("Zum niedrigen Hauptsignal aufwerten"),()=>Act(()=>{
                             RequireSelectedChange();if(Selected.Id!=row.Id)throw new InvalidOperationException("Signal erneut auswählen.");
                             repository.PromoteShunt(row.Id);Saved(LocalText.Select("Low main signal: Hp 0 / Hp 1 / Hp 2 / Sh 1. Code prefix updated; internal ID and position retained.","Niedriges Hauptsignal: Hp 0 / Hp 1 / Hp 2 / Sh 1. Kennungspräfix angepasst; interne ID und Position bleiben erhalten."));
                         }));}

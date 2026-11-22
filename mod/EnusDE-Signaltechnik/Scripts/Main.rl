@@ -1,4 +1,4 @@
-from railroader import ui, enusdeRecorderCommand, enusdeDiagnosticWindow, enusdeGrenzzeichen
+from railroader import ui, enusdeRecorderCommand, enusdeDiagnosticWindow, enusdeGrenzzeichen, enusdeAssetPacks
 
 // The native window owns stable, periodically updated text fields.
 // No Relay coroutine and no periodically rebuilt scroll view.
@@ -16,6 +16,10 @@ func onWorldLoad(ctx) {
     ui.registerCommand("enus_grenzzeichen", "Lokales Grenzzeichen: Vorschau, setzen, abbrechen, Status", (args) => {
         if length(args) > 0 { return enusdeGrenzzeichen(args[0]) }
         return enusdeGrenzzeichen("open")
+    })
+    ui.registerCommand("enus_assets", "Experimental presentation packs / Experimentelle Darstellungspakete", (args) => {
+        if length(args) > 0 { return enusdeAssetPacks(args[0]) }
+        return enusdeAssetPacks("status")
     })
     print("[EnusDE Signaltechnik] Konsolenbefehle bereit: /enus_signal und /enus_grenzzeichen.")
 }

@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 
 namespace EnusDE.Signaltechnik {
     public sealed class Entry : IModEntryPoint,IWorldLifecycle {
-        public const string Version="0.7.62";
+        public const string Version="0.7.63";
         static Recorder current;
         static DiagnosticWindow diagnostic;
         static MarkerRuntime markers;
@@ -77,11 +77,12 @@ namespace EnusDE.Signaltechnik {
             if(signals!=null)signals.ApplySettings(settings);
         }
         static void RegisterBridge(NativeModule module) {
-            module.Functions.RemoveAll(f=>f.Name=="enusdeRecorderStatus"||f.Name=="enusdeRecorderCommand"||f.Name=="enusdeVehicleSample"||f.Name=="enusdeDiagnosticWindow"||f.Name=="enusdeGrenzzeichen");
+            module.Functions.RemoveAll(f=>f.Name=="enusdeRecorderStatus"||f.Name=="enusdeRecorderCommand"||f.Name=="enusdeVehicleSample"||f.Name=="enusdeDiagnosticWindow"||f.Name=="enusdeGrenzzeichen"||f.Name=="enusdeAssetPacks");
             module.DefineFunction("enusdeRecorderStatus",0,args=>Status());
             module.DefineFunction("enusdeRecorderCommand",1,args=>Value.String(RecorderCommand(args[0].AsString())));
             module.DefineFunction("enusdeDiagnosticWindow",1,args=>{try{return Value.String(diagnostic==null?"Diagnosefenster nicht bereit: noch keine Sitzung geladen.":diagnostic.Command(args[0].AsString()));}catch(Exception e){return Value.String("Diagnosefenster nicht verfügbar: "+e.Message);}});
             module.DefineFunction("enusdeVehicleSample",1,args=>VehicleSample(args[0].AsString()));
+            module.DefineFunction("enusdeAssetPacks",1,args=>Value.String(shared==null?LocalText.Select("Load a world first.","Zuerst eine Welt laden."):shared.PresentationCommand(args[0].AsString())));
             module.DefineFunction("enusdeGrenzzeichen",1,args=>Value.String(MarkerCommand(args[0].AsString())));
         }
         static Value VehicleSample(string id) {

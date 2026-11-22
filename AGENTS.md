@@ -31,3 +31,10 @@
 - Use the native captive-wagon ordering and compatible existing MOW warehouse loading/unloading for the two stable signal cargo IDs. Keep active native MOW work-train completion and host authority. Do not recreate a parallel purchasing/depot interface.
 - Retain legacy balances and support explicit capacity-limited transfer with receipts. Native warehouse inventory belongs to the full game save, not an installation-configuration-only backup. Preserve stable object, route and cargo IDs.
 - Current point wiring retains the one-time nearby-stock charge; it is not yet work-car-driven. Document this boundary and require actual game/MP acceptance before claiming the new logistics or views tested in Unity.
+
+## Optional presentation packs (owner decision, 22 November 2026)
+
+- The main mod owns signal/route/AI authority. Optional installed packs implement the immutable presentation API and own their models, materials, light animations and cleanup. Keep the main usable without any pack and preserve saved IDs with a visible built-in fallback.
+- Runenwacht under `asset-packs/Runenwacht` is the public reference implementation. Its manifest pins the exact main/game versions; update this dependency when advancing the main version and run `Test.ps1`, which builds/checks both assemblies. Do not bundle main/game DLLs into the optional pack.
+- Keep each crystal's colour fixed, all crystal geometry physically installed, and conflicting light channels exclusive. Opaque backs/hoods and correct front/back orientation are part of the design. Rendering never grants movement authority.
+- Experiment activation is console-only and OFF per session; new selections additionally require an installed compatible pack and a separate saved world test license. Current licenses are free test grants, not paid purchases. No automatic asset transfer or completed in-game/MP validation may be claimed. Preserve host authority and bilingual UI/docs.

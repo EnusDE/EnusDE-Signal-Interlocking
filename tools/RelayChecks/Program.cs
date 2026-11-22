@@ -10,6 +10,7 @@ using System.Reflection.Emit;
 string managed = Path.GetFullPath(args[0]);
 AssemblyLoadContext.Default.Resolving += (context, name) => {
     string path = Path.Combine(managed, name.Name + ".dll");
+    if(name.Name=="EnusDE.Runenwacht")path=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"..","runenwacht","EnusDE.Runenwacht.dll"));
     return File.Exists(path) ? context.LoadFromAssemblyPath(path) : null;
 };
 var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(managed, args[1]));

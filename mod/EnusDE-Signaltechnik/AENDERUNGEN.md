@@ -1,3 +1,11 @@
+## 0.7.63 — optionale Darstellungspakete / Runenwacht-Experiment
+
+- Hauptmod liefert unveränderliche Signalzustände; separates optionales Runenwacht 0.1.0 zeichnet eigene prozedurale Modelle, gerichtete Blenden, feste Kristallfarben und widerspruchsfreie Lichtübergänge.
+- Gespeicherte Modellwahl und kostenlose Welt-Testlizenz; Konsolenaktivierung nur als Host, nach jedem Laden zunächst AUS. Kein Kauf und keine automatische Asset-Übertragung.
+- Haupt-, Vor-, Rangier- und kombinierte Köpfe behalten Signal-IDs, Fahrstraßen, Materialablauf und Betriebslogik. Fehlende/fehlerhafte Pakete erhalten sichtbaren Ersatz; gesperrte Umrüstungen bleiben gesperrt.
+- Beschriftungs-/Emissionsregler, passende Anklickflächen und Ressourcenfreigabe; zweisprachige Anleitung und öffentliche Entwicklerreferenz.
+- Offline-Build und Prüfungen; Darstellung, Sichtbarkeit, Leistung, Speichern/Laden und Mehrspielerbetrieb noch im Spiel zu prüfen.
+
 # 0.7.62-P0 – Materialkauf am Interchange
 
 - Fehlende native Übergabelieferanten für Signalbaumaterial und Signaltechnik ergänzt. Wagenauswahl und MOW-Lager bleiben erhalten.

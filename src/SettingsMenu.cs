@@ -90,6 +90,8 @@ namespace EnusDE.Signaltechnik {
             b.AddButton(LocalText.Get("Materiallager und Bauaufträge öffnen"),Entry.OpenMaterials);
         }
         void MarkerSettings(UIPanelBuilder b) {
+            b.AddLabel(Entry.Shared?.PresentationStatus??LocalText.Select("Experimental presentation packs: load a world for status.","Experimentelle Darstellungspakete: Welt für Status laden."));
+            b.AddLabel(LocalText.Select("Console-only experiment. Installed packs need a separate world test license. Existing models remain visible when disabled; a missing pack uses built-in signals.","Experiment nur per Konsole. Installierte Pakete benötigen eine eigene Welt-Testlizenz. Bestehende Modelle bleiben beim Abschalten sichtbar; fehlende Pakete verwenden eingebaute Signale."));
             Toggle(b,LocalText.Select("Build new signals with a GFM box","Neue Signale mit GFM-Kasten bauen"),()=>draft.Markers.NewSignalsWithGfm,v=>draft.Markers.NewSignalsWithGfm=v);
             b.AddLabel(LocalText.Select("Applies to new signals only. Existing boxes are retained. A box defines a boundary; complete sections still need valid boundary pairs and track recognition.","Gilt nur für neue Signale. Vorhandene Kästen bleiben erhalten. Ein Kasten definiert eine Grenze; vollständige Abschnitte benötigen passende Grenzpaare und Gleiserkennung."));
             Toggle(b,LocalText.Select("Enable Hl signal system (Test)","Hl-Signalsystem aktivieren (Test)"),()=>draft.Markers.EnableHlSignalsTest,v=>draft.Markers.EnableHlSignalsTest=v);

@@ -46,6 +46,7 @@ namespace EnusDE.Signaltechnik {
         public MarkerDocument Objects;
         public MaterialLedger Economy=new MaterialLedger();
         public ServerPlacement Placement=new ServerPlacement();
+        public List<string> PresentationLicenses=new List<string>();
         public Dictionary<string,string> TrainNumbers=new Dictionary<string,string>();
         public Dictionary<string,string> SignalNumberFields=new Dictionary<string,string>();
         public List<RetiredSignal> Retired=new List<RetiredSignal>();
@@ -54,6 +55,7 @@ namespace EnusDE.Signaltechnik {
             if(Retired==null||Retired.Count>512||Retired.Any(r=>r==null)||Retired.Select(r=>r.Id).Distinct().Count()!=Retired.Count)throw new InvalidDataException("Ungültigkeitsmarkierungen ungültig.");foreach(var retired in Retired)retired.Validate();
             if(Protocol!=1||WorldKey==null||WorldKey.Length!=64||WorldKey.Any(c=>!Uri.IsHexDigit(c))||string.IsNullOrWhiteSpace(Map)||Objects==null||Objects.WorldKey!=WorldKey||Objects.Map!=Map||Economy==null||Placement==null)throw new InvalidDataException("Gemeinsamer Anlagenbestand ungültig.");
             MarkerRepository.ValidateDocument(Objects,WorldKey,Map);Economy.Validate();if(Economy.Built.Keys.Any(id=>!Objects.Markers.Any(m=>m.Id==id)))throw new InvalidDataException("Bauabrechnung ohne Anlage.");
+            if(PresentationLicenses==null||PresentationLicenses.Count>32||PresentationLicenses.Any(id=>!SignalPresentationPacks.ValidId(id))||PresentationLicenses.Distinct().Count()!=PresentationLicenses.Count)throw new InvalidDataException(LocalText.Select("Invalid presentation licenses.","Ungültige Darstellungslizenzen."));
             Placement.Validate();
             if(TrainNumbers==null||TrainNumbers.Count>2048||TrainNumbers.Any(p=>string.IsNullOrWhiteSpace(p.Key)||p.Key.Length>128||p.Value==null||p.Value.Length<5||p.Value.Length>6||p.Value.Any(c=>c<'0'||c>'9')))throw new InvalidDataException("Zugnummernzuordnung ungültig.");
             if(SignalNumberFields==null||SignalNumberFields.Count>2048||SignalNumberFields.Any(p=>

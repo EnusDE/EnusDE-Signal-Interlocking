@@ -3,11 +3,15 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'tools/Build-Environment.ps1')
 if([string]::IsNullOrWhiteSpace($env:DOTNET_CLI_HOME)){$env:DOTNET_CLI_HOME=Join-Path $PSScriptRoot 'build\dotnet-home'}
 & (Join-Path $PSScriptRoot 'Build-Recorder.ps1') -GameDirectory $GameDirectory
+& (Join-Path $PSScriptRoot 'asset-packs/Runenwacht/Build.ps1') -GameDirectory $GameDirectory
 & (Join-Path $PSScriptRoot 'tools\Build-Checks.ps1') -GameDirectory $GameDirectory
 $managed=Get-RailroaderManagedDirectory $GameDirectory
 $checker=Join-Path $PSScriptRoot 'build\checks\RelayChecks.dll'
 $script=Join-Path $PSScriptRoot 'mod\EnusDE-Signaltechnik\Scripts\Main.rl'
 $results=@()
+$result=& (Join-Path $PSScriptRoot 'tools/Test-RunenwachtGeometry.ps1') 2>&1
+$results+=$result
+$result | ForEach-Object {Write-Output $_}
 $result=& (Join-Path $PSScriptRoot 'tools\Test-SettingsWindow.ps1') 2>&1
 $results+=$result
 $result | ForEach-Object {Write-Output $_}
@@ -39,7 +43,7 @@ foreach($mode in @('native','bridge')){
 }
 $mod=Join-Path $PSScriptRoot 'mod\EnusDE-Signaltechnik'
 $manifest=Get-Content -LiteralPath (Join-Path $mod 'Info.json') -Raw | ConvertFrom-Json
-if($manifest.identifier -ne 'enusde/signaltechnik' -or $manifest.version -ne '0.7.62'){throw 'Unerwartete Paketkennung/Version.'}
+if($manifest.identifier -ne 'enusde/signaltechnik' -or $manifest.version -ne '0.7.63'){throw 'Unerwartete Paketkennung/Version.'}
 if($manifest.dependencies.required.Count -ne 1 -or $manifest.dependencies.required[0] -ne 'rr/game ==0.6.3'){throw 'Unerwartete Spiel-/Mod-Abhängigkeit.'}
 if($manifest.scope -ne 'unscoped' -or $manifest.assemblies.Count -ne 1 -or $manifest.assemblies[0] -ne 'EnusDE.Signaltechnik.dll'){throw 'Gemeinsame Anlage muss dieselbe Pflichtversion und nur die eigene Assembly deklarieren.'}
 if(Get-ChildItem -LiteralPath $mod -Recurse -File | Where-Object {$_.Extension -in @('.dll','.exe','.ps1')}){throw 'Testwerkzeug im spielbaren Paket gefunden.'}

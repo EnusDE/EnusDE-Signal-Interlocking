@@ -75,10 +75,12 @@ namespace EnusDE.Signaltechnik {
         Material circuitWhite,circuitBlack,circuitGray;
         GameObject preview;
         string previewKind;
+        int presentationGeneration=-1;
         readonly Dictionary<GameObject,TextMeshPro[]> captions=new Dictionary<GameObject,TextMeshPro[]>();
         readonly SignalModels signals=new SignalModels();
         public string GlowStatus=>signals.GlowStatus;
-        public void ApplyGlow(SignalGlowOptions options)=>signals.ApplyGlow(options);
+        float packageEmissionStrength=1;
+        public void ApplyGlow(SignalGlowOptions options){var value=(options??new SignalGlowOptions()).Normalize();packageEmissionStrength=value.Enabled?(float)value.Radiance/6:0;signals.ApplyGlow(value);}
         public void GlowView(Vector3? position)=>signals.View(position);
         LineRenderer line;
         public int VisibleCount=>objects.Count;
@@ -115,7 +117,7 @@ namespace EnusDE.Signaltechnik {
             foreach(string key in new[]{"_Metallic","_Smoothness","_Glossiness","_EmissiveIntensity"})if(value.HasProperty(key))value.SetFloat(key,0);
             return value;
         }
-        GameObject Create(string name,bool ghost,string kind,bool low=false,bool hl=false,bool site=false) {
+        GameObject Create(string name,bool ghost,string kind,bool low=false,bool hl=false,bool site=false,string presentationPack=null) {
             Resources();var root=new GameObject(name);root.layer=2;
             if(owner!=null)root.transform.SetParent(owner,false);
             if(site) {
@@ -127,6 +129,15 @@ namespace EnusDE.Signaltechnik {
                 return root;
             }
             if(kind==MarkerRecord.Main||kind==MarkerRecord.Distant||kind==MarkerRecord.Shunt) {
+                var provider=SignalPresentationPacks.Find(presentationPack);
+                if(provider!=null) {
+                    var visualRoot=new GameObject("Signal presentation pack");visualRoot.layer=2;visualRoot.transform.SetParent(root.transform,false);
+                    if(visualRoot.AddComponent<PackageSignalVisual>().Initialize(provider,kind,ghost)) {
+                        WorldTransformer packMover;if(WorldTransformer.TryGetShared(out packMover)){packMover.AddObjectToMove(root.transform);movers[root]=packMover;}
+                        return root;
+                    }
+                    visualRoot.SetActive(false);UnityEngine.Object.Destroy(visualRoot);
+                }
                 if(kind==MarkerRecord.Main){signals.BuildMast(root,ghost,low);BuildFoundation(root,ghost);}else signals.Build(root,kind,ghost,false,true,false,hl);WorldTransformer transformer;if(WorldTransformer.TryGetShared(out transformer)){transformer.AddObjectToMove(root.transform);movers[root]=transformer;}return root;
             }
             bool circuit=MarkerRecord.IsCircuitKind(kind);
@@ -153,29 +164,30 @@ namespace EnusDE.Signaltechnik {
             root.transform.position=gamePosition.GameToWorld();root.transform.rotation=rotation;root.transform.localScale=Vector3.one*(float)anchor.Scale;root.SetActive(true);
         }
         public bool Show(MarkerRecord record,out string reason,string unitMode="original") {
+            if(presentationGeneration!=SignalPresentationPacks.Generation){foreach(var id in new List<string>(objects.Keys))Remove(id);presentationGeneration=SignalPresentationPacks.Generation;}
             Vector3 p;Quaternion q;GameObject root;
             if(!geometry.Resolve(record.Anchor,out p,out q,out reason)){if(objects.TryGetValue(record.Id,out root))root.SetActive(false);return false;}
             var visual=ConstructionViewPolicy.For(record.Planned,Building);
             int revision;if(objects.TryGetValue(record.Id,out root)&&revisions.TryGetValue(record.Id,out revision)&&(revision!=record.VisualRevision||!visualKinds.TryGetValue(record.Id,out var previousVisual)||previousVisual!=visual||root.GetComponent<CircuitVisual>() is CircuitVisual circuit&&circuit.Variant!=CircuitIdentity.Variant(record))){Remove(record.Id);root=null;}
-            if(!objects.TryGetValue(record.Id,out root)){root=Create("EnusDE "+record.DisplayTitle,record.Planned,record.Kind,record.LowMain,record.HlSignal,visual==ConstructionVisual.Site);objects[record.Id]=root;revisions[record.Id]=record.VisualRevision;visualKinds[record.Id]=visual;MarkerPickable.Attach(root,record,site:visual==ConstructionVisual.Site);if(visual!=ConstructionVisual.Site&&(record.IsCircuitBox||record.IsSignal))BuildCircuitVisual(root,record);}
+            if(!objects.TryGetValue(record.Id,out root)){root=Create("EnusDE "+record.DisplayTitle,record.Planned,record.Kind,record.LowMain,record.HlSignal,visual==ConstructionVisual.Site,record.PresentationPack);objects[record.Id]=root;revisions[record.Id]=record.VisualRevision;visualKinds[record.Id]=visual;MarkerPickable.Attach(root,record,site:visual==ConstructionVisual.Site);if(visual!=ConstructionVisual.Site&&(record.IsCircuitBox||record.IsSignal))BuildCircuitVisual(root,record);}
             if(visual==ConstructionVisual.Site){var ground=record.Anchor.Clone();ground.FixedHeight=false;ground.Height=0;ground.Scale=1;Pose(root,ground,p-q*Vector3.up*(float)record.Anchor.Height,q);SetGroundPose(root,ground);return true;}
-            Pose(root,record.Anchor,p,q);if(record.IsCircuitBox)root.transform.rotation=q*Quaternion.Euler(0,(float)CircuitIdentity.FacingDegrees(record),0);if(record.IsSignal||record.IsCircuitBox)SetGroundPose(root,record.Anchor);if(record.Kind==MarkerRecord.Main)signals.ShowMast(root,record);else if(record.IsSignal)signals.Show(root,record,Entry.SignalAspect(record.Id));else Caption(root,record.SpeedMph,unitMode);if(record.IsSignal||record.IsCircuitBox)PoseGroundSupport(root,record.IsCircuitBox?CircuitSupportAnchor(record):record.Anchor);PoseCircuit(root,record);return true;
+            Pose(root,record.Anchor,p,q);if(record.IsCircuitBox)root.transform.rotation=q*Quaternion.Euler(0,(float)CircuitIdentity.FacingDegrees(record),0);if(record.IsSignal||record.IsCircuitBox)SetGroundPose(root,record.Anchor);var custom=root.GetComponentInChildren<PackageSignalVisual>();if(custom!=null){root.transform.rotation=q*Quaternion.Euler(0,record.FacingReverse?180:0,0);if(!custom.Apply(record,record.Planned,packageEmissionStrength)){Remove(record.Id);return Show(record,out reason,unitMode);}}else if(record.Kind==MarkerRecord.Main)signals.ShowMast(root,record);else if(record.IsSignal)signals.Show(root,record,Entry.SignalAspect(record.Id));else Caption(root,record.SpeedMph,unitMode);if(record.IsSignal||record.IsCircuitBox)PoseGroundSupport(root,record.IsCircuitBox?CircuitSupportAnchor(record):record.Anchor);PoseCircuit(root,record);return true;
         }
         void Caption(GameObject root,double mph,string mode) {
             TextMeshPro[] texts;if(!captions.TryGetValue(root,out texts))return;
             string label=SignUnits.Caption(mph,mode);foreach(var text in texts)if(text!=null&&text.text!=label)text.text=label;
         }
-        public void ShowPreview(MarkerAnchor anchor,string kind=MarkerRecord.Clearance,double mph=20,string unitMode="original",bool reverse=false,double circuitYaw=0,bool hl=false) {
+        public void ShowPreview(MarkerAnchor anchor,string kind=MarkerRecord.Clearance,double mph=20,string unitMode="original",bool reverse=false,double circuitYaw=0,bool hl=false,string presentationPack=null) {
             Vector3 p;Quaternion q;string reason;
             if(anchor==null||!geometry.Resolve(anchor,out p,out q,out reason)){HidePreview();return;}
-            string modelKey=kind+(hl?":hl":"");
+            string modelKey=kind+(hl?":hl":"")+":"+presentationPack+":"+SignalPresentationPacks.Generation;
             if(preview!=null&&previewKind!=modelKey){DestroyObject(preview);preview=null;line=null;}
             if(preview==null) {
-                preview=Create("EnusDE object preview",true,kind,false,hl);previewKind=modelKey;
+                preview=Create("EnusDE object preview",true,kind,false,hl,false,presentationPack);previewKind=modelKey;
                 var lines=new GameObject("EnusDE track preview line");lines.layer=2;lines.transform.SetParent(preview.transform,false);
                 line=lines.AddComponent<LineRenderer>();line.useWorldSpace=false;line.sharedMaterial=blue;line.startWidth=line.endWidth=.035f;line.shadowCastingMode=ShadowCastingMode.Off;line.receiveShadows=false;
             }
-            Pose(preview,anchor,p,q);if(MarkerRecord.IsCircuitKind(kind))preview.transform.rotation=q*Quaternion.Euler(0,(reverse?180:0)+(float)circuitYaw,0);if(kind==MarkerRecord.Main||kind==MarkerRecord.Shunt||kind==MarkerRecord.Distant||MarkerRecord.IsCircuitKind(kind))SetGroundPose(preview,anchor);if(kind==MarkerRecord.Main)signals.ShowMast(preview,new MarkerRecord{Id="00000000000000000000000000000001",Name="VORSCHAU",Kind=kind,FacingReverse=reverse,HlSignal=hl});else if(kind==MarkerRecord.Distant||kind==MarkerRecord.Shunt)signals.Show(preview,new MarkerRecord{Name="VORSCHAU",Kind=kind,FacingReverse=reverse},LocalSignalAspect.Stop);else Caption(preview,mph,unitMode);if(kind==MarkerRecord.Main||kind==MarkerRecord.Shunt||kind==MarkerRecord.Distant||MarkerRecord.IsCircuitKind(kind))PoseGroundSupport(preview,anchor,true);var points=geometry.PreviewLine(anchor);
+            Pose(preview,anchor,p,q);if(MarkerRecord.IsCircuitKind(kind))preview.transform.rotation=q*Quaternion.Euler(0,(reverse?180:0)+(float)circuitYaw,0);if(kind==MarkerRecord.Main||kind==MarkerRecord.Shunt||kind==MarkerRecord.Distant||MarkerRecord.IsCircuitKind(kind))SetGroundPose(preview,anchor);var custom=preview.GetComponentInChildren<PackageSignalVisual>();if(custom!=null){preview.transform.rotation=q*Quaternion.Euler(0,reverse?180:0,0);custom.Apply(new MarkerRecord{Id="00000000000000000000000000000001",Name="PREVIEW",Kind=kind,PresentationPack=presentationPack},true,packageEmissionStrength);}else if(kind==MarkerRecord.Main)signals.ShowMast(preview,new MarkerRecord{Id="00000000000000000000000000000001",Name="VORSCHAU",Kind=kind,FacingReverse=reverse,HlSignal=hl});else if(kind==MarkerRecord.Distant||kind==MarkerRecord.Shunt)signals.Show(preview,new MarkerRecord{Name="VORSCHAU",Kind=kind,FacingReverse=reverse},LocalSignalAspect.Stop);else Caption(preview,mph,unitMode);if(kind==MarkerRecord.Main||kind==MarkerRecord.Shunt||kind==MarkerRecord.Distant||MarkerRecord.IsCircuitKind(kind))PoseGroundSupport(preview,anchor,true);var points=geometry.PreviewLine(anchor);
             // Keep the frozen line attached when the game shifts its floating origin.
             for(int i=0;i<points.Length;i++)points[i]=line.transform.InverseTransformPoint(points[i]);
             line.positionCount=points.Length;line.SetPositions(points);

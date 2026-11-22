@@ -67,6 +67,7 @@ namespace EnusDE.Signaltechnik {
         public bool LowMain;
         [JsonProperty(DefaultValueHandling=DefaultValueHandling.Ignore)]
         public bool HlSignal;
+        [JsonProperty(NullValueHandling=NullValueHandling.Ignore)] public string PresentationPack;
         public MastConfiguration Mast;
         public int VisualRevision;
         public bool UseHostPlacement=true;
@@ -79,7 +80,7 @@ namespace EnusDE.Signaltechnik {
         public bool IsSignal=>Kind==Main||Kind==Distant||Kind==Shunt;
         public static string KindLabel(string kind)=>kind==CircuitC?LocalText.Select("One-sided detection boundary C","Einseitige Freimeldegrenze C"):LocalText.Get(kind==Main?"Signalmast":kind==Distant?"Vorsignal":kind==Shunt?"Rangiersignal":kind==Speed?"Geschwindigkeitsschild":kind==CircuitA||kind==CircuitB?"Gleisfreimeldekasten B":"Grenzzeichen");
         public MarkerAnchor Anchor;
-        public MarkerRecord Clone()=>new MarkerRecord{Id=Id,Name=Name,PreviousCode=PreviousCode,MastName=MastName,DisplayName=DisplayName,LabelScale=LabelScale,Kind=Kind,LowMain=LowMain,HlSignal=HlSignal,SpeedMph=SpeedMph,CircuitNumber=CircuitNumber,CircuitVariant=CircuitVariant,CircuitOffset=CircuitOffset,CircuitYaw=CircuitYaw,CircuitSupport=CircuitSupport,CircuitReverse=CircuitReverse,FacingReverse=FacingReverse,Planned=Planned,LinkedSignal=LinkedSignal,Mast=Mast?.Clone(),VisualRevision=VisualRevision,UseHostPlacement=UseHostPlacement,PhysicalId=PhysicalId,SharedPointBoundary=SharedPointBoundary,CircuitAnchor=CircuitAnchor?.Clone(),AllowHp1=AllowHp1,AllowHp2=AllowHp2,AllowSh1=AllowSh1,Anchor=Anchor.Clone()};
+        public MarkerRecord Clone()=>new MarkerRecord{Id=Id,Name=Name,PreviousCode=PreviousCode,MastName=MastName,DisplayName=DisplayName,LabelScale=LabelScale,Kind=Kind,LowMain=LowMain,HlSignal=HlSignal,PresentationPack=PresentationPack,SpeedMph=SpeedMph,CircuitNumber=CircuitNumber,CircuitVariant=CircuitVariant,CircuitOffset=CircuitOffset,CircuitYaw=CircuitYaw,CircuitSupport=CircuitSupport,CircuitReverse=CircuitReverse,FacingReverse=FacingReverse,Planned=Planned,LinkedSignal=LinkedSignal,Mast=Mast?.Clone(),VisualRevision=VisualRevision,UseHostPlacement=UseHostPlacement,PhysicalId=PhysicalId,SharedPointBoundary=SharedPointBoundary,CircuitAnchor=CircuitAnchor?.Clone(),AllowHp1=AllowHp1,AllowHp2=AllowHp2,AllowSh1=AllowSh1,Anchor=Anchor.Clone()};
     }
     public sealed class MarkerDocument {
         public int Schema=1,NextNumber=1,NextCircuitNumber=1;
@@ -111,7 +112,7 @@ namespace EnusDE.Signaltechnik {
             string text=Path.GetFullPath(railroadPath).ToUpperInvariant()+"|"+map;
             using(var hash=SHA256.Create())return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-","").ToLowerInvariant();
         }
-        public MarkerRecord Put(MarkerAnchor anchor,string existingId=null,string kind=null,double? speedMph=null,bool? useHost=null,bool? reverse=null,bool? hlSignal=null,bool newSignalGfm=true) {
+        public MarkerRecord Put(MarkerAnchor anchor,string existingId=null,string kind=null,double? speedMph=null,bool? useHost=null,bool? reverse=null,bool? hlSignal=null,bool newSignalGfm=true,string presentationPack=null) {
             if(kind==MarkerRecord.CircuitA)kind=MarkerRecord.CircuitB;
             anchor.Validate();var next=Copy();MarkerRecord row;
             if(existingId==null) {
@@ -128,6 +129,7 @@ namespace EnusDE.Signaltechnik {
             if(useHost.HasValue)row.UseHostPlacement=useHost.Value;
             if(reverse.HasValue)row.FacingReverse=reverse.Value;
             if(hlSignal.HasValue)row.HlSignal=hlSignal.Value;
+            if(existingId==null)row.PresentationPack=presentationPack;
             if(row.Kind==MarkerRecord.Main&&row.Mast==null)row.Mast=MastConfiguration.Legacy(row);
             Save(next);return document.Markers.First(m=>m.Id==row.Id).Clone();
         }
@@ -159,15 +161,23 @@ namespace EnusDE.Signaltechnik {
         public void ConfigureLowMain(string id,bool low) {
             var next=Copy();var row=next.Markers.SingleOrDefault(m=>m.Id==id&&m.Kind==MarkerRecord.Main);
             if(row==null)throw new InvalidOperationException("Hauptsignal auswählen.");
+            if(low&&row.PresentationPack!=null)throw new InvalidOperationException(LocalText.Select("Select the built-in presentation first.","Zuerst die eingebaute Darstellung auswählen."));
             if(low&&row.HlSignal)throw new InvalidOperationException(LocalText.Select("The Hl test model requires a high mast. Select H/V first.","Das Hl-Testmodell benötigt einen hohen Mast. Zuerst H/V auswählen."));
             if(low&&(MastConfiguration.Effective(row).Front.DistantHead||MastConfiguration.Effective(row).Back.DistantHead))
                 throw new InvalidOperationException("Vorsignalköpfe vor der Umrüstung entfernen.");
             if(row.Name.StartsWith("RS-",StringComparison.OrdinalIgnoreCase))UpgradeSignalCode(next,row);
             row.LowMain=low;row.VisualRevision++;Save(next);
         }
+        public void ConfigurePresentation(string id,string pack) {
+            var next=Copy();var row=next.Markers.Single(m=>m.Id==id&&m.IsSignal);
+            if(row.PresentationPack==pack)return;
+            row.PresentationPack=pack;if(pack!=null){row.HlSignal=false;row.LowMain=false;}
+            row.VisualRevision++;Save(next);
+        }
         public void ConfigureHlSignal(string id,bool hl) {
             var next=Copy();var row=next.Markers.SingleOrDefault(m=>m.Id==id&&(m.Kind==MarkerRecord.Main||m.Kind==MarkerRecord.Distant));
             if(row==null)throw new InvalidOperationException(LocalText.Select("Select a main or distant signal.","Haupt- oder Vorsignal auswählen."));
+            if(hl&&row.PresentationPack!=null)throw new InvalidOperationException(LocalText.Select("Select the built-in presentation first.","Zuerst die eingebaute Darstellung auswählen."));
             if(hl&&row.LowMain)throw new InvalidOperationException(LocalText.Select("Convert to a high mast before selecting Hl.","Vor der Hl-Auswahl auf einen hohen Mast umrüsten."));
             if(row.HlSignal==hl)return;
             row.HlSignal=hl;row.VisualRevision++;Save(next);
@@ -237,7 +247,7 @@ namespace EnusDE.Signaltechnik {
             foreach(var row in value.Markers) {
                 Guid id;if(row==null||!Guid.TryParseExact(row.Id,"N",out id)||!ids.Add(row.Id)||string.IsNullOrWhiteSpace(row.Name)||row.Name.Length>48||(row.Kind!=MarkerRecord.Main||row.Mast==null)&&!names.Add(row.Name)||row.Anchor==null)throw new InvalidDataException("Ungültige oder doppelte Grenzzeichenkennung.");
                 if(row.LowMain&&(row.Kind!=MarkerRecord.Main||MastConfiguration.Effective(row).Front.DistantHead||MastConfiguration.Effective(row).Back.DistantHead))throw new InvalidDataException("Niedriges Hauptsignal: ungültige Bauart oder Vorsignalkopf.");
-                SignalLabel.Validate(row.DisplayName,row.LabelScale);
+                SignalLabel.Validate(row.DisplayName,row.LabelScale);SignalPresentationPacks.ValidateSelection(row);
                 if(row.HlSignal&&(row.LowMain||row.Kind!=MarkerRecord.Main&&row.Kind!=MarkerRecord.Distant))throw new InvalidDataException(LocalText.Select("Invalid Hl signal model.","Ungültige Hl-Signalbauart."));
                 SignalLabel.Validate(row.PreviousCode,null);
                 row.Anchor.Validate();
@@ -268,9 +278,10 @@ namespace EnusDE.Signaltechnik {
         public bool FacingReverse {get;private set;}
         public bool UseHostPlacement {get;set;}=true;
         public bool HlSignal {get;set;}
+        public string PresentationPack {get;set;}
         public bool NewSignalGfm {get;set;}=true;
-        public void Start(MarkerOptions options,string kind=MarkerRecord.Clearance,bool repeatSignals=false){Candidate=null;fixedHeight=groundSupport=false;EditingId=null;Aiming=true;Kind=kind;SpeedMph=20;FacingReverse=false;UseHostPlacement=true;HlSignal=false;NewSignalGfm=options.NewSignalsWithGfm;Repeating=repeatSignals&&(kind==MarkerRecord.Main||kind==MarkerRecord.Distant||kind==MarkerRecord.Shunt);}
-        public void Edit(MarkerRecord record){Repeating=Repeating&&record.Id==null;Candidate=record.Anchor.Clone();fixedHeight=Candidate.FixedHeight;groundSupport=Candidate.GroundSupport;EditingId=record.Id;Aiming=false;Kind=record.Kind;SpeedMph=record.SpeedMph;FacingReverse=record.FacingReverse;UseHostPlacement=record.UseHostPlacement;}
+        public void Start(MarkerOptions options,string kind=MarkerRecord.Clearance,bool repeatSignals=false){Candidate=null;fixedHeight=groundSupport=false;EditingId=null;Aiming=true;Kind=kind;SpeedMph=20;FacingReverse=false;UseHostPlacement=true;HlSignal=false;PresentationPack=null;NewSignalGfm=options.NewSignalsWithGfm;Repeating=repeatSignals&&(kind==MarkerRecord.Main||kind==MarkerRecord.Distant||kind==MarkerRecord.Shunt);}
+        public void Edit(MarkerRecord record){Repeating=Repeating&&record.Id==null;Candidate=record.Anchor.Clone();fixedHeight=Candidate.FixedHeight;groundSupport=Candidate.GroundSupport;EditingId=record.Id;Aiming=false;Kind=record.Kind;PresentationPack=record.PresentationPack;HlSignal=record.HlSignal;SpeedMph=record.SpeedMph;FacingReverse=record.FacingReverse;UseHostPlacement=record.UseHostPlacement;}
         public void Offer(MarkerAnchor anchor){if(Aiming){Candidate=anchor?.Clone();if(Candidate!=null){Candidate.FixedHeight=fixedHeight;Candidate.GroundSupport=groundSupport;}}}
         public void Face(bool reverse){FacingReverse=reverse;}
         public void Freeze(){if(Candidate==null)throw new InvalidOperationException("Noch keine gültige Gleisposition gewählt.");Aiming=false;}
@@ -278,7 +289,7 @@ namespace EnusDE.Signaltechnik {
         public void Cancel(){Candidate=null;EditingId=null;Aiming=false;Repeating=false;}
         public MarkerRecord Commit(MarkerRepository repository,Func<MarkerAnchor,bool> valid) {
             if(Candidate==null||!valid(Candidate))throw new InvalidOperationException("Gleisposition nicht mehr gültig; erneut zielen.");
-            var row=repository.Put(Candidate,EditingId,Kind,SpeedMph,UseHostPlacement,FacingReverse,EditingId==null?(bool?)HlSignal:null,NewSignalGfm);
+            var row=repository.Put(Candidate,EditingId,Kind,SpeedMph,UseHostPlacement,FacingReverse,EditingId==null?(bool?)HlSignal:null,NewSignalGfm,PresentationPack);
             if(Repeating&&EditingId==null){Candidate=null;Aiming=true;}else Cancel();return row;
         }
     }

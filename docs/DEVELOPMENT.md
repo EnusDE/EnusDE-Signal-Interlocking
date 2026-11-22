@@ -1,4 +1,28 @@
-# Development status and continuation — 0.7.62
+# Development status and continuation — 0.7.63
+
+[Deutsch](#aktueller-stand-deutsch) · [Pack reference](../asset-packs/Runenwacht/README.md) · [English game checklist](../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.63.en.md)
+
+## Current checkpoint
+
+Main **0.7.63**, Runenwacht **0.1.0**, Railroader **0.6.3**, Early Alpha. `main` remains canonical. Optional presentation API v1 sends immutable resolved head states to a separately compiled mod; original interlocking/AI/route/material authority stays in the main mod. Runenwacht generates detailed original meshes with opaque directional housings, fixed-colour crystals, exclusive animated ignition/extinction and local brightness/label controls. Creation/update failures quarantine the renderer and restore visible built-in signals while keeping saved IDs. Model choice and per-world free test licenses persist; session activation defaults OFF and new selections are centrally host/licence/provider guarded.
+
+The **22 November 2026 full Test.ps1 run passed 1,930 PASS, 0 FAIL**. Both production assemblies compile against the available original local game libraries; player metadata identifies Railroader 0.6.3. An earlier original-library availability gap was closed before this task in the 0.7.62 baseline. The new checks cover registration/unload/version mismatch, immutable snapshots, fixed channels, exclusive transitions including immediate restrictive changes, bounded visual controls, saved licenses/model selection, legacy documents, central placement policy, Relay commands and manifest dependencies. Eleven geometry checks compile the actual procedural geometry against controlled math/mesh stand-ins, checking closed caps/crystals, ring walls, material indices and finite triangles. This is not a Unity renderer test.
+
+Existing complete suite includes native material/API, construction, route, block, settings and English/German checks. Both language catalogs and generated fallback were updated. Old archives are preserved; separately named test packages contain only their own mod assembly/docs/notices. No runtime installation, game launch, tag or public release was performed. Source commits are not release assets.
+
+## Continue here
+
+Use the Runenwacht English/German guide's acceptance checklist next: front/rear/oblique day/night visibility, combined head states, shader/emission behaviour, pick/ground clearances, native construction/material completion, save/reload/move/conversion, missing-pack fallback, reload cleanup, frame time and host/client/late-join behaviour. All remain unverified in the running game. No automatic asset streaming, paid license purchase, wagon load replacements, audio/video, baked textures, LODs or new train automation is included. Public provider API is an architectural contract for installed trusted mods, not a security sandbox.
+
+## Aktueller Stand Deutsch
+
+**Hauptmod 0.7.63 / Runenwacht 0.1.0 / Railroader 0.6.3.** Optionales getrenntes Darstellungspaket mit eigenen 3D-Modellen, festen Kristallfarben, Lichtanimationen und Blenden. Hauptmod behält Betriebslogik und IDs. Welt-Testlizenz kostenlos und gespeichert; Aktivierung nach jedem Laden AUS, Freischaltung nur als Host. Fehlende oder defekte Pakete erhalten sichtbare eingebaute Ersatzsignale. Vollständiger Testlauf am 22.11.2026: **1.930 PASS, 0 FAIL**, beide Assemblies gebaut, beide Sprachkataloge geprüft. Elf Geometrieprüfungen verwenden kontrollierte Stellvertreter; kein Unity-Bildtest. Die ursprüngliche Bibliothekslücke war bereits im übernommenen 0.7.62-Stand geschlossen.
+
+Noch offen: tatsächliche Sichtbarkeit/Shader, alle Signalbilder, Boden-/Klickflächen, Materialablauf, Speichern/Verschieben/Umrüsten, Paketverlust, Ressourcen und Leistung sowie Mehrspielerbetrieb im Spiel. Keine Installation und kein Spielstart erfolgt. [Deutsche Testanleitung](../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.63.de.md). Folgendes dokumentiert den unverändert erhaltenen vorherigen Stand.
+
+---
+
+# Previous checkpoint — 0.7.62
 
 [Deutsch](#deutsch) · [Project overview](../README.md) · [Build instructions](BUILD.md)
 

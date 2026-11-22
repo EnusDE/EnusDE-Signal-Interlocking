@@ -1,4 +1,8 @@
-# EnusDE Signal & Interlocking 0.7.62-P0
+# EnusDE Signal & Interlocking 0.7.63-P0
+
+0.7.63 adds the optional presentation API and separate experimental Runenwacht 0.1.0 crystal-signal pack. The main mod does not depend on it. [Setup/API acceptance guide](Guides/RUNENWACHT-0.7.63.en.md) · [Deutsche Anleitung](Guides/RUNENWACHT-0.7.63.de.md). Session activation is OFF by default; world test licenses are free. Existing saved choices retain signal/route IDs and use visible built-in fallback when the pack is missing. Manual restart and matching main/pack versions on all participants; game/rendering/multiplayer tests remain open.
+
+Hauptmod 0.7.63 mit optionalem Runenwacht-Paket 0.1.0: eigene Modelle, feste Kristallfarben, Lichtanimationen und rückseitige Blenden. Freischaltung nur experimentell per Konsole plus Welt-Testlizenz. Kein Kauf und keine automatische Asset-Übertragung.
 
 0.7.62 adds missing native interchange Buy suppliers for both signal cargos. The wagon selection is retained. [Buying and cargo appearance](Guides/INTERCHANGE-0.7.62.en.md) · [Einkauf und Ladungsdarstellung](Guides/INTERCHANGE-0.7.62.de.md). Manual install, full restart and matching 0.7.62 for all participants. Actual buying/service/return and rendering still require game acceptance.
 

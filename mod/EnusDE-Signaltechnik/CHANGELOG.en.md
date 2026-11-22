@@ -1,3 +1,11 @@
+## 0.7.63 — optional presentation packs / Runenwacht experiment
+
+- Main-owned immutable signal state API; separate optional Runenwacht 0.1.0 mod supplies original procedural models, directional shields, fixed-colour crystals and exclusive light fades.
+- Persisted model choices and free world test licenses; host-only console activation resets OFF each world load. No paid purchase or automatic asset transfer.
+- Main/distant/shunting and combined heads retain existing signal IDs, routes, material workflow and operating authority. Missing/faulty providers fall back visibly; route-locked conversions remain blocked.
+- Existing label/emission controls, model click bounds and idempotent Unity resource cleanup; bilingual setup and public pack-author reference.
+- Offline build/tests only; renderer, camera visibility, performance, save/reload and multiplayer acceptance remain open.
+
 # 0.7.62-P0 – Native interchange purchases
 
 - Added the missing two native interchange suppliers for signal building supplies and signal equipment; existing Equipment wagon selection and MOW storage remain.
