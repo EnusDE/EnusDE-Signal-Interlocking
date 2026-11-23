@@ -1,8 +1,12 @@
-# Runenwacht 0.2.0 — presentation API v1 example
+# Runenwacht 0.2.1 — presentation API v1 example
 
 [Deutsch](#deutsch) · [English installation and acceptance guide](../../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.en.md) · [Deutsche Anleitung](../../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.de.md)
 
 Fictional manufacturer: **Zwergische Kristallwerke Kupfergrund**. System: **Runenwacht**. Original EnusDE experimental designs; the name does not identify real railway equipment. This optional mod supplies presentation, not operating rules or AI. Main 0.7.64 and Railroader 0.6.3 are required. There is no automatic asset transfer or public-release assertion.
+
+## 0.2.1 visibility and connections
+
+Requires unchanged main 0.7.64. Dark inactive crystals, restrained near body glow and smoothly increased active-body emission at distance; no new billboards/point lights, no permission changes. Actual front/rear plate supports, continuous mast buses, insulated routed branches, rounded elbows and a crescent pedestal. [English changes/acceptance](CHANGES-0.2.1.en.md) · [Deutsch](CHANGES-0.2.1.de.md). `CrystalAppearance.cs` owns the pure visual curve. Run the full repository tests, then `Package.ps1` here to create only the new optional archive. The main DLL remains byte-identical. Game near/far visibility and mechanical views remain open for acceptance.
 
 ## 0.2.0 quality and testing pass
 
@@ -21,7 +25,7 @@ Layered riveted housing, curved crescent support, centre red crystal with fixed 
 - `mod/EnusDE-Runenwacht/Info.json`: separate manifest; own assembly only, exact required main/game versions.
 - `Build.ps1`: builds the pack after the main DLL exists; nothing installs or runs the game.
 
-From the repository root, `Test.ps1 -GameDirectory '<game>'` builds both assemblies and runs the normal suite plus geometry fixture. To build only the pack after the main, use `asset-packs/Runenwacht/Build.ps1`. `tools/Package-Runenwacht.ps1` packages previously tested outputs into two new archives; it refuses existing output filenames and does not run tests for you. Build artifacts stay outside tracked source.
+From the repository root, `Test.ps1 -GameDirectory '<game>'` builds both assemblies and runs the normal suite plus geometry fixture. To build only the pack after the main, use `asset-packs/Runenwacht/Build.ps1`. `Package.ps1` here packages the optional pack only; `tools/Package-Runenwacht.ps1` packages previously tested outputs into two new archives; it refuses existing output filenames and does not run tests for you. Build artifacts stay outside tracked source.
 
 ## Contract for another pack
 

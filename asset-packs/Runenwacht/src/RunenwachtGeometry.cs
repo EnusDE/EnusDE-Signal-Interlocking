@@ -38,7 +38,11 @@ namespace EnusDE.Runenwacht {
                 Quad(a+r,a+q,b+q,b+r,m);Triangle(a,a+q,a+r,m);Triangle(b,b+r,b+q,m);
             }
         }
-        public void Pipe(Vector3[] points,float radius,int m=1,int sides=12){for(int i=1;i<points.Length;i++)Tube(points[i-1],points[i],radius,m,sides);}
+        public void Pipe(Vector3[] points,float radius,int m=1,int sides=12){for(int i=1;i<points.Length;i++)Tube(points[i-1],points[i],radius,m,sides);if(m==1)for(int i=1;i<points.Length-1;i++)Ball(points[i],radius,m);}
+        public void Ball(Vector3 center,float radius,int m=1,int sides=12,int bands=6) {
+            Vector3 P(int band,int side){float a=(-.5f+(float)band/bands)*Mathf.PI,b=(side%sides)*Mathf.PI*2/sides;return center+new Vector3(Mathf.Cos(b)*Mathf.Cos(a)*radius,Mathf.Sin(a)*radius,Mathf.Sin(b)*Mathf.Cos(a)*radius);}
+            for(int i=0;i<sides;i++){Triangle(center+new Vector3(0,-radius,0),P(1,i),P(1,i+1),m);for(int k=1;k<bands-1;k++)Quad(P(k,i+1),P(k,i),P(k+1,i),P(k+1,i+1),m);Triangle(P(bands-1,i+1),P(bands-1,i),center+new Vector3(0,radius,0),m);}
+        }
         public void Arc(Vector3 center,float outer,float inner,float depth,float start,float end,int m=1,int steps=64) {
             Vector3 P(float r,float a,float z)=>center+new Vector3(Mathf.Cos(a)*r,Mathf.Sin(a)*r,z);
             float first=start*Mathf.Deg2Rad,last=end*Mathf.Deg2Rad;

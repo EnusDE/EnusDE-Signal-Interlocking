@@ -20,26 +20,27 @@ namespace EnusDE.Runenwacht {
             for(int side=0;side<2;side++) {
                 var root=Child(transform,"Directional face "+side);root.transform.localRotation=Quaternion.Euler(0,side==1?180:0,0);root.transform.localPosition=V(0,0,side==1?.15f:-.15f);
                 var face=new Face{Root=root};faces.Add(face);
-                if(kind=="main"){face.Main=MakeHead(root.transform,"main",4.55f);face.Distant=MakeHead(root.transform,"distant",2.95f);face.Shunt=MakeHead(root.transform,"shunt",1.7f);}
-                else if(kind=="distant")face.Distant=MakeHead(root.transform,kind,2.65f);else face.Shunt=MakeHead(root.transform,kind,1.25f);
+                if(kind=="main"){face.Main=MakeHead(root.transform,"main",4.55f,side==1);face.Distant=MakeHead(root.transform,"distant",2.95f,side==1);face.Shunt=MakeHead(root.transform,"shunt",1.7f,side==1);}
+                else if(kind=="distant")face.Distant=MakeHead(root.transform,kind,2.65f,side==1);else face.Shunt=MakeHead(root.transform,kind,1.25f,side==1);
                 float y=kind=="main"?3.83f:kind=="distant"?1.9f:.82f;
-                face.Code=Plaque(root.transform,"Technical signal code",y,.72f,.17f,.085f);
-                face.Name=Plaque(root.transform,"Display name",y-.17f,1.05f,.135f,.06f);
-                var maker=Plaque(root.transform,"Maker's plate",.59f,.42f,.105f,.032f);maker.text="RUNENWACHT";
+                face.Code=Plaque(root.transform,"Technical signal code",y,.72f,.17f,.085f,side==1);
+                face.Name=Plaque(root.transform,"Display name",y-.17f,1.05f,.135f,.06f,side==1);
+                var maker=Plaque(root.transform,"Maker's plate",.59f,.42f,.105f,.032f,side==1);maker.text="RUNENWACHT";
             }
         }
         Material[] Metals()=>new[]{palette.Steel,palette.Copper,palette.Ceramic};
-        TextMeshPro Plaque(Transform parent,string label,float y,float width,float height,float textHeight) {
-            var frame=Child(parent,label);frame.transform.localPosition=V(0,y,-.27f);MeshObject(frame.transform,"Copper frame, screws and enamel",RunenwachtDesign.Plaque(width,height),Metals());
+        TextMeshPro Plaque(Transform parent,string label,float y,float width,float height,float textHeight,bool back) {
+            var frame=Child(parent,label);frame.transform.localPosition=V(0,y,-.27f);MeshObject(frame.transform,"Copper frame, screws and enamel",RunenwachtDesign.Plaque(width,height,back?.3f:.54f),Metals());
             var textObject=Child(frame.transform,label+" engraving");textObject.transform.localPosition=V(0,0,-.033f);textObject.transform.localScale=Vector3.one*.01f;
             var text=textObject.AddComponent<TextMeshPro>();text.font=TMP_Settings.defaultFontAsset;text.richText=false;text.alignment=TextAlignmentOptions.Center;text.rectTransform.sizeDelta=new Vector2((width-.09f)*100,(height-.02f)*100);text.fontSize=textHeight*1000;text.enableAutoSizing=true;text.fontSizeMin=textHeight*450;text.fontSizeMax=textHeight*1000;text.textWrappingMode=TextWrappingModes.NoWrap;text.color=new Color(.065f,.085f,.09f);return text;
         }
-        Head MakeHead(Transform parent,string headKind,float y) {
+        Head MakeHead(Transform parent,string headKind,float y,bool back) {
             var root=Child(parent,headKind+" sculpted assembly");root.transform.localPosition=V(0,y,-.12f);
-            var head=new Head{Root=root,Kind=headKind};heads.Add(head);var d=RunenwachtDesign.Head(headKind);
+            var head=new Head{Root=root,Kind=headKind};heads.Add(head);var d=RunenwachtDesign.Head(headKind,back);
+            MeshObject(root.transform,"Continuous insulated feeds to mast copper buses",RunenwachtDesign.FeedPipes(headKind,back),Metals());
             MeshObject(root.transform,"Layered housing, rivets, claws, insulators and copper plumbing",d.Metal,Metals());
             MeshObject(root.transform,"Inset reflector",d.Reflector,new[]{palette.Reflector,palette.Reflector,palette.Reflector});
-            foreach(var pair in d.Channels){var edge=palette.Animated(pair.Key);var vein=palette.Animated(pair.Key);owned.Add(edge);owned.Add(vein);head.Lights[pair.Key]=new[]{edge,vein};MeshObject(root.transform,"Permanent cut "+pair.Key+" crystals and fine light veins",pair.Value,new[]{palette.Body(pair.Key),edge,vein});}
+            foreach(var pair in d.Channels){var body=new Material(palette.Body(pair.Key));var edge=palette.Animated(pair.Key);var vein=palette.Animated(pair.Key);owned.Add(body);owned.Add(edge);owned.Add(vein);head.Lights[pair.Key]=new[]{body,edge,vein};MeshObject(root.transform,"Permanent cut "+pair.Key+" crystals, lit bodies and fine light veins",pair.Value,new[]{body,edge,vein});}
             return head;
         }
         public void Apply(SignalViewFrame frame) {
@@ -51,7 +52,18 @@ namespace EnusDE.Runenwacht {
             }
         }
         static void ApplyHead(Head head,bool active,LocalSignalAspect aspect){if(head==null)return;head.Root.SetActive(active);head.Transition.Set(active?CrystalLogic.Channel(head.Kind,aspect):null);}
-        void LateUpdate(){if(disposed)return;foreach(var head in heads){head.Transition.Advance(Time.unscaledDeltaTime);foreach(var pair in head.Lights){float level=head.Transition.Level(pair.Key)*(pair.Key==CrystalChannel.Red?1:1+.025f*Mathf.Sin(Time.unscaledTime*2.2f))*(preview?.65f:1);RunenwachtPalette.Light(pair.Value[0],pair.Key,level,emissionStrength,false);RunenwachtPalette.Light(pair.Value[1],pair.Key,level,emissionStrength,true);}}}
+        void LateUpdate(){
+            if(disposed)return;var camera=Camera.main;
+            foreach(var head in heads){
+                head.Transition.Advance(Time.unscaledDeltaTime);float distance=camera==null?0:Vector3.Distance(camera.transform.position,head.Root.transform.position);
+                foreach(var pair in head.Lights){
+                    float shimmer=pair.Key==CrystalChannel.Red?1:1+.025f*Mathf.Sin(Time.unscaledTime*2.2f);
+                    float level=head.Transition.Level(pair.Key)*(preview?.65f:1);
+                    var light=CrystalAppearance.For(distance,level,emissionStrength,pair.Key);
+                    RunenwachtPalette.Light(pair.Value[0],pair.Key,light.Body*shimmer);RunenwachtPalette.Light(pair.Value[1],pair.Key,light.Edge*shimmer);RunenwachtPalette.Light(pair.Value[2],pair.Key,light.Vein*shimmer);
+                }
+            }
+        }
         static GameObject Child(Transform parent,string name){var obj=new GameObject(name);obj.layer=2;obj.transform.SetParent(parent,false);return obj;}
         void MeshObject(Transform parent,string name,RunenwachtGeometry geometry,Material[] mats){if(geometry.Vertices.Count==0)return;var obj=Child(parent,name);var mesh=geometry.Mesh(name);owned.Add(mesh);obj.AddComponent<MeshFilter>().sharedMesh=mesh;obj.AddComponent<MeshRenderer>().sharedMaterials=mats;}
         public void Dispose(){if(disposed)return;disposed=true;foreach(var item in owned)if(item!=null)UnityEngine.Object.Destroy(item);owned.Clear();if(palette!=null){RunenwachtPalette.Release();palette=null;}}

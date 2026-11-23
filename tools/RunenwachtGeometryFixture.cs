@@ -44,6 +44,10 @@ static class GeometryFixture {
         foreach(var t in g.Triangles)for(int i=0;i<t.Count;i+=3){var a=g.Vertices[t[i]];var b=g.Vertices[t[i+1]];var c=g.Vertices[t[i+2]];double ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,vx=c.x-a.x,vy=c.y-a.y,vz=c.z-a.z;double nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;if(nx*nx+ny*ny+nz*nz<1e-16)throw new Exception("FAIL: degenerate generated triangle");}
         var m=g.Mesh("fixture");Check(m.vertices.All(v=>new[]{v.x,v.y,v.z}.All(x=>!float.IsNaN(x)&&!float.IsInfinity(x)))&&m.triangles.All(t=>t.All(i=>i>=0&&i<m.vertices.Length))&&m.subMeshCount==3,"generated mesh has finite vertices and valid material/triangle indices");
     }
+    static bool OpaqueBehind(RunenwachtGeometry g,UnityEngine.Vector3 p) {
+        foreach(var t in g.Triangles)for(int i=0;i<t.Count;i+=3){var a=g.Vertices[t[i]];var b=g.Vertices[t[i+1]];var c=g.Vertices[t[i+2]];double det=(b.y-c.y)*(a.x-c.x)+(c.x-b.x)*(a.y-c.y);if(Math.Abs(det)<1e-12)continue;double u=((b.y-c.y)*(p.x-c.x)+(c.x-b.x)*(p.y-c.y))/det,v=((c.y-a.y)*(p.x-c.x)+(a.x-c.x)*(p.y-c.y))/det,w=1-u-v;if(u>=-1e-5&&v>=-1e-5&&w>=-1e-5&&u*a.z+v*b.z+w*c.z>p.z+.001)return true;}
+        return false;
+    }
     static void Export(List<object> parts,string kind,string name,string surface,string channel,RunenwachtGeometry g,float y,float z) {
         Valid(g);var mesh=g.Mesh("export");Check(mesh.uv.Count==mesh.vertices.Length,"actual production mesh supplies UVs for PBR material textures · "+kind+" / "+name);
         parts.Add(new{kind,name,surface,channel,vertices=g.Vertices.Select(v=>new[]{v.x,v.y+y,v.z+z}).ToArray(),triangles=g.Triangles.Select(t=>t.ToArray()).ToArray()});
@@ -57,6 +61,17 @@ static class GeometryFixture {
         var tube=new RunenwachtGeometry();tube.Tube(new UnityEngine.Vector3(0,0,0),new UnityEngine.Vector3(.3f,.8f,.1f),.04f);Closed(tube);Valid(tube);Check(true,"closed copper conduit has solid end caps and finite oriented side faces");
         var chamfer=new RunenwachtGeometry();chamfer.BevelBox(new UnityEngine.Vector3(0,0,0),new UnityEngine.Vector3(.7f,.4f,.5f),.04f);Closed(chamfer);Valid(chamfer);Outward(chamfer,new UnityEngine.Vector3(0,0,0));Check(true,"bevelled foundation has closed outward-facing faces, edges and corners");
         var crescent=new RunenwachtGeometry();crescent.Arc(new UnityEngine.Vector3(0,0,0),.65f,.555f,.115f,145,395);Closed(crescent);Valid(crescent);Check(crescent.Vertices.Min(v=>v.y)<-.64f&&crescent.Vertices.Max(v=>v.y)>.36f,"preview support forms a curved crescent with raised horns");
+        var elbow=new RunenwachtGeometry();elbow.Ball(new UnityEngine.Vector3(0,0,0),.023f);Closed(elbow);Valid(elbow);Outward(elbow,new UnityEngine.Vector3(0,0,0));Check(true,"rounded pipe elbows are closed outward-facing solids");
+        foreach(bool backFace in new[]{false,true}){
+            float depth=backFace?.3f:.54f;var plate=RunenwachtDesign.Plaque(.72f,.17f,depth);Valid(plate);
+            float worldMast=backFace?.42f-depth:-.42f+depth;
+            Check(Math.Abs(worldMast-.12f)<.0001f&&plate.Vertices.Max(v=>v.z)>depth+.05f,"plaque arms and clamp reach the physical mast rail plane · "+backFace);
+            foreach(var kind in new[]{"main","distant","shunt"})foreach(int side in new[]{-1,1}){
+                var route=RunenwachtDesign.FeedRoute(kind,backFace,side);var port=RunenwachtDesign.FeedPort(kind,side);var end=route[route.Length-1];
+                Check(Key(route[0])==Key(port)&&Math.Abs((backFace?.27f-end.z:-.27f+end.z)-.13f)<.0001f&&Math.Abs(end.x-side*.24f)<.0001f,"head feed joins the insulator terminal to the continuous mast copper bus · "+kind+" / "+backFace+" / "+side);
+                var feed=RunenwachtDesign.FeedPipes(kind,backFace);Valid(feed);
+            }
+        }
         var parts=new List<object>();
         foreach(var kind in new[]{"main","distant","shunt"}) {
             float h=kind=="main"?4.5f:kind=="distant"?2.35f:1.02f;
@@ -66,7 +81,9 @@ static class GeometryFixture {
             Export(parts,kind,"code plaque","metal",null,RunenwachtDesign.Plaque(.72f,.17f),labelY,-.42f);
             Export(parts,kind,"manufacturer plaque","metal",null,RunenwachtDesign.Plaque(.42f,.105f),.59f,-.42f);
             var d=RunenwachtDesign.Head(kind);float y=kind=="main"?4.55f:kind=="distant"?2.65f:1.25f;
+            Export(parts,kind,"feed pipes","metal",null,RunenwachtDesign.FeedPipes(kind,false),y,-.27f);
             Export(parts,kind,"housing","metal",null,d.Metal,y,-.27f);Export(parts,kind,"reflector","reflector",null,d.Reflector,y,-.27f);
+            var white=d.Channels[CrystalChannel.White];Check(white.Vertices.All(v=>OpaqueBehind(d.Metal,v)),"enlarged identification crystal has opaque metal behind its complete projected emitting geometry · "+kind);
             foreach(var pair in d.Channels)Export(parts,kind,"crystals","crystal",pair.Key.ToString(),pair.Value,y,-.27f);
             Check(d.Channels.All(x=>x.Value.Triangles[0].Count>0&&x.Value.Triangles[1].Count>0&&x.Value.Triangles[2].Count>0),"each physical channel separates faceted body, polished edges and animated veins · "+kind);
         }

@@ -20,6 +20,8 @@ Place configurable railway signals, draw an interlocking diagram, connect it to 
 - Standalone settings through the launcher gear, available before milestone unlock; native game mod-management pages are preserved.
 - Built-in English/German interfaces and F1 help. English is the default; German does not require another mod.
 
+Optional **Runenwacht 0.2.1** updates distance visibility, dark inactive crystals and connected hardware while main 0.7.64 stays unchanged. [English](asset-packs/Runenwacht/CHANGES-0.2.1.en.md) · [Deutsch](asset-packs/Runenwacht/CHANGES-0.2.1.de.md).
+
 0.7.64 / Runenwacht 0.2.0 improves the models and daylight materials, adds framed technical/name plates, and provides host-only individual lamp tests without routes. Native output stays Stop during a test; affected routes are excluded. [English instructions](mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.en.md) · [Deutsch](mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.de.md). In-game/AI/MP acceptance is still pending.
 
 0.7.63 adds an optional presentation-only API and separate experimental Runenwacht crystal pack. The main mod remains usable alone. [Pack reference](asset-packs/Runenwacht/README.md) · [English guide](mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.63.en.md) · [Deutsch](mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.63.de.md). World test licenses are free and separate from session activation; in-game/MP acceptance remains open.

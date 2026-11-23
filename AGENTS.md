@@ -41,6 +41,8 @@
 
 ## Model quality and individual lamp tests (23 November 2026)
 
-- Runenwacht 0.1.0 game screenshots showed dark crude housings and flat emissive crystals. Preserve the revised layered/riveted shapes, crescent support, visible non-emissive faceted crystal bodies, separate fine animated emission, active-pipeline PBR materials and framed technical-code/display-name plates. Generated concept art is a design reference, not proof of in-game fidelity.
+- Runenwacht 0.1.0 game screenshots showed dark crude housings and flat emissive crystals. Preserve the revised layered/riveted shapes, crescent support, visible faceted crystal bodies with dark non-emitting inactive surfaces, separate fine animated emission, active-pipeline PBR materials and framed technical-code/display-name plates. Generated concept art is a design reference, not proof of in-game fidelity.
 - Individual lamp tests are temporary host Build-editor presentation overrides. Never publish a permissive test indication as operating/native authority: hold both mast directions at Stop and exclude affected route entry/destination/via/flank admission. Respect existing route/direction locks and clean up on selection/Build/timeout/world/data/authority transitions. Do not persist test states or automatically enable disabled AI integration.
 - Keep code and display name separate, and preserve the original API-v1 frame constructor alongside additive metadata. Offline geometry renders/checks do not replace actual shader, AI, UI, multiplayer or performance acceptance.
+
+- Runenwacht 0.2.1 follows owner feedback: selected active bodies may emit gently near and more strongly far away; distance gain never activates another channel or changes authority. Preserve opaque rear occlusion, fixed crystal colours, actual plaque-to-mast supports and continuous head/insulator/bus connections. Pack-only updates do not advance/repackage unchanged main code.

@@ -18,11 +18,11 @@ namespace EnusDE.Runenwacht {
             string shaderName=ShaderNameFor(Pipeline);
             shader=Shader.Find(shaderName)??Shader.Find("Unlit/Color");if(shader==null)throw new InvalidOperationException("Runenwacht requires a supported active-pipeline shader.");
             Steel=Surface(new Color(.42f,.46f,.48f),.25f,.4f,"steel");Copper=Surface(new Color(.8f,.47f,.23f),.5f,.48f,"copper");Ceramic=Surface(new Color(.87f,.81f,.66f),.02f,.57f,"ceramic");Stone=Surface(new Color(.61f,.6f,.55f),0,.14f,"stone");Reflector=Surface(new Color(.58f,.64f,.66f),.36f,.61f,"reflector");
-            foreach(CrystalChannel channel in Enum.GetValues(typeof(CrystalChannel))){var hue=Colour(channel);var baseColour=Color.Lerp(new Color(.42f,.47f,.5f),hue,.32f);bodies[channel]=Surface(baseColour,.05f,.79f,"crystal");}
+            foreach(CrystalChannel channel in Enum.GetValues(typeof(CrystalChannel))){var hue=Colour(channel);var baseColour=Color.Lerp(new Color(.04f,.05f,.06f),hue,.045f);bodies[channel]=Surface(baseColour,.05f,.79f,"crystal");}
         }
         public static string ShaderNameFor(string pipeline)=>string.IsNullOrEmpty(pipeline)||pipeline=="Built-in"?"Standard":pipeline.IndexOf("HDRender",StringComparison.OrdinalIgnoreCase)>=0?"HDRP/Lit":pipeline.IndexOf("Universal",StringComparison.OrdinalIgnoreCase)>=0?"Universal Render Pipeline/Lit":"Unlit/Color";
         public Material Body(CrystalChannel channel)=>bodies[channel];
-        public Material Animated(CrystalChannel channel){var m=new Material(shader);Configure(m);Paint(m,Color.Lerp(new Color(.3f,.36f,.39f),Colour(channel),.32f));if(m.HasProperty("_Smoothness"))m.SetFloat("_Smoothness",.7f);return m;}
+        public Material Animated(CrystalChannel channel){var m=new Material(shader);Configure(m);Paint(m,Color.Lerp(new Color(.045f,.055f,.065f),Colour(channel),.06f));if(m.HasProperty("_Smoothness"))m.SetFloat("_Smoothness",.7f);return m;}
         static void Configure(Material m) {
             m.enableInstancing=true;
             foreach(string key in new[]{"_Surface","_SurfaceType","_Metallic"})if(m.HasProperty(key))m.SetFloat(key,0);
@@ -58,9 +58,10 @@ namespace EnusDE.Runenwacht {
         }
         public static Color Colour(CrystalChannel c)=>c==CrystalChannel.Red?new Color(.9f,.06f,.025f):c==CrystalChannel.Amber?new Color(1,.52f,.04f):c==CrystalChannel.Green?new Color(.04f,.86f,.65f):c==CrystalChannel.Violet?new Color(.64f,.13f,.9f):new Color(.8f,.9f,1);
         public static void Paint(Material m,Color c){c.a=1;foreach(string key in new[]{"_BaseColor","_Color","_UnlitColor"})if(m.HasProperty(key))m.SetColor(key,c);}
-        public static void Light(Material m,CrystalChannel channel,float level,float strength,bool vein) {
-            var hue=Colour(channel);Paint(m,Color.Lerp(new Color(.26f,.32f,.35f),hue,.26f+level*.25f));
-            m.EnableKeyword("_EMISSION");foreach(string key in new[]{"_EmissionColor","_EmissiveColor"})if(m.HasProperty(key))m.SetColor(key,hue*(level*strength*(vein?1.2f:.38f)));
+        public static void Light(Material m,CrystalChannel channel,float emission) {
+            // Reflection tint stays dark and stable. Only the selected channel emits.
+            var hue=Colour(channel);m.EnableKeyword("_EMISSION");
+            foreach(string key in new[]{"_EmissionColor","_EmissiveColor"})if(m.HasProperty(key))m.SetColor(key,hue*emission);
             if(m.HasProperty("_EmissiveIntensity"))m.SetFloat("_EmissiveIntensity",1);
         }
         public void Dispose(){foreach(var obj in owned)if(obj!=null)UnityEngine.Object.Destroy(obj);owned.Clear();}
