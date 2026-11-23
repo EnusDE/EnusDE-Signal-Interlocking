@@ -96,9 +96,9 @@ namespace EnusDE.Signaltechnik {
         }
         void ShowFace(FaceHeads heads,SignalFace face,string mastName,double? labelScale,bool low=false,bool hl=false) {
             if(heads==null)return;
-            var aspect=Entry.SignalAspect(face.Id);var record=new MarkerRecord{Name=face.Code,MastName=mastName,DisplayName=face.DisplayName,LabelScale=labelScale,Kind=MarkerRecord.Main};
-            if(hl){Show(heads.Main,record,aspect,Entry.SignalAspect(face.DistantTarget),face.DistantHead);return;}
-            var plan=SignalLampPlan.For(aspect,Entry.SignalAspect(face.DistantTarget));
+            var aspect=Entry.RenderSignalAspect(face.Id,Entry.SignalAspect(face.Id));var record=new MarkerRecord{Name=face.Code,MastName=mastName,DisplayName=face.DisplayName,LabelScale=labelScale,Kind=MarkerRecord.Main};
+            if(hl){Show(heads.Main,record,aspect,Entry.RenderLampPlan(face.Id,SignalLampPlan.For(aspect,Entry.SignalAspect(face.DistantTarget))).Distant,face.DistantHead);return;}
+            var plan=Entry.RenderLampPlan(face.Id,SignalLampPlan.For(aspect,Entry.SignalAspect(face.DistantTarget)));
             // A shunting permission keeps Hp 0 at the main head and lights only the attached Sh 1 head.
             Show(heads.Main,record,plan.Main);
             if(heads.Shunt!=null)Show(heads.Shunt,new MarkerRecord{Name=face.Code,Kind=MarkerRecord.Shunt},low&&plan.Shunt==LocalSignalAspect.Stop?LocalSignalAspect.Dark:plan.Shunt);

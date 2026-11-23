@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 
 namespace EnusDE.Signaltechnik {
     public sealed class Entry : IModEntryPoint,IWorldLifecycle {
-        public const string Version="0.7.63";
+        public const string Version="0.7.64";
         static Recorder current;
         static DiagnosticWindow diagnostic;
         static MarkerRuntime markers;
@@ -164,6 +164,13 @@ namespace EnusDE.Signaltechnik {
         public static void RecordMarkerEvent(string action,MarkerRecord row){if(current!=null)current.LocalMarkerEvent(action,row);}
         public static LocalSignalAspect SignalAspect(string id)=>signals?.Aspect(id)??LocalSignalAspect.Stop;
         internal static void CheckLineConfigurationChange(string[] affected=null,IEnumerable<LineTrackDefinition> proposed=null,string[] targets=null)=>signals?.CheckLineConfigurationChange(affected,proposed,targets);
+        internal static bool BuildModeActive=>markers?.BuildModeActive==true;
+        internal static string SelectedBuildSignal=>markers?.SelectedBuildSignal;
+        internal static string LampTestOwner=>signals?.LampTestOwner;
+        internal static void EndLampTest()=>signals?.EndLampTest();
+        internal static LocalSignalAspect RenderSignalAspect(string id,LocalSignalAspect actual)=>signals?.LampVisual(id,actual)??actual;
+        internal static SignalLampPlan RenderLampPlan(string id,SignalLampPlan actual)=>signals?.LampPlan(id,actual)??actual;
+        internal static void BuildSignalLampTests(UI.Builder.UIPanelBuilder c,MarkerRecord row,int direction,Action<Action> execute)=>signals?.BuildLampTests(c,row,direction,execute);
         public static bool SignalCanModify(string id)=>signals==null||signals.CanModify(id);
         public static bool MastCanModify(MarkerRecord row)=>SignalCatalogue.Ids(row).All(SignalCanModify);
         public static bool PlacingObject=>markers!=null&&markers.IsPlacing;

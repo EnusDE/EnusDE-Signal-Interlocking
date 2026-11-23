@@ -7,9 +7,10 @@ namespace EnusDE.Signaltechnik {
     // Presentation-only API v1. No mutable markers, routes, native signals or runtime references.
     public sealed class SignalFaceView {
         public bool Enabled {get;} public bool ShuntHead {get;} public bool DistantHead {get;}
-        public float LabelScale {get;} public string Caption {get;} public LocalSignalAspect Main {get;} public LocalSignalAspect Shunt {get;} public LocalSignalAspect Distant {get;}
-        public SignalFaceView(bool enabled,bool shunt,bool distant,string caption,LocalSignalAspect main,LocalSignalAspect shunting,LocalSignalAspect announced,float labelScale=1) {
-            Enabled=enabled;ShuntHead=shunt;DistantHead=distant;Caption=caption??"";LabelScale=float.IsNaN(labelScale)||float.IsInfinity(labelScale)?1:Math.Max(.5f,Math.Min(3,labelScale));
+        public string Code {get;} public float LabelScale {get;} public string Caption {get;} public LocalSignalAspect Main {get;} public LocalSignalAspect Shunt {get;} public LocalSignalAspect Distant {get;}
+        public SignalFaceView(bool enabled,bool shunt,bool distant,string caption,LocalSignalAspect main,LocalSignalAspect shunting,LocalSignalAspect announced,float labelScale=1):this(enabled,shunt,distant,caption,main,shunting,announced,labelScale,null) {}
+        public SignalFaceView(bool enabled,bool shunt,bool distant,string caption,LocalSignalAspect main,LocalSignalAspect shunting,LocalSignalAspect announced,float labelScale,string code) {
+            Enabled=enabled;ShuntHead=shunt;DistantHead=distant;Caption=caption??"";Code=code??Caption;LabelScale=float.IsNaN(labelScale)||float.IsInfinity(labelScale)?1:Math.Max(.5f,Math.Min(3,labelScale));
             Main=Safe(main);Shunt=Safe(shunting);Distant=Safe(announced);
         }
         static LocalSignalAspect Safe(LocalSignalAspect a)=>Enum.IsDefined(typeof(LocalSignalAspect),a)?a:LocalSignalAspect.Invalid;
@@ -56,13 +57,13 @@ namespace EnusDE.Signaltechnik {
         }
         internal static SignalViewFrame Frame(MarkerRecord row,bool preview,float emissionStrength=1) {
             if(row.Kind==MarkerRecord.Main){var mast=MastConfiguration.Effective(row);return new SignalViewFrame(row.Kind,preview,Face(mast.Front,row,preview),Face(mast.Back,row,preview),emissionStrength);}
-            var aspect=preview?LocalSignalAspect.Stop:Entry.SignalAspect(row.Id);
-            return new SignalViewFrame(row.Kind,preview,new SignalFaceView(true,row.Kind==MarkerRecord.Shunt,row.Kind==MarkerRecord.Distant,row.DisplayTitle,aspect,aspect,aspect,(float)(row.LabelScale??1)),null,emissionStrength);
+            var aspect=preview?LocalSignalAspect.Stop:Entry.RenderSignalAspect(row.Id,Entry.SignalAspect(row.Id));
+            return new SignalViewFrame(row.Kind,preview,new SignalFaceView(true,row.Kind==MarkerRecord.Shunt,row.Kind==MarkerRecord.Distant,row.DisplayTitle,aspect,aspect,aspect,(float)(row.LabelScale??1),row.Name),null,emissionStrength);
         }
         static SignalFaceView Face(SignalFace face,MarkerRecord row,bool preview) {
-            var authority=preview?LocalSignalAspect.Stop:Entry.SignalAspect(face.Id);
-            var plan=SignalLampPlan.For(authority,preview?LocalSignalAspect.Stop:Entry.SignalAspect(face.DistantTarget));
-            return new SignalFaceView(face.Enabled,face.Sh1,face.DistantHead,MarkerRecord.Caption(face.DisplayName,row.DisplayName,face.Code),plan.Main,plan.Shunt,plan.Distant,(float)(row.LabelScale??1));
+            var authority=preview?LocalSignalAspect.Stop:Entry.RenderSignalAspect(face.Id,Entry.SignalAspect(face.Id));
+            var plan=Entry.RenderLampPlan(face.Id,SignalLampPlan.For(authority,preview?LocalSignalAspect.Stop:Entry.SignalAspect(face.DistantTarget)));
+            return new SignalFaceView(face.Enabled,face.Sh1,face.DistantHead,MarkerRecord.Caption(face.DisplayName,row.DisplayName,face.Code),plan.Main,plan.Shunt,plan.Distant,(float)(row.LabelScale??1),face.Code);
         }
     }
     // Owns exactly one provider instance; disposal also runs when Unity destroys the world.

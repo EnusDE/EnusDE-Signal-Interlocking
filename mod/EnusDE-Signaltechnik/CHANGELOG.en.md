@@ -1,3 +1,11 @@
+## 0.7.64 — Runenwacht quality pass and individual lamp testing
+
+- Runenwacht 0.2.0: centred red/amber/green crystal cluster, curved crescent and detailed housings/conduits/ceramics, UV/PBR textures selected for the active pipeline, non-emissive faceted bodies plus fine animated light veins.
+- Framed technical-code and display-name plaques; maker identification, retained stable IDs and local brightness controls.
+- Host Build editor: separate installed head tests without routes, native Stop for both mast directions and exclusion of related entry/destination/via/flank routes. No permissive test aspect reaches the operating API.
+- End/selection change/Build exit/120-second timeout/world-data transition cleanup restores actual indications. Local host test; clients see operating Stop. No saved test state.
+- Both assemblies and full offline suite pass; real Unity, shader, AI, multiplayer and performance acceptance remains open.
+
 ## 0.7.63 — optional presentation packs / Runenwacht experiment
 
 - Main-owned immutable signal state API; separate optional Runenwacht 0.1.0 mod supplies original procedural models, directional shields, fixed-colour crystals and exclusive light fades.

@@ -2,7 +2,6 @@ using System;
 using EnusDE.Signaltechnik;
 namespace EnusDE.Runenwacht {
     // Each physical channel has one immutable colour. No aspect can recolour a crystal.
-    public enum CrystalChannel { Red, Amber, Green, Violet, White }
     public static class CrystalLogic {
         public static CrystalChannel? Channel(string kind,LocalSignalAspect aspect) {
             if(aspect==LocalSignalAspect.Dark)return null;

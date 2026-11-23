@@ -1,4 +1,8 @@
-# EnusDE Signal & Interlocking 0.7.63-P0
+# EnusDE Signal & Interlocking 0.7.64-P0
+
+0.7.64 / Runenwacht 0.2.0: detailed geometry, daylight-readable crystal bodies, separate light veins, PBR textures and framed technical/name plates. Host Build editor gains individual lamp tests without routes, native Stop holds and affected-route exclusion. [English guide](Guides/RUNENWACHT-0.7.64.en.md) · [Deutsch](Guides/RUNENWACHT-0.7.64.de.md). All game/AI/MP tests remain pending.
+
+0.7.64 / Runenwacht 0.2.0: ausgearbeitete Geometrie, Kristallkörper mit getrennten Leuchtadern, Materialtexturen und Kennungs-/Namensschilder. Im Host-Baumodus einzelne Lampentests ohne Fahrstraße, mit nativer Haltbindung und Sperre betroffener Fahrstraßen. Noch keine abgeschlossene Spiel-/KI-/Mehrspielerprüfung.
 
 0.7.63 adds the optional presentation API and separate experimental Runenwacht 0.1.0 crystal-signal pack. The main mod does not depend on it. [Setup/API acceptance guide](Guides/RUNENWACHT-0.7.63.en.md) · [Deutsche Anleitung](Guides/RUNENWACHT-0.7.63.de.md). Session activation is OFF by default; world test licenses are free. Existing saved choices retain signal/route IDs and use visible built-in fallback when the pack is missing. Manual restart and matching main/pack versions on all participants; game/rendering/multiplayer tests remain open.
 

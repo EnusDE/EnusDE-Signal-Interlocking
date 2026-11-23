@@ -20,6 +20,7 @@ namespace EnusDE.Signaltechnik {
         readonly MarkerEditSession edit=new MarkerEditSession();
         readonly BuildModeSession buildMode=new BuildModeSession();
         public bool BuildModeActive=>buildMode.Active;
+        internal string SelectedBuildSignal=>selectedId;
         bool buildWindowShown;
         MarkerScene scene;
         MarkerRepository repository;
@@ -115,6 +116,7 @@ namespace EnusDE.Signaltechnik {
         }
         void Update() {
             if(stopped||StateManager.IsUnloading)return;
+            if(Entry.LampTestOwner!=null&&(!buildMode.Active||Entry.LampTestOwner!=selectedId))Entry.EndLampTest();
             if(buildMode.Active&&buildWindowShown&&CustomWindowHandle.Create(WindowId)?.IsOpen()!=true)EndBuildMode();
             if(quickCircuitActive&&(scope!=quickCircuitWorld||Keyboard.current?.escapeKey.wasPressedThisFrame==true)){quickCircuitActive=false;status=LocalText.Select("Detection tool stopped.","GFM-Werkzeug beendet.");RebuildTool();}
             workLoop?.Tick(Time.realtimeSinceStartup,edit.Aiming);
@@ -364,6 +366,7 @@ namespace EnusDE.Signaltechnik {
         void HideTool(){if(page==Page.PointBox)scene.HidePreview();if(manager!=null&&!StateManager.IsUnloading)manager.CloseWindow(WindowId);}
         void CloseTool(){if(buildMode.Active)RebuildTool();else HideTool();}
         public void EndBuildMode() {
+            Entry.EndLampTest();
             if(!buildMode.End())return;
             buildWindowShown=false;setupPlacementAccepted=null;quickCircuitActive=false;
             edit.Cancel();scene.HidePreview();scene.Building=false;RefreshScene();
@@ -457,6 +460,7 @@ namespace EnusDE.Signaltechnik {
             if(selectedEditFor!=row.Id)LoadDraft();
             c.AddTitle(row.IsCircuitBox?CircuitIdentity.Caption(row):row.Name,MarkerRecord.KindLabel(row.Kind));
             if(row.IsSignal) {
+                Entry.BuildSignalLampTests(c,row,directionTab,action=>Act(()=>{action();RefreshScene();RebuildTool();}));
                 c.AddLabel(LocalText.Select("Presentation: ","Darstellung: ")+(row.PresentationPack??LocalText.Select("Built-in","Eingebaut")));
                 if(row.PresentationPack!=null) {
                     if(SignalPresentationPacks.Find(row.PresentationPack)==null)c.AddLabel(LocalText.Select("Pack unavailable: built-in fallback is displayed. Signal IDs and routes remain intact.","Paket fehlt: eingebaute Ersatzdarstellung. Signal-IDs und Fahrstraßen bleiben erhalten."));
@@ -639,6 +643,7 @@ namespace EnusDE.Signaltechnik {
             if(!Entry.MastCanModify(Selected))throw new InvalidOperationException("Der Mast ist verschlossen. Fahrstraße zuerst sicher auflösen.");
         }
         void Saved(string text) {
+            Entry.EndLampTest();
             int tab=directionTab;RefreshRecords();selectedEditFor=null;LoadDraft();directionTab=tab;RefreshScene();status=text;Entry.RecordMarkerEvent("configured",Selected);RebuildTool();
         }
         void SaveDetails() {

@@ -1,4 +1,4 @@
-Runenwacht 0.1.0 — EnusDE experimental original procedural models and code.
+Runenwacht 0.2.0 — EnusDE experimental original procedural models and code.
 Fictional manufacturer: Zwergische Kristallwerke Kupfergrund.
 No third-party model, texture, voice or game library is bundled in this optional pack.
 Railroader, Unity and TextMeshPro remain the property of their respective owners and are referenced from the game installation.

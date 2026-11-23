@@ -22,9 +22,10 @@ namespace EnusDE.Signaltechnik {
             if(!OperatingReady||Object(id) is not MarkerRecord row)return SignalOperatingState.Unknown;
             return OperatingIndex().Signal(id,row.Kind==MarkerRecord.Distant&&Object(row.LinkedSignal)?.Kind==MarkerRecord.Main?row.LinkedSignal:null);
         }
-        internal bool IgnoreOwnSignal(string id){var state=OperatingState(id);return state==SignalOperatingState.Unbound||state==SignalOperatingState.OutOfService;}
+        internal bool IgnoreOwnSignal(string id){if(lampTest.Holds(id))return false;var state=OperatingState(id);return state==SignalOperatingState.Unbound||state==SignalOperatingState.OutOfService;}
         internal IEnumerable<MarkerRecord> OperationalSignalObjects=>SignalObjects.Where(s=>OperatingState(s.Id)==SignalOperatingState.Active);
         void RequireOperatingRoutes(IReadOnlyList<RouteDefinition> plan) {
+            if(plan.Any(lampTest.Blocks))throw new InvalidOperationException(LocalText.Select("End the affected signal lamp test before setting this route.","Vor dieser Fahrstraße den betroffenen Signal-Lampentest beenden."));
             if(!OperatingReady)throw new InvalidOperationException(WindowText("Operating state is not ready.","Betriebszustand noch nicht verfügbar."));
             LineTargetBindings.RequirePlan(desks,plan);
             OperatingIndex().RequireRoute(plan,id=>AuxiliaryEndpoint(id)!=null?SignalOperatingState.Active:OperatingState(id));

@@ -1,4 +1,20 @@
-# Development status and continuation — 0.7.63
+# Development status and continuation — 0.7.64
+
+Main 0.7.64 / Runenwacht 0.2.0 / Railroader 0.6.3, Early Alpha. [English workflow](../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.de.md).
+
+**23 November 2026: full Test.ps1 completed with 2,024 PASS, 0 FAIL.** Main (285 production C# files) and separate pack (7 C# files) compile against the available local original 0.6.3 game libraries. Checks now include detailed production geometry/UV exports, bevelled solids, conduits/crescent, fixed body/edge/vein channels, centred stop crystal, separate technical code/name, active-pipeline shader choice and temporary lamp-test authorization, stale requests, held directions, route roles, head combinations, expiry and cleanup. Existing route/automation/native materials/settings/localization checks remain part of the same suite. No GPU/gameplay or full native AI/network execution is claimed from these checks.
+
+User screenshots of 0.1.0 establish that the original look was too coarse, dark and flat compared with the concept. Updated procedural models, shared PBR resources and framed plates address those reported issues. An offline Blender study uses the exported production geometry with independent studio lighting/materials; it is not Railroader and does not prove matching game exposure. The user has not yet tested this new build. Keep the explicit game acceptance checklist open: day/night/oblique appearance, plates, all head states and test controls, native Stop/route refusal, restoration on every exit path, camera/proxy placement, memory/frame time, clients and late joins. No LOD or custom wagon/audio/streaming content is added.
+
+The host lamp test is a local visual override in the Build editor. Its permissive indication never enters the operating API or shared live frame. Native proxies use Stop and relevant route admission is blocked; disabled native AI integration is not enabled by a lamp test. Existing route/direction locks prevent test start. Both directions are held while only the selected face/head displays a test. It resets on selection/Build/timeout/world/data/authority transitions and is never persisted. The normal operating invalid/Kennlicht state returns afterwards.
+
+## Deutsch – aktueller Stand
+
+0.7.64 / Runenwacht 0.2.0: Formen und Materialien anhand der gemeldeten Spielbilder überarbeitet, echte Kennungs-/Namensschilder ergänzt. Einzelne vorhandene Köpfe im Host-Baumodus ohne Fahrstraße testen; native Ausgabe bleibt Halt und betroffene Fahrstraßen sind gesperrt. Ende spätestens nach zwei Minuten beziehungsweise beim Verlassen/Wechsel. Keine gespeicherten Teststellungen. Vollständiger Lauf am 23.11.2026: **2.024 PASS, 0 FAIL**, beide Assemblies gegen lokale originale 0.6.3-Bibliotheken gebaut. Blender-Ansichten sind externe Modellstudien. Das neue Ergebnis muss noch im Spiel bei Tag/Nacht sowie mit KI und im Mehrspieler geprüft werden. Keine Installation oder Spielstarts durch den Assistenten. Nachfolgend erhaltene ältere Prüfstände.
+
+---
+
+# Previous checkpoint — 0.7.63
 
 [Deutsch](#aktueller-stand-deutsch) · [Pack reference](../asset-packs/Runenwacht/README.md) · [English game checklist](../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.63.en.md)
 

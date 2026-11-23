@@ -1,6 +1,6 @@
 {
   "identifier": "enusde/runenwacht",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "Runenwacht \u2014 experimental crystal signals",
   "author": "EnusDE",
   "description": "Optional presentation pack and API v1 example for EnusDE Signal & Interlocking. Experimental, console activation and a world test license required. No automatic asset transfer.",
@@ -11,7 +11,7 @@
   "dependencies": {
     "required": [
       "rr/game ==0.6.3",
-      "enusde/signaltechnik ==0.7.63"
+      "enusde/signaltechnik ==0.7.64"
     ]
   }
 }

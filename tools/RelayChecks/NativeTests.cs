@@ -100,6 +100,7 @@ public static class NativeTests {
         EditorCanvasTests.Run(root);
         Game063Tests.Run();
         PresentationPackTests.Run(root);
+        SignalLampTestTests.Run();
         ConstructionSnapshotTests.Run();
         NetworkTests.Run(Path.Combine(Path.GetDirectoryName(typeof(Model.Car).Assembly.Location),"..","StreamingAssets","AssetPacksCore","nc-bryson-terrain","Data","Map.json"));
         LineTutorialTests.Run();

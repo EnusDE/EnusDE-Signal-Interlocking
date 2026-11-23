@@ -1,0 +1,29 @@
+# Runenwacht 0.2.0 / Signal & Interlocking 0.7.64
+
+Experimentelle Testfassung für Railroader 0.6.3. Host und Clients benötigen passende identische Pakete. Installation, Spielstart und abgeschlossene Spiel-/Mehrspielerprüfung sind damit nicht behauptet.
+
+## Überarbeitete Modelle und Materialien
+
+Die Spielbilder von 0.1.0 zeigten zu dunkles Metall, flache Leuchtflächen, vereinfachte rechteckige Träger und schwebende Beschriftungen. Diese Fassung ersetzt das: geschichtetes vernietetes Ringgehäuse, mittige Dreiergruppe (Rot im Zentrum; feste bernsteinfarbene und grüne Nachbarn), diagonale feste Ringlichtleiter, einzeln geschlossene Spitzenrückseiten, geschwungener Sichelträger, runde Kupferrohre, abgefaste Schellen, Keramikisolatoren und ein Steinfundament mit gebrochenen Kanten. Rangierkristalle sind horizontal geschliffene Körper in eigenen Halterungen.
+
+Alle Kristalle bleiben verbaut und behalten ihre Farbe. Facettierte Körper besitzen jetzt beleuchtete, texturierte Oberflächen ohne eigene Emission; polierte Facettenkanten und dünne Leuchtadern werden getrennt animiert. Das Leuchten übermalt nicht mehr den ganzen Körper. Gemeinsam genutzte, erzeugte Albedo- und Rauheits-/Metallmasken liefern Stahlstruktur, Kupferkratzer/Patina sowie Keramik-/Steinvariation ohne heruntergeladene Bilder oder Spieltexturen. Die Shaderwahl richtet sich nach der aktiven Renderpipeline. Die genaue Wirkung bei Tag und Nacht muss trotzdem im Spiel geprüft werden.
+
+Technische Kennung und Anzeigename sind getrennte unveränderliche Felder und erscheinen auf eingefassten Emailschildern. Bei identischen Werten wird kein doppeltes Schild gezeigt. Ein kleines RUNENWACHT-Typenschild kennzeichnet das System. Beschriftungsgröße und Anklickgrenzen bleiben einstellbar. Die Entwurfsbilder geben die Gestaltung vor; eine pixelgleiche Umsetzung wird nicht behauptet.
+
+## Einzelne Signale ohne Fahrstraße testen
+
+1. Als Host beziehungsweise Einzelspieler-Administrator den **Baumodus** öffnen, ein fertig gebautes Signal auswählen und dessen Konfiguration öffnen. Beim Hauptmast die Vorder-/Rückrichtung wählen.
+2. Unter **Einzelne Signal-Testansteuerung · Host** das Lichtbild des Haupt-/Einzelkopfs wählen: Halt, Fahrt, Langsamfahrt, Dunkel, Ungültig oder Kennlicht. Rangierköpfe bieten auch Rangierfreigabe. Dafür ist weder eine Fahrstraße noch die vorherige Einbindung ins Gleisbild erforderlich.
+3. Angebautes Vor- und Rangiersignal besitzen eigene Bedienelemente. Beim Test des angebauten Vorsignalkopfs zeigt der Hauptkopf ausdrücklich Test-Fahrt, damit kombinierte Hl- und H/V-Modelle eine gültige Vorsignalkombination darstellen können. Der Editor erklärt dies. Bei Rangierfreigabe bleibt der Hauptkopf rot.
+4. Der Host sieht das lokale Testlichtbild. Die Betriebs-API gibt niemals die gewählte Testfreigabe aus: Beide Mastrichtungen werden für die native Ausgabe auf Halt gebunden. Fahrstraßen über einen Test-Start, ein Test-Ziel, ein Zwischensignal oder ein Flankenschutzsignal werden abgewiesen. Andere Clients erhalten Betriebs-Halt und keine künstliche Testansicht. Vor dem Start müssen betroffene Fahrstraßen und Richtungsbindungen aufgelöst sein. Ein Lampentest schaltet eine deaktivierte native KI-Anbindung nicht ein und erteilt dem Spieler keine Fahrerlaubnis.
+5. **Lampentest beenden · Betriebsanzeige wiederherstellen** wählen, den Baumodus verlassen, dessen Fenster schließen oder ein anderes physisches Signal wählen. Zusätzlich endet der Test nach 120 Sekunden sowie bei Welt-/Datenwechsel oder Berechtigungsverlust. Danach erscheint wieder der tatsächliche Zustand, gegebenenfalls Ungültigkeitskreuz oder Kennlicht. Testlichtbilder, Fahrstraßen, Lizenzen und Betriebszustandsänderungen werden dabei nicht gespeichert.
+
+Die Funktion gilt für eingebaute H/V-/Hl-Modelle und installierte Darstellungspakete. Tatsächliche Unity-Bedienung, alle Lichtbilder, native KI-Anfahrt/Bremsung, Wiederherstellung der Signalproxys, Netzwerk/späterer Beitritt und Lebenszyklus sind noch im Spiel zu prüfen. Offline-Domänenprüfungen decken Rechte, veraltete Anfragen, Haltbindung beider Richtungen, Fahrstraßenrollen, getrennte Köpfe, Zeitgrenze und Bereinigung ab.
+
+## Installation, Freischaltung und Weiterarbeit
+
+Bestehende Paketfreischaltung verwenden: Als Host `/enus_assets enable`, danach einmal pro Testwelt `/enus_assets unlock:enusde.runenwacht`. Normaler Signalbau muss freigeschaltet sein. Aktivierung nach dem Laden zunächst AUS; kostenlose Welt-Testlizenz und Modellwahl bleiben gespeichert. Das Hauptmod funktioniert allein; fehlende/fehlerhafte Pakete erhalten sichtbare eingebaute Ersatzsignale. Vor Test oder Rückkehr auf ältere Mods vollständigen Spielstand und Konfiguration sichern; alte Versionen können unbekannte optionale Felder beim Speichern verlieren.
+
+Öffentliche Referenz: `asset-packs/Runenwacht`. `RunenwachtDesign` enthält die gemeinsame produktive Geometrie, `RunenwachtPalette` die PBR-Ressourcen, `RunenwachtModel` den Darsteller und `CrystalLogic` die festen Farbkanäle mit widerspruchsfreien Übergängen. `Test-RunenwachtGeometry.ps1` exportiert die tatsächliche Geometrie für `Preview-Runenwacht.py`. Blender-Ansichten sind **externe Modellstudien**, keine Railroader-Spielbilder und kein Beleg für identische Spielshader. Lichtdichte Rückseiten bleiben Bestandteil des Designs. Kein Audio, Wagentausch, automatische Asset-Übertragung oder kostenpflichtiger Lizenzkauf ergänzt.
+
+Prioritäten im Spieltest: Kristallfacetten/Leuchten bei Tag und Nacht, Lesbarkeit von Kennung/Anzeigename, Rück-/Schrägansicht, kombinierte Köpfe und Bodenabstand, alle Lampentests einschließlich Ende/Wiederherstellung, Ablehnung bei Fahrstraßenbindung, Zeitgrenze, Signal-/Fenster-/Weltwechsel, native KI-Haltwirkung, Host-/Clientansichten, originale 0.6.3-Pipeline und Leistung mit vielen detaillierten Signalen. LOD ist noch nicht enthalten.

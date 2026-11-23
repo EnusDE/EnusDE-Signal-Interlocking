@@ -1,3 +1,11 @@
+## 0.7.64 — Runenwacht-Qualität und einzelne Lampentests
+
+- Runenwacht 0.2.0: mittige Rot-/Bernstein-/Grün-Gruppe, Sichelträger, ausgearbeitete Gehäuse/Leitungen/Keramik, UV-/PBR-Texturen für die aktive Pipeline, facettierte Körper und getrennte feine Leuchtadern.
+- Eingefasste technische Kennungs-/Namensschilder und Typenschild; stabile IDs und lokale Helligkeitsregler erhalten.
+- Host-Baumodus: einzelne vorhandene Köpfe ohne Fahrstraße testen; native Haltbindung beider Mastrichtungen und Sperre betroffener Start-/Ziel-/Zwischen-/Flankenschutzfahrstraßen. Keine Testfreigabe in der Betriebs-API.
+- Ende, Auswahlwechsel, Baumodusende, 120-Sekunden-Grenze und Welt-/Datenwechsel stellen reale Anzeigen wieder her. Lokale Host-Testansicht; Clients sehen Betriebs-Halt. Keine gespeicherten Testlichtbilder.
+- Beide Assemblies und vollständige Offline-Prüfungen bestanden; tatsächliche Unity-/Shader-/KI-/Mehrspieler-/Leistungsprüfung bleibt offen.
+
 ## 0.7.63 — optionale Darstellungspakete / Runenwacht-Experiment
 
 - Hauptmod liefert unveränderliche Signalzustände; separates optionales Runenwacht 0.1.0 zeichnet eigene prozedurale Modelle, gerichtete Blenden, feste Kristallfarben und widerspruchsfreie Lichtübergänge.

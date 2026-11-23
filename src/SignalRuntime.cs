@@ -66,6 +66,7 @@ namespace EnusDE.Signaltechnik {
         }
         public LocalSignalAspect Aspect(string id) {
             if(!StateManager.IsHost)return Entry.Shared?.ClientAspect(id)??LocalSignalAspect.Stop;
+            if(lampTest.Holds(id))return LocalSignalAspect.Stop;
             var operation=OperatingState(id);if(operation==SignalOperatingState.Unbound)return LocalSignalAspect.Invalid;if(operation==SignalOperatingState.OutOfService)return LocalSignalAspect.Kennlicht;
             if(engine.FlankHoldsSignal(id))return LocalSignalAspect.Stop;
             var row=Object(id);if(row==null||!aiEnabled||loadFailed||stopped||backupSuspended||!StateManager.IsHost||Time.realtimeSinceStartup-lastRead>1.5)return LocalSignalAspect.Stop;
@@ -79,10 +80,12 @@ namespace EnusDE.Signaltechnik {
             return run.Route.Shunting?LocalSignalAspect.Shunt:run.Route.Reduced?LocalSignalAspect.Slow:LocalSignalAspect.Clear;
         }
         public SignalAspect NativeAspect(string id) {
+            if(lampTest.Holds(id))return SignalAspect.Stop;
             if(IgnoreOwnSignal(id))return SignalAspect.Clear;
             return NativeSignalAuthority.For(Aspect(id),engine.ForViaSignal(id),id);
         }
         void Update() {
+            if(lampTest.Active&&(lampTest.Expired(Time.realtimeSinceStartup)||stopped||backupSuspended||loadFailed||StateManager.IsUnloading||Entry.Shared?.WorldKey!=scope||!Entry.BuildModeActive||Entry.SelectedBuildSignal!=lampTest.PhysicalId||!StateManager.IsHost))EndLampTest();
             if(stopped||backupSuspended||StateManager.IsUnloading){CancelRouteWork();return;}
             ReadSetupFieldFocus();
             ReadEditorDeleteKey();
@@ -238,6 +241,7 @@ namespace EnusDE.Signaltechnik {
         void Rebuild(bool rememberScroll=true){if(rememberScroll)RememberPanelScroll();if(manager!=null&&!StateManager.IsUnloading){CustomWindowHandle.Create(ActiveWindowId)?.SetNeedsRebuild();RebuildEditorToolsWindow();}}
         public void Open(bool choose=true)=>ShowWorkspace(false,choose?4:0,choose);
         public void Shutdown() {
+            lampTest.Clear();
             stockHooks?.Dispose();Cleanup(()=>automationHooks?.Dispose());Cleanup(()=>contactScene?.Dispose());Cleanup(RestoreSwitchModels);
             StopNetwork();
             if(stopped)return;stopped=true;CancelRouteWork();engine.HaltAll();lastRead=-100;Cleanup(PublishNativeAspects);Cleanup(RemoveProxies);Cleanup(()=>hooks?.Dispose());Cleanup(()=>world?.Dispose());Cleanup(()=>panelWorld?.Dispose());Cleanup(RemoveWindow);
