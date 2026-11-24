@@ -1,3 +1,9 @@
+# 0.7.67-P0 · Wegpunkt-Vorlauf und Umrangieren
+
+- Bis zu drei geprüfte Teilfahrstraßen für denselben Zug frühzeitig stellen. Blockierte oder unklare Abschnitte halten die Folge auf.
+- Geplante Richtungswechsel in einzelne Fahrabschnitte aufteilen. Stillstand des ganzen Verbandes am Wendepunkt und freie Weichen prüfen.
+- Direkte Zugausfahrten auf eingerichteten Strecken mit der bestehenden Streckenerlaubnis und Blockprüfung zulassen.
+
 # 0.7.66-P0 · Signalbedienung und Wegpunktanfragen
 
 - Linksklick auf ein Signal öffnet beim Host die Fahrstraßenanfrage. Rechtsklick öffnet die Objektaktionen.

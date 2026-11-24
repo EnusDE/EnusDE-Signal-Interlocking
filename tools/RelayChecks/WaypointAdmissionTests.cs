@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using EnusDE.Signaltechnik;
 
@@ -14,23 +15,29 @@ public static class WaypointAdmissionTests {
 
     class World:IInterlockingWorld {
         public TrackOccupancy Destination=TrackOccupancy.Clear;
+        public TrackOccupancy Approach=TrackOccupancy.Clear;
         public bool PointThrown=true;
         public int PointCommands;
 
         public bool PathValid(RouteDefinition route)=>true;
-        public TrackOccupancy Occupancy(TrackSection section)=>section.Segment=="target"?Destination:TrackOccupancy.Clear;
+        public TrackOccupancy Occupancy(TrackSection section)=>section.Segment=="target"?Destination:section.Segment=="approach"?Approach:TrackOccupancy.Clear;
         public bool SwitchPosition(string id,out bool thrown){thrown=PointThrown;return true;}
         public bool SetSwitch(string id,bool thrown){PointCommands++;PointThrown=thrown;return true;}
     }
 
-    sealed class SectionalWorld:World,ISectionalWorld,IVehicleOccupancyWorld {
+    sealed class SectionalWorld:World,ISectionalWorld,IVehicleOccupancyWorld,ITrainStopWorld {
         public string[] Approaching={"engine","wagon"};
         public string[] DestinationCars=Array.Empty<string>();
+        public string[] ApproachCars=Array.Empty<string>();
+        public double Head=-3;
+        public double Tail=-20;
+        public bool Stopped;
         public bool CaptureTrain(RouteDefinition route,out string[] cars){cars=Approaching;return cars!=null;}
-        public bool TrainProgress(RouteDefinition route,string[] cars,out double head,out double tail){head=-3;tail=-20;return true;}
+        public bool TrainProgress(RouteDefinition route,string[] cars,out double head,out double tail){head=Head;tail=Tail;return !double.IsNaN(Head);}
+        public bool TrainStopped(string[] cars)=>Stopped;
         public TrackOccupancy SectionWithCars(TrackSection section,out string[] cars) {
             var occupancy=Occupancy(section);
-            cars=occupancy==TrackOccupancy.Occupied?DestinationCars:Array.Empty<string>();
+            cars=occupancy==TrackOccupancy.Occupied?(section.Segment=="approach"?ApproachCars:DestinationCars):Array.Empty<string>();
             return occupancy;
         }
     }
@@ -108,6 +115,58 @@ public static class WaypointAdmissionTests {
         engine.Tick(world);
         Check(shuntCleared&&clearedShunt.Stage==RouteStage.Fault&&!clearedShunt.Permitted&&engine.Locked("P1",false),
             "foreign vehicle intrusion drops a cleared automatic shunt to stop and retains its point lock");
+
+        foreach(bool shunting in new[]{false,true}) {
+            engine=new InterlockingEngine();
+            world=new SectionalWorld{Approaching=null,Head=double.NaN};
+            var early=engine.RequestWaypoint(Route(shunting),world,cars,15,null,()=>true);
+            Tick(engine,world);
+            Check(early.Permitted&&early.TrainCars==null&&!early.Entered,
+                "verified directed approach permits advance reservation without a nearby capture or premature passage");
+            world.Head=10;world.Destination=TrackOccupancy.Occupied;world.DestinationCars=cars;
+            engine.Tick(world);
+            Check(early.Entered&&early.TrainCars.SequenceEqual(cars)&&early.Stage==RouteStage.Running,
+                "advance reservation binds only the planned consist when it reaches the route");
+        }
+        bool proof=true;
+        engine=new InterlockingEngine();
+        world=new SectionalWorld{Approaching=null,Head=double.NaN};
+        var revoked=engine.RequestWaypoint(Route(withPoint:true),world,cars,15,null,()=>proof);
+        proof=false;
+        Tick(engine,world);
+        Check(revoked.Stage==RouteStage.Fault&&!revoked.Permitted&&engine.Locked("P1",false),
+            "lost approach proof during advance preparation keeps stop and retains protection");
+
+        var approach=WaypointApproach.Create(new List<DirectedRouteSection>{
+            new DirectedRouteSection{Section=new TrackSection{Segment="approach",From=0,To=600}},
+            new DirectedRouteSection{Section=new TrackSection{Segment="target",From=0,To=100}}
+        },new MarkerAnchor{Segment="approach",Meters=0},false,new MarkerAnchor{Segment="target",Meters=100});
+        var start=new MarkerRecord{Anchor=new MarkerAnchor{Segment="target",Meters=0}};
+        world=new SectionalWorld{Approach=TrackOccupancy.Occupied,ApproachCars=cars};
+        Check(WaypointRoutePolicy.ClearApproach(approach,start,world,cars),
+            "waypoint advance reads the approach to the start signal and admits only the expected train on it");
+        world.ApproachCars=new[]{"foreign"};
+        Check(!WaypointRoutePolicy.ClearApproach(approach,start,world,cars),
+            "a foreign vehicle ahead of the lead consist blocks advance requests");
+        world.Approach=TrackOccupancy.Unknown;
+        Check(!WaypointRoutePolicy.ClearApproach(approach,start,world,cars),
+            "unreadable approach occupancy blocks advance requests");
+
+        engine=new InterlockingEngine();
+        world=new SectionalWorld{Approaching=null,Head=double.NaN};
+        var turning=engine.RequestWaypoint(Route(shunting:true,withPoint:true),world,cars,15,null,()=>true,80);
+        Tick(engine,world);
+        world.Head=80;world.Tail=19;world.Stopped=true;
+        world.Destination=TrackOccupancy.Occupied;world.DestinationCars=cars;
+        Tick(engine,world);
+        Check(turning.Entered&&engine.Locked("P1",false),"a stopped turnback keeps its point locked while the train tail is short of clearance");
+        world.Tail=30;world.Head=70;
+        Tick(engine,world);
+        Check(engine.Active.Contains(turning),"a shunt turnback remains reserved when the front has not reached the planned turning point");
+        world.Head=80;
+        Tick(engine,world);
+        Check(engine.Active.Count==0&&world.Destination==TrackOccupancy.Occupied,
+            "a verified turnback releases after the entire train stands beyond the point without changing reported occupancy");
 
         engine=new InterlockingEngine();
         world=new SectionalWorld();

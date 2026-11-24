@@ -2371,5 +2371,10 @@
   "Zuerst die ausstehende Fahrwegauswahl im Fahrdienstleiter abschließen.": "Finish the pending route selection in Dispatcher first.",
   "Automatische Anfragen": "Automatic requests",
   "Baustelle · noch nicht betriebsbereit": "Construction site · not in service",
-  "Signalbild: ": "Signal indication: "
+  "Signalbild: ": "Signal indication: ",
+  "Die gerichtete Annäherung des Wegpunktzugs ist nicht mehr nachgewiesen.": "The directed approach of the waypoint train is no longer verified.",
+  "Dieser Wegpunktabschnitt benötigt eine eingerichtete Strecke zwischen den beiden Stellwerken.": "This waypoint leg needs a configured line between the two interlockings.",
+  "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Ankunftssignal.": "The waypoint does not follow the configured line through to the arrival signal.",
+  "Wartet vor dem Richtungswechsel auf Stillstand und freie Weichen hinter dem ganzen Zug.": "Waiting for the whole train to stop clear of the previous points before reversing.",
+  "Kein zuständiges Signal in Reichweite vor dem Wegpunkt.": "No governing signal in range before the waypoint."
 }

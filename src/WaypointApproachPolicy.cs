@@ -12,6 +12,8 @@ namespace EnusDE.Signaltechnik {
 
         public IReadOnlyList<DirectedRouteSection> Sections {get;}
         public double Distance {get;}
+        public int Phase {get;internal set;}
+        public bool EndsAtTurnback {get;internal set;}
 
         WaypointApproach(List<DirectedRouteSection> sections) {
             Sections=sections.AsReadOnly();

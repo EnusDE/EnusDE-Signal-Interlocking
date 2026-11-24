@@ -8,6 +8,20 @@ namespace EnusDE.Signaltechnik {
         const double TerminalExtension=300;
         const double MaximumLeg=10000;
 
+        public static bool ClearApproach(WaypointApproach approach,MarkerRecord start,IVehicleOccupancyWorld world,string[] expected) {
+            if(world==null||expected==null||expected.Length==0||!approach.TryLocateAhead(start,out double remaining,6000))return false;
+            foreach(var piece in approach.Sections) {
+                if(remaining<=PositionTolerance)return true;
+                var span=piece.Section;
+                double length=Math.Min(remaining,span.To-span.From);
+                var section=new TrackSection{Segment=span.Segment,From=piece.Reverse?span.To-length:span.From,To=piece.Reverse?span.To:span.From+length};
+                var occupancy=world.SectionWithCars(section,out var cars);
+                if(occupancy!=TrackOccupancy.Clear&&(occupancy!=TrackOccupancy.Occupied||cars==null||cars.Length==0||cars.Any(id=>!expected.Contains(id))))return false;
+                remaining-=length;
+            }
+            return remaining<=PositionTolerance;
+        }
+
         public static bool HasViaAuthority(RouteRun run,string signal,string[] cars,LocalSignalAspect aspect) {
             return aspect==LocalSignalAspect.Shunt&&run.Entered&&run.PermitsVia(signal)&&
                 run.TrainCars!=null&&cars.Length>0&&run.TrainCars.Length==cars.Length&&

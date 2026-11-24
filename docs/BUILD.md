@@ -1,4 +1,4 @@
-# Build from source — 0.7.66 / Railroader 0.6.3
+# Build from source — 0.7.67 / Railroader 0.6.3
 
 Use PowerShell 7, the .NET 8 SDK, and a local Railroader installation with the required game libraries. Windows is the normal game-installation environment; the recorded Cloud checks used PowerShell/.NET on Linux. The build reads `Railroader_Data/Managed` from the selected installation. Game libraries are not included in Git or install packages.
 
@@ -16,7 +16,7 @@ The manifest requires **Railroader 0.6.3**. The user-path adapter can also compi
 
 ## Deutsch
 
-Quellstand **0.7.66**, Spielabhängigkeit **Railroader 0.6.3**. Benötigt werden PowerShell 7, .NET 8 SDK und lokal bereitgestellte Spielbibliotheken. `Build.ps1` baut und prüft, `Test.ps1` führt Build und Prüfungen aus. Vorhandene Pakete über ein neues Ausgabeverzeichnis erhalten. Spiel-DLLs und Build-Ergebnisse bleiben lokal. Vollständige Spiel- und Mehrspielerprüfungen stehen noch aus.
+Quellstand **0.7.67**, Spielabhängigkeit **Railroader 0.6.3**. Benötigt werden PowerShell 7, .NET 8 SDK und lokal bereitgestellte Spielbibliotheken. `Build.ps1` baut und prüft, `Test.ps1` führt Build und Prüfungen aus. Vorhandene Pakete über ein neues Ausgabeverzeichnis erhalten. Spiel-DLLs und Build-Ergebnisse bleiben lokal. Vollständige Spiel- und Mehrspielerprüfungen stehen noch aus.
 
 The full suite also builds `asset-packs/Runenwacht` and checks presentation/persistence/light transitions plus closed procedural geometry with controlled math/mesh stand-ins. Build only the optional pack with its own `Build.ps1` after building the main DLL. Package both already-tested outputs with `tools/Package-Runenwacht.ps1`; this refuses existing archive names and never installs.
 

@@ -116,10 +116,6 @@ namespace EnusDE.Signaltechnik {
                     reason=LocalText.Select("Waiting for the Auto Engineer to plan the current waypoint.","Wartet, bis der Auto Engineer den aktuellen Wegpunkt berechnet hat.");
                     return false;
                 }
-                if(!engine.IsStopped(0)&&(engine.velocity>=0)!=current.Forward) {
-                    reason=LocalText.Select("The locomotive is moving against the waypoint direction.","Die Lok bewegt sich entgegen der Wegpunktrichtung.");
-                    return false;
-                }
                 var steps=route.GetValue(planner) as List<RouteSearch.Step>;
                 if(steps==null||steps.Count<2||steps.Count>10001)return false;
                 var arguments=new object[]{engine,current.Forward,ConsistEnd.A};
@@ -127,26 +123,51 @@ namespace EnusDE.Signaltechnik {
                 // wheel bound of the currently leading consist end rather than the locomotive.
                 var head=(Location)routeStart.Invoke(null,arguments);
                 var leadingEnd=(ConsistEnd)arguments[2];
-                if(!head.IsValid||!TryWaypointSections(steps,leadingEnd,out var sections)) {
+                if(head.IsValid) {
+                    int from=0,phase=0;
+                    int live=Math.Max(0,Math.Min(steps.Count-1,(int)startIndex.GetValue(planner)));
+                    while(from<steps.Count) {
+                        int end=from+1;
+                        while(end<steps.Count&&steps[end].LeadingEnd==steps[from].LeadingEnd&&steps[end].Direction==steps[from].Direction)end++;
+                        bool forward=phase==0||steps[from].LeadingEnd==leadingEnd?current.Forward:!current.Forward;
+                        if(live>=from-1&&live<=end&&(engine.IsStopped(0)||(engine.velocity>=0)==forward)) {
+                            var phaseArgs=new object[]{engine,forward,ConsistEnd.A};
+                            var phaseHead=forward==current.Forward?head:(Location)routeStart.Invoke(null,phaseArgs);
+                            var phaseEnd=forward==current.Forward?leadingEnd:(ConsistEnd)phaseArgs[2];
+                            if(phaseHead.IsValid&&TryWaypointSections(steps,from,end,phaseEnd,out var sections)) {
+                                var last=sections[sections.Count-1];
+                                var destination=end==steps.Count?intent.Target:new MarkerAnchor{Segment=last.Section.Segment,Meters=last.Reverse?last.Section.From:last.Section.To};
+                                var canonical=phaseHead.WithEnd(TrackSegment.End.A);
+                                var origin=new MarkerAnchor{Segment=canonical.segment.id,Meters=canonical.distance};
+                                var candidate=WaypointApproach.Create(sections,origin,!phaseHead.EndIsA,destination);
+                                if(candidate!=null) {
+                                    if(approach!=null){approach=null;break;}
+                                    candidate.Phase=phase;
+                                    candidate.EndsAtTurnback=end<steps.Count;
+                                    approach=candidate;
+                                }
+                            }
+                        }
+                        from=end;phase++;
+                    }
+                }
+                if(approach==null) {
                     reason=LocalText.Select("The Auto Engineer path or the leading end is ambiguous.","Der Fahrweg des Auto Engineer oder die Zugspitze ist nicht eindeutig.");
                     return false;
                 }
-                var canonical=head.WithEnd(TrackSegment.End.A);
-                approach=WaypointApproach.Create(sections,new MarkerAnchor{Segment=canonical.segment.id,Meters=canonical.distance},!head.EndIsA,intent.Target);
-                if(approach==null)reason=LocalText.Select("The train front is outside the planned direction, or has reached the waypoint.","Die Zugspitze liegt außerhalb des geplanten Fahrwegs oder hat den Wegpunkt erreicht.");
-                return approach!=null;
+                return true;
             } catch(Exception) {
                 return false;
             }
         }
 
-        static bool TryWaypointSections(IReadOnlyList<RouteSearch.Step> steps,ConsistEnd leadingEnd,out List<DirectedRouteSection> sections) {
+        static bool TryWaypointSections(IReadOnlyList<RouteSearch.Step> steps,int from,int end,ConsistEnd leadingEnd,out List<DirectedRouteSection> sections) {
             sections=new List<DirectedRouteSection>();
-            var initial=steps[0];
+            var initial=steps[from];
             var previous=initial.Location;
             if(!UsableWaypointLocation(previous)||initial.LeadingEnd!=leadingEnd)return false;
             double entry=previous.WithEnd(TrackSegment.End.A).distance;
-            for(int i=1;i<steps.Count;i++) {
+            for(int i=from+1;i<end;i++) {
                 var step=steps[i];
                 var next=step.Location;
                 if(step.LeadingEnd!=leadingEnd||step.Direction!=initial.Direction||!UsableWaypointLocation(next))return false;

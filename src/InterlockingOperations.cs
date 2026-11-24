@@ -12,22 +12,35 @@ namespace EnusDE.Signaltechnik {
             double value=route.ProtectionWaitSeconds>=0?route.ProtectionWaitSeconds:fallback;
             if(double.IsNaN(value)||double.IsInfinity(value)||value<0||value>300)throw new InvalidOperationException("Schutzwartezeit muss 0–300 Sekunden betragen.");return value;
         }
-        public RouteRun RequestWaypoint(RouteDefinition definition,IInterlockingWorld world,string[] trainCars,double protectionWait=15,Action prepare=null) {
+        public RouteRun RequestWaypoint(RouteDefinition definition,IInterlockingWorld world,string[] trainCars,double protectionWait=15,Action prepare=null)=>
+            RequestWaypoint(definition,world,trainCars,protectionWait,prepare,null);
+
+        public RouteRun RequestWaypoint(RouteDefinition definition,IInterlockingWorld world,string[] trainCars,double protectionWait,Action prepare,Func<bool> proveApproach,double? turnbackDistance=null) {
             RouteRun result=null;
             ObserveRequest(new[]{definition},world,()=>{
                 var expected=trainCars?.OrderBy(id=>id,StringComparer.Ordinal).ToArray();
                 if(expected==null||expected.Length==0||expected.Length>256||expected.Any(string.IsNullOrEmpty)||expected.Distinct(StringComparer.Ordinal).Count()!=expected.Length)
                     throw new InvalidOperationException(LocalText.Select("Waypoint train identity is incomplete.","Der Wegpunktzug ist nicht vollständig zugeordnet."));
-                RequireWaypointTrain(definition,world,expected);
+                RequireWaypointTrain(definition,world,expected,proveApproach);
                 using(var admission=Admission?.Reserve(new[]{definition})) {
                     BeginRequest(definition,world,protectionWait,expected);
                     result=active[definition.Id];
+                    if(proveApproach!=null) {
+                        result.WaypointApproachProof=proveApproach;
+                        result.WaypointReservedAhead=true;
+                        result.WaypointTurnbackDistance=turnbackDistance;
+                        result.TrainCars=null;
+                    }
                     try{prepare?.Invoke();admission?.Commit();}catch{active.Remove(definition.Id);RefreshChains();throw;}
                 }
             });
             return result;
         }
-        static void RequireWaypointTrain(RouteDefinition route,IInterlockingWorld world,string[] expected) {
+        static void RequireWaypointTrain(RouteDefinition route,IInterlockingWorld world,string[] expected,Func<bool> proveApproach=null) {
+            if(proveApproach!=null) {
+                if(proveApproach())return;
+                throw new InvalidOperationException(LocalText.Select("The directed approach of the waypoint train is no longer verified.","Die gerichtete Annäherung des Wegpunktzugs ist nicht mehr nachgewiesen."));
+            }
             if(!(world is ISectionalWorld sectional)||!sectional.CaptureTrain(route,out var actual)||actual==null||
                 !actual.OrderBy(id=>id,StringComparer.Ordinal).SequenceEqual(expected))
                 throw new InvalidOperationException(LocalText.Select("Waiting for the requesting train to be identified at the signal.","Wartet, bis der anfragende Zug am Signal eindeutig erkannt wird."));
@@ -70,7 +83,7 @@ namespace EnusDE.Signaltechnik {
             run.Stage=RouteStage.Preparing;run.StartedAt=clock();run.Reason=LocalText.Get("Fahrweg frei; Weichen werden geprüft und festgelegt.");
         }
         void ContinuePreparation(RouteRun run,IInterlockingWorld world) {
-            if(run.ExpectedWaypointCars!=null){RequireWaypointTrain(run.Route,world,run.ExpectedWaypointCars);RequireClearWaypointRoute(run.Route,world);}
+            if(run.ExpectedWaypointCars!=null){RequireWaypointTrain(run.Route,world,run.ExpectedWaypointCars,run.WaypointApproachProof);RequireClearWaypointRoute(run.Route,world);}
             CheckFlanks(run,world);
             if(clock()-run.StartedAt>120)throw new InvalidOperationException("Weichen-/Endlagenprüfung nach 120 Sekunden nicht abgeschlossen.");
             if(!world.PathValid(run.Route))throw new InvalidOperationException("Fahrwegzuordnung ungültig. Fahrweg zuerst aktualisieren.");
@@ -86,6 +99,7 @@ namespace EnusDE.Signaltechnik {
             if(run.AlignmentChecks<2){run.Reason=ready?"Endlagen bestätigt; abschließende Freiprüfung":"Fahrstraße läuft ein / Weichenumlauf; Signale Halt";return;}
             obstruction=RequestObstruction(run.Route,world);if(obstruction!=null)throw new InvalidOperationException(obstruction);
             if(!world.PathValid(run.Route))throw new InvalidOperationException("Abschließende Fahrwegprüfung fehlgeschlagen.");
+            run.WaypointApproachProof=null;
             run.Stage=RouteStage.Set;run.Reason=LocalText.Get("Fahrstraße festgelegt; alle Endlagen und Freiprüfungen bestätigt.");
         }
         public void RequestRelease(string id,string selection,double fallback=15) {
@@ -118,11 +132,12 @@ namespace EnusDE.Signaltechnik {
             foreach(var section in run.Route.Approach){var state=world.Occupancy(section);if(state!=TrackOccupancy.Clear)return "Annäherung "+section.Key+": "+(state==TrackOccupancy.Occupied?"belegt":"nicht lesbar");}return "Restfestlegung prüfen";
         }
         static void ReleaseDestination(RouteRun run,IInterlockingWorld world,double head,double tail) {
-            if(run.Route.Shunting||!run.Route.Switches.All(p=>run.ReleasedSwitches.Contains(p.Node))||!(world is ITrainStopWorld))return;
+            if((run.Route.Shunting&&!run.WaypointTurnbackDistance.HasValue)||!run.Route.Switches.All(p=>run.ReleasedSwitches.Contains(p.Node))||!(world is ITrainStopWorld))return;
             var path=run.Route.Path;double at=0,start=0;
             foreach(var piece in path){at+=piece.Section.To-piece.Section.From;if(run.Route.Switches.Any(p=>p.Protection!=null&&p.Protection.Any(s=>s.Overlaps(piece.Section))))start=at;}
             double total=path.Sum(p=>p.Section.To-p.Section.From);
-            bool stopped=tail>start+.5&&head<=total+.5&&(!run.Route.AuxiliaryExit||head>=total-1)&&((ITrainStopWorld)world).TrainStopped(run.TrainCars);
+            double? minimumHead=run.WaypointTurnbackDistance.HasValue?run.WaypointTurnbackDistance-.5:run.Route.AuxiliaryExit?(double?)(total-1):null;
+            bool stopped=tail>start+.5&&head<=total+.5&&(!minimumHead.HasValue||head>=minimumHead.Value)&&((ITrainStopWorld)world).TrainStopped(run.TrainCars);
             // Never release a preceding point group or an unknown occupied area merely because a train stopped.
             var destination=new List<TrackSection>();at=0;foreach(var piece in path){if(at>=start-.001)destination.Add(piece.Section);at+=piece.Section.To-piece.Section.From;}
             stopped&=run.HeldSections.All(s=>destination.Any(d=>d.Key==s.Key))&&run.HeldSections.All(s=>world.Occupancy(s)!=TrackOccupancy.Unknown);

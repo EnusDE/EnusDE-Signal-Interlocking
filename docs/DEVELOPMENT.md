@@ -1,4 +1,14 @@
-# Development status and continuation — 0.7.66
+# Development status and continuation — 0.7.67
+
+## Waypoint lookahead and turnbacks
+
+Waypoint automation can set up to three consecutive train or shunt routes for the same verified consist. It matches each route against the directed native path and checks the approach for other vehicles. All route, point, flank and occupancy checks continue to apply. A route conflict stops the lookahead at the affected signal.
+
+Automatic movement selection uses the current signal and independent waypoint selection. A local shunt stays local. A direct train departure across an interlocking boundary needs a configured line between the selected departure and arrival signals. Its direction permission and block checks still apply. The test build does not repair a damaged line catalogue.
+
+When the native waypoint contains a direction change, the planner reads its current leg separately. At the end of a verified turnback leg, the host waits until the whole consist has stopped beyond the points before releasing the occupied destination. Train coupling orders remain outside this workflow.
+
+The full build and offline suite passed 2,124 checks against Railroader 0.6.3, including guarded advance reservations, foreign and unreadable occupancy, and turnout clearance at a stopped turnback. In-game tests are pending. Start with HS-044, then check three clear consecutive signals in both movements, a blocked middle route, a shunt via the sawmill with a long consist and a valid WHB–ELA departure from HS-006.
 
 ## World signal controls, waypoint requests and GFM
 

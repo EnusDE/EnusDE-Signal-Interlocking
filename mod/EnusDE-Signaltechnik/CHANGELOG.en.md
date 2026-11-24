@@ -1,3 +1,9 @@
+# 0.7.67-P0 · Advance waypoint requests and turnbacks
+
+- Set up to three verified route legs ahead for the same train. Stop extending the request at an occupied or unresolved leg.
+- Separate legs at a planned reversal. Verify that the whole consist has stopped clear of the points at the turnback location.
+- Admit direct train departures along configured lines through the existing permission and block checks.
+
 # 0.7.66-P0 · Signal controls and waypoint requests
 
 - Left-click a world signal to request a route as host. Right-click for object actions.

@@ -27,10 +27,21 @@ namespace EnusDE.Signaltechnik {
                 .Select(t=>t.Target.Id).Distinct().Where(id=>BoundLineTarget(id)==null).Select(AuxiliaryEndpoint).Where(s=>s!=null);
             var target=WaypointRoutePolicy.Destination(approach,source,SignalObjects,auxiliary,shunting,s=>!IgnoreOwnSignal(s.Id));
             if(target==null)throw new InvalidOperationException(LocalText.Select("No reachable signal or auxiliary destination for this waypoint leg.","Kein erreichbares Signal oder Hilfsziel für diesen Wegpunktabschnitt."));
-            if(SignalStation(target.Id)?.Id!=station.Id)throw new InvalidOperationException(LocalText.Select("This waypoint leg ends outside the assigned local interlocking.","Dieser Wegpunktabschnitt endet außerhalb des zuständigen örtlichen Stellwerks."));
+            if(SignalStation(target.Id)?.Id!=station.Id&&(shunting||WaypointLine(station.Id,SignalStation(target.Id)?.Id,signal,target.Id)==null))
+                throw new InvalidOperationException(LocalText.Select("This waypoint leg needs a configured line between the two interlockings.","Dieser Wegpunktabschnitt benötigt eine eingerichtete Strecke zwischen den beiden Stellwerken."));
             if(!AuxiliaryTarget.IsEndpoint(target)&&OperatingState(target.Id)!=SignalOperatingState.Active)
                 throw new InvalidOperationException(LocalText.Select("The next destination signal is unavailable.","Das nächste Zielsignal ist nicht verfügbar."));
             return target;
+        }
+
+        List<DirectedRouteSection> WaypointLine(string from,string to,string departure,string arrival) {
+            foreach(var line in desks.FreeLines.Where(l=>l.Enabled)) {
+                if(line.StationA==from&&line.StationB==to&&LineSignalGroups.Get(line,LineSignalGroup.ADepartures).Contains(departure)&&LineSignalGroups.Get(line,LineSignalGroup.BArrivals).Contains(arrival))
+                    return line.Forward;
+                if(line.StationB==from&&line.StationA==to&&LineSignalGroups.Get(line,LineSignalGroup.BDepartures).Contains(departure)&&LineSignalGroups.Get(line,LineSignalGroup.AArrivals).Contains(arrival))
+                    return line.Reverse;
+            }
+            return null;
         }
 
         bool TryPreparedWaypointRoutes(AutomaticRequest request,AutomationIntent intent,MovementRole role,WaypointApproach approach,out List<RouteChainPlan> plans) {
@@ -81,6 +92,13 @@ namespace EnusDE.Signaltechnik {
             var target=WaypointDestination(request.Signal,role,approach,out var source,out var kind);
             if(!WaypointRoutePolicy.Matches(approach,source,target,kind,plan))
                 throw new InvalidOperationException(LocalText.Select("The route no longer matches the current waypoint path.","Die Fahrstraße passt nicht mehr zum aktuellen Wegpunktfahrweg."));
+            var from=SignalStation(source.Id)?.Id;var to=SignalStation(target.Id)?.Id;
+            if(from!=to) {
+                var line=WaypointLine(from,to,source.Id,target.Id);
+                var routed=plan.Routes.Single().Path.Where(p=>line?.Any(s=>p.Reverse==s.Reverse&&p.Section.Overlaps(s.Section))==true).Select(p=>p.Section);
+                if(line==null||line.Count==0||GfmCoverage.Gaps(line.Select(p=>p.Section),routed).Count>0)
+                    throw new InvalidOperationException(LocalText.Select("The waypoint does not follow the configured line through to the arrival signal.","Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Ankunftssignal."));
+            }
             if(role==MovementRole.Shunt&&NeedsDirectionCoordination(plan.Routes[0]))
                 throw new InvalidOperationException(LocalText.Select("A waypoint shunt must stay within its local interlocking and station boundaries.","Eine Wegpunkt-Rangierfahrt muss innerhalb ihres örtlichen Stellwerks und der Bahnhofsgrenzen bleiben."));
         }

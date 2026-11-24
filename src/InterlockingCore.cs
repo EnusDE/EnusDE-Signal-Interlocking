@@ -113,6 +113,9 @@ namespace EnusDE.Signaltechnik {
         public readonly Dictionary<string,int> ReleaseChecks=new Dictionary<string,int>();
         public string[] TrainCars;
         [JsonIgnore] public string[] ExpectedWaypointCars;
+        [JsonIgnore] internal Func<bool> WaypointApproachProof;
+        [JsonIgnore] internal bool WaypointReservedAhead;
+        [JsonIgnore] internal double? WaypointTurnbackDistance;
         public double? TailProgress;
         public bool HeadKnown;
         public string NumberPassageNumber;
@@ -201,8 +204,13 @@ namespace EnusDE.Signaltechnik {
                     if(occupied==TrackOccupancy.Unknown)throw new InvalidOperationException("Belegung nicht verfügbar.");
                     double head=double.NaN,tail=double.NaN;bool progress=false;var sectional=world as ISectionalWorld;
                     if(sectional!=null&&run.Route.Path!=null) {
-                        if(run.TrainCars==null){string[] cars;if(sectional.CaptureTrain(run.Route,out cars))run.TrainCars=cars;}
-                        if(run.TrainCars!=null)progress=sectional.TrainProgress(run.Route,run.TrainCars,out head,out tail);
+                        if(run.TrainCars==null&&run.WaypointReservedAhead) {
+                            progress=sectional.TrainProgress(run.Route,run.ExpectedWaypointCars,out head,out tail);
+                            if(head>=0)run.TrainCars=run.ExpectedWaypointCars;
+                        } else {
+                            if(run.TrainCars==null){string[] cars;if(sectional.CaptureTrain(run.Route,out cars))run.TrainCars=cars;}
+                            if(run.TrainCars!=null)progress=sectional.TrainProgress(run.Route,run.TrainCars,out head,out tail);
+                        }
                         run.HeadKnown=!double.IsNaN(head);
                         if(run.TrainCars!=null&&!run.HeadKnown)throw new InvalidOperationException("Zuordnung oder Position des eingefahrenen Zuges nicht mehr sicher lesbar.");
                         run.TailProgress=progress?(double?)tail:null;
@@ -227,7 +235,8 @@ namespace EnusDE.Signaltechnik {
                             if(observed==TrackOccupancy.Unknown&&run.ExpectedWaypointCars!=null)
                                 throw new InvalidOperationException(LocalText.Select("The occupied waypoint route cannot identify the train.","Der belegte Wegpunktfahrweg kann den Zug nicht identifizieren."));
                             if(observed!=TrackOccupancy.Occupied)continue;
-                            if(run.TrainCars==null||cars==null||cars.Length==0||cars.Any(id=>!run.TrainCars.Contains(id)))throw new InvalidOperationException(LocalText.Select("Occupied route without verified passage by the assigned train: ","Fahrweg belegt ohne nachgewiesene Passage des zugeordneten Zuges: ")+DescribeSection(run.Route,section,world));
+                            var expected=run.TrainCars??(run.WaypointReservedAhead&&run.HeadKnown?run.ExpectedWaypointCars:null);
+                            if(expected==null||cars==null||cars.Length==0||cars.Any(id=>!expected.Contains(id)))throw new InvalidOperationException(LocalText.Select("Occupied route without verified passage by the assigned train: ","Fahrweg belegt ohne nachgewiesene Passage des zugeordneten Zuges: ")+DescribeSection(run.Route,section,world));
                         }
                     }
                     if(run.Entered&&run.Stage==RouteStage.Set){run.Stage=RouteStage.Running;run.Reason=LocalText.Get("Startsignal Halt; geschützte Abschnitte bis zum Zugschluss verschlossen");}

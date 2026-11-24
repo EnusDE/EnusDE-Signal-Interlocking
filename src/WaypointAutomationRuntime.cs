@@ -14,6 +14,7 @@ namespace EnusDE.Signaltechnik {
             public bool? AutomaticOverride;
             public string Status,RequestStatusKey,ObservationStatusKey;
             public string SuppressedSignal,SuppressedIntent;
+            public string ClearedTurnback;
         }
 
         // Saved world permission is independent of the current driver's local pause.
@@ -87,8 +88,9 @@ namespace EnusDE.Signaltechnik {
             duty=new WaypointDuty();waypointDuties.Add(car.id,duty);return duty;
         }
 
-        MovementRole PreferredWaypointMovement(Car car,WaypointDuty duty)=>duty.Selection!=MovementRole.Unassigned?duty.Selection:
-            Automation.Role(car.id,duty.Consist);
+        const double WaypointFirstSignalRange=650;
+        const double WaypointFollowSignalRange=6000;
+        const int WaypointLookAhead=3;
 
         void SetWaypointMovement(Car car,MovementRole selection) {
             CheckWaypointCar(car);
@@ -148,20 +150,37 @@ namespace EnusDE.Signaltechnik {
             SetWaypointMovement(car,selection);
             var duty=GetWaypointDuty(car);
             duty.Consist=AutomationNative.Signature(consist);duty.CurrentIntent=intent.Signature;
-            bool located=TryWaypointStart(car,consist,intent,PreferredWaypointMovement(car,duty),out _,out var signal,out var movement,out var reason,allowPausedWaypoint:true);
+            bool located=TryWaypointStart(car,consist,intent,duty.Selection,out _,out var signal,out var movement,out var reason,allowPausedWaypoint:true);
             QueueWaypointRequest(car,duty,intent,located?signal:null,movement,Time.realtimeSinceStartup,true,reason);
         }
 
-        bool TryWaypointStart(Car car,Car[] consist,AutomationIntent intent,MovementRole selection,out WaypointApproach approach,out MarkerRecord source,out MovementRole movement,out string reason,bool allowPausedWaypoint=false) {
+        bool TryWaypointStart(Car car,Car[] consist,AutomationIntent intent,MovementRole selection,out WaypointApproach approach,out MarkerRecord source,out MovementRole movement,out string reason,bool allowPausedWaypoint=false,string requested=null,bool follow=false) {
             approach=null;source=null;movement=selection==MovementRole.Shunt?MovementRole.Shunt:MovementRole.Train;
             if(intent.Mode!=AutomationDrivingMode.Waypoint){reason=AwaitWaypoint();return false;}
             if(!intent.Ready){reason=intent.Reason??WaitNativePath();return false;}
             if(!AutomationNative.TryWaypointApproach(car,intent,out approach,out reason,allowPausedWaypoint)){reason=reason??WaitNativePath();return false;}
             var currentApproach=approach;
-            var forward=currentApproach.SignalsAhead(SignalObjects.Where(s=>!s.Planned&&(s.Kind==MarkerRecord.Main||s.Kind==MarkerRecord.Shunt)));
+            if(!CheckWaypointTurnback(car,consist,intent,currentApproach)) {
+                reason=LocalText.Select("Waiting for the whole train to stop clear of the previous points before reversing.","Wartet vor dem Richtungswechsel auf Stillstand und freie Weichen hinter dem ganzen Zug.");
+                return false;
+            }
+            double range=follow||requested!=null?WaypointFollowSignalRange:WaypointFirstSignalRange;
+            var forward=currentApproach.SignalsAhead(SignalObjects.Where(s=>!s.Planned&&(s.Kind==MarkerRecord.Main||s.Kind==MarkerRecord.Shunt)),range);
             var cars=consist.Select(c=>c.id).ToArray();
-            var governing=forward.Where(s=>!IgnoreOwnSignal(s.Id)&&!CoveredWaypointVia(s,cars));
-            source=currentApproach.NextSignal(governing);
+            var governing=forward.Where(s=>!IgnoreOwnSignal(s.Id)&&!CoveredWaypointVia(s,cars)).ToArray();
+            source=currentApproach.NextSignal(governing,requested!=null?WaypointFollowSignalRange:WaypointFirstSignalRange);
+            for(int i=1;i<WaypointLookAhead&&source!=null&&source.Id!=requested&&(follow||requested!=null);i++) {
+                string entry=source.Id;
+                var previous=automaticRequests.FirstOrDefault(r=>r.Waypoint&&r.Locomotive==car.id&&r.Intent==intent.Signature&&
+                    PendingWaypointRequest(r)&&r.Signal==entry&&r.WaypointRun?.Permitted==true&&!r.HandedOver);
+                if(previous==null)break;
+                var route=previous.WaypointRun.Route;
+                if(!WaypointRoutePolicy.Matches(currentApproach,source,RouteEndpoint(route.Exit),RouteMovement.Default(source,route.Shunting),
+                    new RouteChainPlan{Routes=new List<RouteDefinition>{route}}))break;
+                var next=RouteEndpoint(route.Exit);
+                if(!governing.Any(s=>s.Id==next?.Id)||!currentApproach.TryLocateAhead(next,out _,WaypointFollowSignalRange))break;
+                source=next;
+            }
             if(source==null) {
                 source=forward.FirstOrDefault(s=>IgnoreOwnSignal(s.Id));
                 if(source==null)reason=NoWaypointSignal(currentApproach,out source);
@@ -199,7 +218,19 @@ namespace EnusDE.Signaltechnik {
             opposite=approach.SignalsAhead(SignalObjects.Where(s=>!s.Planned&&(s.Kind==MarkerRecord.Main||s.Kind==MarkerRecord.Shunt)),includeOpposite:true)
                 .FirstOrDefault(s=>!approach.TryLocateAhead(s,out _));
             if(opposite!=null)return opposite.DisplayTitle+" · "+LocalText.Select("Faces the opposite direction from this waypoint path.","Zeigt entgegen der Fahrtrichtung dieses Wegpunkts.");
-            return LocalText.Select("No governing signal on the next 300 m before the waypoint.","Kein zuständiges Signal auf den nächsten 300 Gleismetern vor dem Wegpunkt.");
+            return LocalText.Select("No governing signal in range before the waypoint.","Kein zuständiges Signal in Reichweite vor dem Wegpunkt.");
+        }
+
+        bool CheckWaypointTurnback(Car car,Car[] consist,AutomationIntent intent,WaypointApproach approach) {
+            if(approach.Phase==0)return true;
+            var duty=GetWaypointDuty(car);
+            var key=intent.Signature+"|"+approach.Phase;
+            if(duty.ClearedTurnback==key)return true;
+            if(!world.TrainStopped(consist.Select(c=>c.id).ToArray()))return false;
+            var retained=automaticRequests.Where(r=>r.Waypoint&&r.Locomotive==car.id&&r.WaypointRun?.Entered==true&&engine.Active.Contains(r.WaypointRun));
+            if(retained.Any(r=>r.WaypointRun.Route.Switches.Any(p=>p.FlankOf==null&&!r.WaypointRun.ReleasedSwitches.Contains(p.Node))))return false;
+            duty.ClearedTurnback=key;
+            return true;
         }
 
         static string WaypointDriverConflict()=>LocalText.Select("The consist needs exactly one Auto Engineer driver for this waypoint.","Der Verband braucht genau eine Auto-Engineer-Lok für diesen Wegpunkt.");
@@ -250,7 +281,9 @@ namespace EnusDE.Signaltechnik {
                 var car=waypointRoster[waypointCursor++];
                 if(!AvailableWaypointCar(car))continue;
                 waypointDuties.TryGetValue(car.id,out var duty);
-                if(!IsWaypointAutomatic(duty)||automaticRequests.Any(r=>r.Locomotive==car.id&&PendingWaypointRequest(r)&&r.WaypointRun?.Entered!=true))continue;
+                if(!IsWaypointAutomatic(duty))continue;
+                var pending=automaticRequests.Where(r=>r.Locomotive==car.id&&PendingWaypointRequest(r)&&r.WaypointRun?.Entered!=true).ToArray();
+                if(pending.Length>=WaypointLookAhead||pending.Any(r=>!r.Waypoint||r.WaypointRun?.Permitted!=true||r.HandedOver))continue;
                 bool activeWaypoint=AutomationNative.HasActiveWaypoint(car);
                 if(!activeWaypoint) {
                     if(duty!=null)SetWaypointStatus(car.id,duty,"no_request",AwaitWaypoint());
@@ -271,8 +304,9 @@ namespace EnusDE.Signaltechnik {
                         SetWaypointStatus(car.id,duty,"no_request",LocalText.Select("Consist changed. Set a new waypoint or re-enable automation for this locomotive.","Verband geändert. Einen neuen Wegpunkt setzen oder die Automatik an dieser Lok erneut einschalten."),intent:intent);
                         continue;
                     }
+                    if(duty.CurrentIntent!=intent.Signature)duty.ClearedTurnback=null;
                     duty.Consist=signature;duty.CurrentIntent=intent.Signature;
-                    if(!TryWaypointStart(car,consist,intent,PreferredWaypointMovement(car,duty),out var approach,out var source,out var movement,out var reason)) {
+                    if(!TryWaypointStart(car,consist,intent,duty.Selection,out var approach,out var source,out var movement,out var reason,follow:pending.Length>0)) {
                         SetWaypointStatus(car.id,duty,"no_request",reason,source,intent:intent,approach:approach);
                         continue;
                     }
@@ -322,12 +356,12 @@ namespace EnusDE.Signaltechnik {
                 var intent=AutomationNative.Intent(car,allowPausedWaypoint:request.DriverRequested);
                 if(intent.Signature!=request.Intent||intent.Mode!=AutomationDrivingMode.Waypoint)throw new OperationCanceledException(ChangedWaypoint());
                 if(!AutomationNative.HasUniqueWaypointDriver(car,cars))throw new OperationCanceledException(WaypointDriverConflict());
-                if(run?.Permitted==true&&intent.Ready&&run.TrainCars!=null) {
-                    world.TrainProgress(run.Route,run.TrainCars,out var head,out _);
+                if(run?.Permitted==true&&intent.Ready&&run.ExpectedWaypointCars!=null) {
+                    world.TrainProgress(run.Route,run.ExpectedWaypointCars,out var head,out _);
                     // The front has reached the route. Let the usual passage offset and train-tail checks finish.
                     if(head>=0){request.HandedOver=request.DriverRequested;request.Reason=LocalText.Select("Train reaching the route.","Zug erreicht die Fahrstraße.");return;}
                 }
-                if(!TryWaypointStart(car,cars,intent,PreferredWaypointMovement(car,duty),out var approach,out var source,out var movement,out var reason,request.DriverRequested)) {
+                if(!TryWaypointStart(car,cars,intent,duty.Selection,out var approach,out var source,out var movement,out var reason,request.DriverRequested,request.Signal)) {
                     if(run!=null)throw new OperationCanceledException(reason);
                     CancelWaypointPreparation(request.Id);
                     request.Reason=reason;return;
@@ -350,9 +384,6 @@ namespace EnusDE.Signaltechnik {
                 if(!TryPreparedWaypointRoutes(request,intent,request.Movement,approach,out var plans))return;
                 if(plans.Count!=1)throw new InvalidOperationException(LocalText.Select("The waypoint does not identify a unique route.","Der Wegpunkt ergibt keinen eindeutigen Fahrweg."));
                 var plan=plans[0];RequireWaypointPlan(request,request.Movement,approach,plan);
-                if(!approach.TryLocateAhead(source,out _,25)) {
-                    request.Reason=LocalText.Select("Route prepared. Waiting for the train near the signal.","Fahrweg vorbereitet. Wartet auf den Zug am Signal.");return;
-                }
                 var route=plan.Routes.Single();
                 RequireMonitoredPlan(plan);
                 RoutePointProtection.RequireCalculated(route);if(!route.Shunting)FlankProtection.RequireCalculated(route);
@@ -360,7 +391,23 @@ namespace EnusDE.Signaltechnik {
                 var obstruction=InterlockingEngine.RequestObstruction(route,world);
                 if(obstruction!=null)throw new InvalidOperationException(obstruction);
                 admittedThisTick=true;
-                run=engine.RequestWaypoint(route,world,cars.Select(c=>c.id).ToArray(),Entry.SettingsSnapshot().Markers.ProtectionWaitSeconds,()=>PrepareRequestedPlan(plan));
+                var expected=cars.Select(c=>c.id).ToArray();
+                bool ProveApproach() {
+                    if(!RouteWorkAvailable||!aiEnabled||!OperatingReady||(!request.DriverRequested&&!IsWaypointAutomatic(duty))||
+                        Automation.PausedStations.Contains(owner.Id))return false;
+                    if(!TryCurrentWaypointCar(request.Locomotive,duty,out var lead,out var currentCars)||!AutomationNative.HasUniqueWaypointDriver(lead,currentCars))return false;
+                    var currentIntent=AutomationNative.Intent(lead,allowPausedWaypoint:request.DriverRequested);
+                    if(currentIntent.Signature!=request.Intent||!TryWaypointStart(lead,currentCars,currentIntent,duty.Selection,out var live,out var signal,out var role,out _,request.DriverRequested,request.Signal)||
+                        signal.Id!=request.Signal||role!=request.Movement)return false;
+                    RequireWaypointPlan(request,role,live,plan);
+                    return WaypointRoutePolicy.ClearApproach(live,signal,world,expected);
+                }
+                double? turnback=null;
+                if(approach.EndsAtTurnback&&approach.TryLocateAhead(source,out double startDistance,WaypointFollowSignalRange)) {
+                    double distance=approach.Distance-startDistance;
+                    if(distance>0&&distance<=route.Path.Sum(p=>p.Section.To-p.Section.From)+.02)turnback=distance;
+                }
+                run=engine.RequestWaypoint(route,world,expected,Entry.SettingsSnapshot().Markers.ProtectionWaitSeconds,()=>PrepareRequestedPlan(plan),ProveApproach,turnback);
                 request.WaypointRun=run;
                 request.Routes=new[]{route.Id};request.Target=route.Exit;request.Stage=AutomaticRequestStage.Submitted;
                 CancelWaypointPreparation(request.Id);
