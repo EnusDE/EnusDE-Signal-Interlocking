@@ -18,7 +18,7 @@ namespace EnusDE.Signaltechnik {
     public sealed class AutomationHooks:IDisposable {
         const string PatchId="enusde.signaltechnik.automation";
         static Func<string,bool> protectedPoint;
-        static Action<UIPanelBuilder,Car> carPanel;
+        static Action<UIPanelBuilder,Car,Func<bool>> carPanel;
         Harmony harmony;
         static readonly MethodInfo ctc=typeof(TrackNode).GetProperty("IsCTCSwitch").GetGetMethod();
         static readonly MethodInfo unlocked=typeof(TrackNode).GetProperty("IsCTCSwitchUnlocked").GetGetMethod();
@@ -31,7 +31,7 @@ namespace EnusDE.Signaltechnik {
             if(matches.Length!=1)throw new MissingMethodException(inspector.FullName,"Unique vehicle tab builder (BuildContent/PopulatePanel, UITabbedPanelBuilder)");
             return matches[0];
         }
-        public void Start(Func<string,bool> protect,Action<UIPanelBuilder,Car> panel) {
+        public void Start(Func<string,bool> protect,Action<UIPanelBuilder,Car,Func<bool>> panel) {
             Dispose();protectedPoint=protect;carPanel=panel;
             try {
                 harmony=new Harmony(PatchId);var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
@@ -61,7 +61,10 @@ namespace EnusDE.Signaltechnik {
                 var field=AccessTools.Field(__instance.GetType(),"_car");var car=field?.GetValue(__instance) as Car;
                 if(car==null||!car.IsLocomotive)return;
                 __0.AddTab(LocalText.Select("Signalling","Signaltechnik"),"enusde.signaltechnik.vehicle",builder=>{
-                    var selected=field.GetValue(__instance) as Car;if(selected!=null)carPanel?.Invoke(builder,selected);
+                    var selected=field.GetValue(__instance) as Car;
+                    var draw=carPanel;
+                    if(selected!=null&&draw!=null)
+                        draw(builder,selected,()=>selected!=null&&ReferenceEquals(carPanel,draw)&&ReferenceEquals(field.GetValue(__instance),selected));
                 });
             }catch{/* An optional info tab must not break the native inspector. */}
         }

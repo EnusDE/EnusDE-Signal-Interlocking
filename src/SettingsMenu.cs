@@ -7,19 +7,22 @@ namespace EnusDE.Signaltechnik {
     public sealed class SettingsMenu {
         readonly UIState<bool> markerExpanded=new UIState<bool>(false);
         readonly UIState<bool> materialExpanded=new UIState<bool>(false),controlsExpanded=new UIState<bool>(false),diagnosticsExpanded=new UIState<bool>(false);
-        readonly UIState<bool> placementExpanded=new UIState<bool>(true),automationExpanded=new UIState<bool>(false),backupExpanded=new UIState<bool>(false);
+        readonly UIState<bool> placementExpanded=new UIState<bool>(false),automationExpanded=new UIState<bool>(true),advancedOperationExpanded=new UIState<bool>(false),backupExpanded=new UIState<bool>(false);
         readonly Dictionary<string,UIState<bool>> sections=new Dictionary<string,UIState<bool>>();
         readonly Func<DiagnosticSettings> read;
         readonly Action<DiagnosticSettings> save;
-        readonly string path;
         DiagnosticSettings draft;
         bool dirty;
         string message=LocalText.Get("Änderungen mit Anwenden & Speichern übernehmen.");
-        public SettingsMenu(Func<DiagnosticSettings> read,Action<DiagnosticSettings> save,string path) {
-            this.read=read;this.save=save;this.path=path;draft=read();
+        public SettingsMenu(Func<DiagnosticSettings> read,Action<DiagnosticSettings> save) {
+            this.read=read;this.save=save;draft=read();
             foreach(string key in DiagnosticSettings.Categories)sections[key]=new UIState<bool>(false);
         }
         public void BuildStandalone(UIPanelBuilder builder)=>Content(builder);
+        internal void FocusOperatingSettings() {
+            automationExpanded.Value=true;
+            markerExpanded.Value=placementExpanded.Value=materialExpanded.Value=controlsExpanded.Value=diagnosticsExpanded.Value=backupExpanded.Value=false;
+        }
         public void ResetDraft(){draft=read();dirty=false;message=LocalText.Get("Änderungen mit Anwenden & Speichern übernehmen.");}
         public static string Caption(string key) {
             switch(key){case "vehicles":return "Züge und Fahrzeuge";case "signals":return "Signale";case "blocks":return "Belegungen und Stellwerk";case "switches":return "Weichen";case "signs":return "Schilder";case "game_log":return "Relevante Spielmeldungen";case "performance":return "Leistung";default:return key;}
@@ -28,9 +31,18 @@ namespace EnusDE.Signaltechnik {
             if(!dirty)draft=read();
             b.AddField(LocalText.Select("Interface language","Oberflächensprache"),b.AddDropdown(new List<string>{LocalText.Get("Automatic / Automatisch"),LocalText.Get("English"),LocalText.Get("Deutsch")},draft.Language=="de"?2:draft.Language=="en"?1:0,i=>{draft.Language=i==2?"de":i==1?"en":"auto";dirty=true;}));
             b.AddLabel(LocalText.Get("Signaltechnik · v")+Entry.Version);
+            b.AddExpandable(LocalText.Select("Operation and automation","Betrieb und Automatik"),automationExpanded,operation=>{
+                Entry.BuildWaypointSetup(operation,()=>draft.Markers.EnableAiSignals=read().Markers.EnableAiSignals);
+                operation.AddExpandable(LocalText.Select("Advanced operating settings","Erweiterte Betriebseinstellungen"),advancedOperationExpanded,advanced=>{
+                    if(Game.State.StateManager.Shared==null||Game.State.StateManager.IsHost) {
+                        Toggle(advanced,LocalText.Select("Auto Engineer signal connection","Auto-Engineer-Signalanbindung"),()=>draft.Markers.EnableAiSignals,v=>draft.Markers.EnableAiSignals=v);
+                        Choose(advanced,LocalText.Get("Schutzwartezeit nach Rücknahme / Hilfsauflösung"),new double[]{0,5,10,15,20,30,60,90,120,180,300},draft.Markers.ProtectionWaitSeconds,v=>draft.Markers.ProtectionWaitSeconds=v," s");
+                    }
+                    Entry.BuildAutomationSettings(advanced);
+                },ExpandableStyle.SectionHeader);
+            },ExpandableStyle.SectionHeader);
+            b.AddExpandable(LocalText.Select("Signal appearance and compatibility","Signaldarstellung und Kompatibilität"),markerExpanded,MarkerSettings,ExpandableStyle.SectionHeader);
             b.AddExpandable(LocalText.Get("Bauvorgaben – Abstand, Höhe und Seite"),placementExpanded,PlacementSettings,ExpandableStyle.SectionHeader);
-            b.AddExpandable(LocalText.Get("Signalbetrieb und Darstellung"),markerExpanded,MarkerSettings,ExpandableStyle.SectionHeader);
-            b.AddExpandable(LocalText.Get("Automatisierung und KI"),automationExpanded,Entry.BuildAutomationSettings,ExpandableStyle.SectionHeader);
             b.AddExpandable(LocalText.Get("Anlagensicherung und Wiederherstellung"),backupExpanded,Entry.BuildBackups,ExpandableStyle.SectionHeader);
             b.AddExpandable(LocalText.Get("Material und Baukosten"),materialExpanded,MaterialSettings,ExpandableStyle.SectionHeader);
             b.AddExpandable(LocalText.Get("Bedienung"),controlsExpanded,controls=>{
@@ -38,12 +50,8 @@ namespace EnusDE.Signaltechnik {
                 controls.AddSearchChoice(LocalText.Get("Signalliste zuklappen"),shortcutNames.ToList(),
                     Array.IndexOf(DiagnosticSettings.SearchCloseKeys,draft.SearchCloseKey),
                     i=>{draft.SearchCloseKey=DiagnosticSettings.SearchCloseKeys[i];dirty=true;});
-                controls.AddButton(LocalText.Get("Baumenü öffnen"),()=>Entry.MarkerCommand("open"));
-                controls.AddButton(LocalText.Get("Stellwerk öffnen"),Entry.OpenInterlocking);
-                controls.AddButton(LocalText.Get("Materiallager und Bauaufträge öffnen"),Entry.OpenMaterials);
             },ExpandableStyle.SectionHeader);
             b.AddExpandable(LocalText.Get("Optionale lokale Diagnose"),diagnosticsExpanded,diagnostics=>{
-                diagnostics.AddLabel(LocalText.Get("Optionale lokale Diagnose"));
                 diagnostics.AddLabel(LocalText.Get("Erfassen schaltet Messung und Aufzeichnung. Anzeigen blendet Informationen im Diagnosefenster ein. Abgeschaltete Erfassung wird dort als aus angezeigt."));
                 Toggle(diagnostics,LocalText.Get("Hintergrundaufzeichnung"),()=>draft.Recording,v=>draft.Recording=v);
                 Toggle(diagnostics,LocalText.Get("Auf diesem Rechner auch als Mitspieler aufzeichnen"),()=>draft.RecordOnClients,v=>draft.RecordOnClients=v);
@@ -64,8 +72,7 @@ namespace EnusDE.Signaltechnik {
             b.AddButton(LocalText.Get("Anwenden & Speichern"),()=>{try{save(draft);draft=read();dirty=false;message=LocalText.Get("Gespeichert. Auswahl gilt sofort und beim nächsten Spielstart.");}catch(Exception e){message=LocalText.Get("Nicht übernommen: ")+e.Message;}b.SetNeedsRebuild();});
             b.AddButton(LocalText.Get("Gespeicherte Auswahl laden"),()=>{draft=read();dirty=false;message=LocalText.Get("Aktuell gespeicherte Auswahl geladen.");b.SetNeedsRebuild();});
             b.AddButton(LocalText.Get("Standardauswahl vorbereiten"),()=>{draft=new DiagnosticSettings();dirty=true;message=LocalText.Get("Standardauswahl vorbereitet; zum Übernehmen speichern.");b.SetNeedsRebuild();});
-            b.AddLabel(message);b.AddLabel(LocalText.Get("Einstellungsdatei: ")+path);
-            b.AddLabel(LocalText.Get("Diagnosefenster: /enus_signal · Status: /enus_signal_status"));
+            b.AddLabel(message);
         }
         void Category(UIPanelBuilder b,string key) {
             var group=draft[key];
@@ -105,15 +112,8 @@ namespace EnusDE.Signaltechnik {
             Choose(b,LocalText.Get("Stärke des Lichthofs"),new double[]{.1,.25,.5,.75,1,1.5,2},draft.Markers.Glow.HaloStrength,v=>draft.Markers.Glow.HaloStrength=v,"×");
             b.AddLabel(LocalText.Get("Rot, Grün, Gelb und Weiß folgen dem tatsächlich angezeigten Signalbegriff. Die Darstellung ist pro Rechner einstellbar; Änderungen unten anwenden und speichern."));
             b.AddLabel(LocalText.Select("The clock-toolbar launcher remains available for settings, including before construction is unlocked.","Das Auswahlfenster an der Uhrleiste bleibt für Einstellungen erreichbar, auch vor der Baufreischaltung."));
-            Toggle(b,LocalText.Get("Experimentelle AE-Signalanbindung einschalten"),()=>draft.Markers.EnableAiSignals,v=>draft.Markers.EnableAiSignals=v);
-            Choose(b,LocalText.Get("Schutzwartezeit nach Rücknahme / Hilfsauflösung"),new double[]{0,5,10,15,20,30,60,90,120,180,300},draft.Markers.ProtectionWaitSeconds,v=>draft.Markers.ProtectionWaitSeconds=v," s");
-            b.AddLabel(LocalText.Get("AE-Anbindung registriert eigene Haupt-/Rangiersignale im Gleisnetz und aktiviert den Fahrstraßenprototyp. Reale KI-Reaktion noch zu prüfen. Aktive Fahrstraßen vor Abschalten sicher auflösen."));
             Toggle(b,LocalText.Get("Spieler- und erkannte Karten-Geschwindigkeitsschilder an Einheit anpassen"),()=>draft.Markers.AdaptExistingSpeedSigns,v=>draft.Markers.AdaptExistingSpeedSigns=v);
             b.AddLabel(LocalText.Get("Schildeinheit folgt nur lesend der Auswahl Geschwindigkeit des Übersetzungsmods. Ohne Einstellung: mph. Keine Änderung gespeicherter Spielgeschwindigkeiten."));
-            b.AddButton(LocalText.Get("Baumenü öffnen"),()=>{message=Entry.MarkerCommand("open");b.SetNeedsRebuild();});
-            b.AddButton(LocalText.Get("Stellwerksfenster öffnen"),Entry.OpenInterlocking);
-            if(Game.State.StateManager.Shared!=null&&!Game.State.StateManager.IsHost)
-                b.AddButton(LocalText.Get("Materialbestand ansehen"),Entry.OpenMaterials);
         }
         void PlacementSettings(UIPanelBuilder b) {
             b.AddLabel(LocalText.Get("Vorgaben für neue Signale, Schilder und Grenzzeichen. Bestehende Objekte behalten ihre gespeicherte Position."));

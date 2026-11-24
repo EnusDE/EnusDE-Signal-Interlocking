@@ -69,31 +69,33 @@ namespace EnusDE.Signaltechnik {
             items.Add(MenuItem.Submenu(WindowText("Regions","Bereiche"),regions));
             }
             if(general) {
-            items.Add(MenuItem.Action(WindowText("Setup assistant…","Einrichtungsassistent …"),Guard(OpenSetupAssistant)));
-            items.Add(MenuItem.Submenu(WindowText("Extend working area","Arbeitsfläche erweitern"),new List<MenuItem>{
-                MenuItem.Action(WindowText("Add row at top","Zeile oben hinzufügen"),Guard(()=>InsertCanvasAxes(true,0))),
-                MenuItem.Action(WindowText("Add row at bottom","Zeile unten hinzufügen"),Guard(()=>InsertCanvasAxes(true,panel.Rows))),
-                MenuItem.Action(WindowText("Add column at left","Spalte links hinzufügen"),Guard(()=>InsertCanvasAxes(false,0))),
-                MenuItem.Action(WindowText("Add column at right","Spalte rechts hinzufügen"),Guard(()=>InsertCanvasAxes(false,panel.Columns)))
-            }));
-            items.Add(MenuItem.Action(WindowText("Refresh and inspect installation…","Anlage aktualisieren und prüfen …"),Guard(OpenInstallationAudit)));
-            items.Add(MenuItem.Action(WindowText("Section manager / GFM inspection…","Abschnittmanager / GFM-Prüfung …"),Guard(OpenGfmInspection)));
-            items.Insert(0,MenuItem.Action(WindowText("Detect GFM in this diagram…","GFM in diesem Gleisbild erkennen …"),Guard(OpenExistingDetection)));
-            items.Add(MenuItem.Action(WindowText("Set up GFM from world objects…","GFM über Weltobjekte einrichten …"),Guard(OpenWorldGfmSetup)));
-            items.Add(MenuItem.Action(WindowText("Block / line connections","Block-/Streckenverbindungen"),Guard(OpenFreeLines)));
-            items.Insert(0,MenuItem.Action(WindowText("Interlocking overview","Stellwerksübersicht"),Guard(OpenEditorCatalogue)));
-            items.Add(MenuItem.Action(WindowText("Manage this interlocking…","Dieses Stellwerk verwalten …"),Guard(()=>{string id=deskId;OpenEditorCatalogue();OpenCatalogueForm(id);} )));
-            items.Add(MenuItem.Action(WindowText("Automatic recognition…","Automatische Erkennung …"),Guard(OpenRecognition)));
-            items.Add(MenuItem.Submenu(WindowText("Interlocking functions","Stellwerksfunktionen"),new List<MenuItem>{
-                MenuItem.Action(WindowText("Route calculation settings","Fahrwegmodus einstellen"),Guard(()=>{WorkspacePage(7);automationPage=0;RefreshWorkspaceFields();})),
+            items.Insert(0,MenuItem.Action(WindowText("Choose interlocking","Stellwerk wählen"),Guard(OpenEditorCatalogue)));
+            items.Insert(1,MenuItem.Action(WindowText("Set up and check","Einrichten und prüfen"),Guard(OpenSetupAssistant)));
+            items.Add(MenuItem.Submenu(WindowText("Signals and routes","Signale und Fahrstraßen"),new List<MenuItem>{
                 MenuItem.Action(WindowText("World links","Spielwelt-Zuordnungen"),Guard(()=>WorkspacePage(3))),
-                MenuItem.Action(WindowText("Automation and AI","Automatisierung und KI"),Guard(()=>WorkspacePage(7))),
+                MenuItem.Action(WindowText("Saved route planning","Gespeicherte Fahrstraßen planen"),Guard(()=>WorkspacePage(2))),
+                MenuItem.Action(WindowText("Automatic recognition…","Automatische Erkennung …"),Guard(OpenRecognition)),
+                MenuItem.Action(WindowText("Operating settings…","Betriebseinstellungen …"),Guard(Entry.OpenAutomationSettings))
+            }));
+            items.Add(MenuItem.Submenu(WindowText("Track detection","Gleisfreimeldung"),new List<MenuItem>{
+                MenuItem.Action(WindowText("Detect GFM in this diagram…","GFM in diesem Gleisbild erkennen …"),Guard(OpenExistingDetection)),
+                MenuItem.Action(WindowText("Section manager / GFM inspection…","Abschnittmanager / GFM-Prüfung …"),Guard(OpenGfmInspection)),
+                MenuItem.Action(WindowText("Set up GFM from world objects…","GFM über Weltobjekte einrichten …"),Guard(OpenWorldGfmSetup))
+            }));
+            items.Add(MenuItem.Submenu(WindowText("Interlocking and line","Stellwerk und Strecke"),new List<MenuItem>{
+                MenuItem.Action(WindowText("Manage this interlocking…","Dieses Stellwerk verwalten …"),Guard(()=>{string id=deskId;OpenEditorCatalogue();OpenCatalogueForm(id);} )),
                 MenuItem.Action(WindowText("Open line / GWB","Freie Strecke / GWB"),Guard(OpenFreeLines)),
                 MenuItem.Action(WindowText("Master modules","ESTW-Module"),Guard(()=>WorkspacePage(8))),
-                MenuItem.Action(WindowText("Interlocking selection","Stellwerksauswahl"),Guard(OpenEditorCatalogue)),
-                MenuItem.Action(WindowText("Handbook","Handbuch"),Guard(()=>WorkspacePage(5)))
+                MenuItem.Action(WindowText("Configure fixed targets and contacts…","Feste Ziele und Kontakte einrichten …"),Guard(()=>{automationPage=1;WorkspacePage(7);})),
+                MenuItem.Action(WindowText("Refresh and inspect installation…","Anlage aktualisieren und prüfen …"),Guard(OpenInstallationAudit)),
+                MenuItem.Submenu(WindowText("Extend working area","Arbeitsfläche erweitern"),new List<MenuItem>{
+                    MenuItem.Action(WindowText("Add row at top","Zeile oben hinzufügen"),Guard(()=>InsertCanvasAxes(true,0))),
+                    MenuItem.Action(WindowText("Add row at bottom","Zeile unten hinzufügen"),Guard(()=>InsertCanvasAxes(true,panel.Rows))),
+                    MenuItem.Action(WindowText("Add column at left","Spalte links hinzufügen"),Guard(()=>InsertCanvasAxes(false,0))),
+                    MenuItem.Action(WindowText("Add column at right","Spalte rechts hinzufügen"),Guard(()=>InsertCanvasAxes(false,panel.Columns)))
+                })
             }));
-            items.Add(MenuItem.Action(WindowText("Saved route planning","Gespeicherte Fahrstraßen planen"),Guard(()=>WorkspacePage(2))));
+            items.Add(MenuItem.Action(WindowText("Handbook","Handbuch"),Guard(()=>WorkspacePage(5))));
             }
             if(editorDetailsOpen)items.Add(MenuItem.Action(WindowText("Close properties","Eigenschaften schließen"),Guard(CloseWorkspaceContext)));
             var canvas=editorSurface?.GetComponentInParent<Canvas>()?.rootCanvas;

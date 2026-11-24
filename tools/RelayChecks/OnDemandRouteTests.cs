@@ -114,5 +114,18 @@ static class OnDemandRouteTests {
         Check(AutomaticRoutePlanner.Find(graph,signals,start,target,RouteKind.Train).Count==0,"target scope respects the destination signal's direction");
         target.FacingReverse=false;report=new RouteSearchReport();scanner.Find(start,RouteKind.Train,new HashSet<string>{target.Id},workLimit:2,report:report,allowedDirections:RouteTargetScope.Build(graph,target));
         Check(report.LimitReached,"a genuinely insufficient relevant search budget still rejects the result");
+
+        var behind=new MarkerRecord{Id="behind",Anchor=new MarkerAnchor{Segment="M0",Meters=.5}};
+        var ahead=new MarkerRecord{Id="ahead",Anchor=new MarkerAnchor{Segment="M0",Meters=5}};
+        var wrongDirection=target.Clone();wrongDirection.Id="wrong";wrongDirection.FacingReverse=true;
+        var branch=new MarkerRecord{Id="branch",Anchor=new MarkerAnchor{Segment="spur1-0",Meters=5}};
+        var missing=new MarkerRecord{Id="missing",Anchor=new MarkerAnchor{Segment="removed",Meters=5}};
+        var candidates=new[]{target,behind,ahead,wrongDirection,branch,missing};
+        Check(RouteTargetScope.ReachableDestinations(graph,start,candidates).SetEquals(new[]{target.Id,ahead.Id,branch.Id}),
+            "world signal destinations filter backward and disconnected targets and retain both legal point routes");
+        var branchReturn=branch.Clone();branchReturn.FacingReverse=true;
+        behind.FacingReverse=true;
+        Check(RouteTargetScope.ReachableDestinations(graph,branchReturn,candidates).SetEquals(new[]{behind.Id}),
+            "a world signal on a branch cannot reach another branch through the point without reversal");
     }
 }

@@ -2,7 +2,7 @@
 
 [Deutsche Zusammenfassung](#deutsch) · [Build from source](docs/BUILD.md) · [Development status](docs/DEVELOPMENT.md)
 
-**Current source: 0.7.65 — Early Alpha for Railroader 0.6.3.** The `main` branch is the canonical source checkpoint. A source commit is not a GitHub release or an installable download; obtain an explicitly published package from the author's distribution channel, or build from source. This README does not assert that a matching GitHub release asset exists.
+**Current source: 0.7.66 — Early Alpha for Railroader 0.6.3.** Get an installable package from the author's distribution channel or build from `main`.
 
 Place configurable railway signals, draw an interlocking diagram, connect it to the in-game railway, and operate train and shunting routes. Track occupancy, train-number displays, line permission and configurable automation support larger installations.
 
@@ -20,7 +20,7 @@ Place configurable railway signals, draw an interlocking diagram, connect it to 
 - Standalone settings through the launcher gear, available before milestone unlock; native game mod-management pages are preserved.
 - Built-in English/German interfaces and F1 help. English is the default; German does not require another mod.
 
-0.7.65 adds opt-in local Auto Engineer waypoint requests for train and shunting routes, with a locomotive pause button, a single driver request and dispatcher status. [English guide](mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.65.en.md) · [Deutsche Anleitung](mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.65.de.md).
+0.7.66 puts waypoint automation in the launcher settings and shows its waiting reason directly on the locomotive. Left-clicking a world signal opens a route request for the host. The Editor groups setup, track detection, routes and line tools by task. [English guide](mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.66.en.md) · [Deutsche Anleitung](mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.66.de.md).
 
 Optional **Runenwacht 0.2.2** requires main **0.7.64 or later** with compatible presentation API v1. A compatible main update can reuse the same signal pack. [Runenwacht reference and installation](asset-packs/Runenwacht/README.md).
 
@@ -38,7 +38,7 @@ Optional **Runenwacht 0.2.2** requires main **0.7.64 or later** with compatible 
 
 ## Compatibility and validation
 
-The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.65**.
+The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.66**.
 
 The complete offline build/check run on 24 November 2026 passed **2,097 checks** against the local Railroader 0.6.3 libraries. Actual waypoint operation, the locomotive controls and multiplayer still need in-game verification. [Development status and continuation](docs/DEVELOPMENT.md)
 
@@ -67,11 +67,11 @@ See [Third-party notices](THIRD_PARTY_NOTICES.md) and the included MIT component
 
 ## Deutsch
 
-**Aktueller Quellstand: 0.7.65, Early Alpha für Railroader 0.6.3.** `main` ist der maßgebliche Quellstand für die Weiterentwicklung. Ein Quellcode-Commit ist kein GitHub-Release und kein installierbares Paket.
+**Aktueller Quellstand: 0.7.66, Early Alpha für Railroader 0.6.3.** Installationspakete gibt es über den Vertriebskanal des Autors. Der Quellstand zum Selbstbauen liegt auf `main`.
 
 Die Mod ergänzt eigene Signale, Gleisbildstellwerke, Zug-/Rangierfahrstraßen, Gleisfreimeldung, Zugnummern sowie GWB- und Blockbetrieb. Der GWB-Assistent führt schrittweise durch die Einrichtung; Blockansichten sind verschiebbar, spiegelbar und um 180 Grad drehbar. Zusätzliche Tafeln können vereinfachte Ansichten zeigen. Englisch und Deutsch sind eingebaut; im Mehrspieler brauchen alle dieselbe Modversion.
 
-0.7.65 ergänzt örtliche Wegpunkt-Fahrstraßen für Zug- und Rangierfahrten. Die Lokinfo zeigt den Wartegrund und bietet Einschalten, Pausieren und eine Einzelanfrage. [Anleitung und Spieltests](mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.65.de.md).
+0.7.66 bündelt die Wegpunkt-Automatik im Zahnrad und zeigt den Wartegrund direkt an der Lok. Im Spiel öffnet der Linksklick auf ein Signal die Fahrstraßenanfrage für den Host. Der Editor gruppiert Einrichtung, Gleisfreimeldung, Fahrstraßen und Streckenwerkzeuge. [Anleitung und Spieltests](mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.66.de.md).
 
 0.7.64 / Runenwacht 0.2.0 verbessert Formen, Kristalloberflächen und Materialien bei Tageslicht, ergänzt eingefasste Kennungs-/Namensschilder und einzelne Lampentests ohne Fahrstraße. Native Ausgabe im Test Halt; betroffene Fahrstraßen gesperrt. [Neue Anleitung](mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.de.md). Spiel-/KI-/Mehrspielerprüfung noch offen.
 

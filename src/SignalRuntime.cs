@@ -50,7 +50,12 @@ namespace EnusDE.Signaltechnik {
             ApplySettings(Entry.SettingsSnapshot());
             stockHooks=new StockSignalHooks();stockHooks.Start(message=>log.Warning(message));
         }
-        public void CheckSettings(DiagnosticSettings settings){if(settings.Markers.EnableAiSignals&&!settings.Markers.Visible)throw new InvalidOperationException("Für AE-Anbindung müssen die eigenen Signalmodelle angezeigt werden.");if(aiEnabled&&!settings.Markers.EnableAiSignals&&engine.Active.Count>0)throw new InvalidOperationException("Erst alle aktiven Fahrstraßen sicher auflösen, dann AE-Anbindung abschalten.");}
+        public void CheckSettings(DiagnosticSettings settings) {
+            if(settings.Markers.EnableAiSignals&&!settings.Markers.Visible)throw new InvalidOperationException("Für AE-Anbindung müssen die eigenen Signalmodelle angezeigt werden.");
+            if(aiEnabled&&!settings.Markers.EnableAiSignals&&engine.Active.Count>0)throw new InvalidOperationException("Erst alle aktiven Fahrstraßen sicher auflösen, dann AE-Anbindung abschalten.");
+            if(aiEnabled&&!settings.Markers.EnableAiSignals&&StateManager.IsHost&&Automation?.AutoDiscoverWaypoints==true)
+                throw new InvalidOperationException(LocalText.Select("Disable automatic waypoint requests before disconnecting Auto Engineer.","Automatische Wegpunktanfragen vor der Auto-Engineer-Anbindung ausschalten."));
+        }
         public void ApplySettings(DiagnosticSettings settings){CheckSettings(settings);aiEnabled=settings.Markers.EnableAiSignals;}
         public MarkerRecord Object(string id){MarkerRecord row;return id!=null&&inventory.TryGetValue(id,out row)?row:null;}
         internal IEnumerable<MarkerRecord> SignalObjects=>inventory.Values;
@@ -91,6 +96,7 @@ namespace EnusDE.Signaltechnik {
             ReadEditorDeleteKey();
             ReadPointPickCancel();
             ReadWorldSignalPickCancel();
+            TickWorldSignalSearch();
             if(panelButtons.ExpireSelection()){status=LocalText.Select("Start selection expired. Select the start signal again.","Startauswahl abgelaufen. Startsignal erneut auswählen.");panelView?.Refresh();}
             double now=Time.realtimeSinceStartup;
             if(scope!=null&&scope==objects.WorldKey&&Entry.Shared?.ConfigurationReady==true)try{ReadAutomationContacts(now);}catch(Exception e){automationStatus="Kontaktprüfung: "+e.Message;}
@@ -101,7 +107,7 @@ namespace EnusDE.Signaltechnik {
                 if(objects.WorldKey!=null&&scope!=objects.WorldKey) {
                     if(scope!=null&&engine.Active.Count>0){engine.HaltAll();lastRead=-100;status=LocalText.Get("Spielstandzuordnung geändert. Vorherige Verschlüsse zuerst sicher auflösen.");return;}
                     if(scope!=null){engine.HaltAll();RemoveProxies();world.Dispose();world=new SignalWorldBridge(this,transform);}
-                    ResetWaypointSession();scope=objects.WorldKey;store=new InterlockingStore(directory,scope,shared.Routes,shared.PutRoutes);
+                    CloseWorldSignalRequest();ResetWaypointSession();scope=objects.WorldKey;store=new InterlockingStore(directory,scope,shared.Routes,shared.PutRoutes);
                     try{routes=store.Load();status=LocalText.Get("Stellwerk bereit. Alle Signale starten mit Halt.");}catch(Exception e){loadFailed=true;status=LocalText.Get("Stellwerksdatei bleibt erhalten: ")+e.Message;}
                     LoadPanel();
                 }
@@ -249,6 +255,8 @@ namespace EnusDE.Signaltechnik {
         }
         void Cleanup(Action action){try{action();}catch(Exception e){log?.Warning("Stellwerk-Bereinigung: "+e.Message);}}
         void RemoveWindow() {
+            worldSignalSearch.Clear();
+            Cleanup(()=>UnregisterWorkspace(WorldSignalRequestWindowId,worldSignalRequestDefinition));worldSignalRequestDefinition=null;worldSignalRequest=null;
             Cleanup(()=>UnregisterWorkspace(NumberOverviewPlacementId,numberOverviewPlacementDefinition));numberOverviewPlacementDefinition=null;numberOverviewProposal=null;numberOverviewOriginal=null;
             Cleanup(()=>UnregisterWorkspace(BlockPlacementWindowId,blockPlacementDefinition));blockPlacementDefinition=null;blockPlacementBuild=null;
             Cleanup(()=>UnregisterWorkspace(DiagramPickId,diagramPickDefinition));diagramPickDefinition=null;diagramPickAccept=null;diagramPickGeneration++;
@@ -257,7 +265,6 @@ namespace EnusDE.Signaltechnik {
             ReleaseWorkspaceCanvas();
             Cleanup(()=>UnregisterWorkspace(WindowId,definition));
             Cleanup(()=>UnregisterWorkspace(EditorWindowId,editorDefinition));
-            Cleanup(()=>UnregisterWorkspace(CarInfoWindowId,carInfoDefinition));carInfoDefinition=null;informationCar=null;
             Cleanup(()=>UnregisterWorkspace(EditorToolsWindowId,editorToolsDefinition));editorToolsDefinition=null;
             Cleanup(()=>UnregisterWorkspace(RecognitionPreviewWindowId,recognitionPreviewDefinition));recognitionPreviewDefinition=null;
             Cleanup(()=>UnregisterWorkspace(MasterLayoutWindowId,masterLayoutDefinition));masterLayoutDefinition=null;

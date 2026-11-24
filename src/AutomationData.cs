@@ -39,7 +39,7 @@ namespace EnusDE.Signaltechnik {
         public bool AutomaticGfmCatalog=true;
         public double SignalPassageMeters=5;
         public List<string> PausedStations=new List<string>();
-        public bool Enabled,BlockEnabled;
+        public bool Enabled,BlockEnabled,AutoDiscoverWaypoints;
         public bool ProtectWaypointSwitches=true;
         public Dictionary<string,AutomaticSignal> Signals=new Dictionary<string,AutomaticSignal>(StringComparer.Ordinal);
         public Dictionary<string,LocomotiveDuty> Locomotives=new Dictionary<string,LocomotiveDuty>(StringComparer.Ordinal);
@@ -54,6 +54,7 @@ namespace EnusDE.Signaltechnik {
                 throw new InvalidDataException("Ungültige Lok-Betriebsart.");
             foreach(var contact in Contacts){contact.Validate();if(contact.Signal!=""&&!Signals.ContainsKey(contact.Signal))throw new InvalidDataException("Kontakt verweist auf fehlende Signalautomatik.");}
             if(Enabled&&!BlockEnabled)throw new InvalidDataException("Kontakt-Automatik benötigt die gemeinsame Blockabstimmung.");
+            if(AutoDiscoverWaypoints&&!BlockEnabled)throw new InvalidDataException(LocalText.Select("Automatic waypoint requests require block coordination.","Automatische Wegpunktanfragen benötigen die Blockabstimmung."));
         }
         public MovementRole Role(string locomotive,string consist)=>Locomotives.TryGetValue(locomotive,out var value)&&value.Consist==consist?value.Role:MovementRole.Unassigned;
         public void Assign(string locomotive,IEnumerable<string> coupledLocomotives,string consist,MovementRole role) {

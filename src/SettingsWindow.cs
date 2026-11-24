@@ -21,7 +21,9 @@ namespace EnusDE.Signaltechnik {
             this.warning=warning;
         }
 
-        public void Open() {
+        public void Open()=>Open(false);
+
+        internal void Open(bool refresh) {
             if(disposed||StateManager.IsUnloading)return;
             var current=WindowManager.Shared;
             if(current==null)return;
@@ -37,7 +39,7 @@ namespace EnusDE.Signaltechnik {
                 var handle=CustomWindowHandle.Create(Id);
                 bool wasOpen=handle?.IsOpen()==true;
                 handle?.Show();
-                if(!wasOpen)handle?.SetNeedsRebuild();
+                if(refresh||!wasOpen)handle?.SetNeedsRebuild();
             }catch(Exception e){warning?.Invoke("Settings window: "+e.Message);}
         }
 

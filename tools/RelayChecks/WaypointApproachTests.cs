@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using EnusDE.Signaltechnik;
 using Model;
@@ -23,6 +24,10 @@ static class WaypointApproachTests {
         var unrelated=new[]{Signal("behind","entry",50),Signal("opposite","entry",70,true),Signal("neighbor","parallel",70),far,near};
         Check(approach.NextSignal(unrelated)==near&&approach.TryLocateAhead(near,out double toFirst)&&toFirst==22,
             "waypoint automation selects the nearest governing face and excludes signals already passed, facing away, or on neighboring track");
+        Check(approach.SignalsAhead(unrelated).SequenceEqual(new[]{near,far})&&
+            approach.SignalsAhead(unrelated,includeOpposite:true).Select(s=>s.Id).SequenceEqual(new[]{"opposite","first","second"})&&
+            !approach.TryLocateAhead(unrelated[1],out _),
+            "waypoint no-request diagnosis can show the nearest opposite-facing signal while the authority search continues excluding it");
         var after=WaypointApproach.Create(plan,At("entry",85),false,waypoint);
         Check(after.NextSignal(unrelated)==far&&after.NextSignal(unrelated,10)==null,
             "waypoint automation can proceed to the next face only after passing the first and coming within approach distance");
@@ -49,5 +54,10 @@ static class WaypointApproachTests {
         Check(start?.ReturnType==typeof(Location)&&native.GetField("_lastRouteWaypoint",privateInstance)?.FieldType==typeof(OrderWaypoint)&&
             typeof(RouteSearch.Step).GetField("Location")?.FieldType==typeof(Location)&&typeof(RouteSearch.Step).GetField("LeadingEnd")?.FieldType==typeof(ConsistEnd),
             "installed game exposes the native leading-end route origin, planned waypoint freshness and directed route step contracts");
+        var positioned=new OrderWaypoint("track",null,(WaypointEnd)1,(BodyToward)1,Array.Empty<JunctionTurn>(),10,null);
+        var coupling=new OrderWaypoint("track","car",(WaypointEnd)1,(BodyToward)1,Array.Empty<JunctionTurn>(),10,(Car.End)0);
+        Check(positioned.IsPosed&&AutomationNative.IsFixedWaypoint(positioned)&&coupling.WantsCouple&&
+            !AutomationNative.IsFixedWaypoint(coupling)&&!AutomationNative.IsFixedWaypoint(null),
+            "native fixed track waypoints with an arrival orientation qualify for directed proof while coupling orders do not");
     }
 }

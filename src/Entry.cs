@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 
 namespace EnusDE.Signaltechnik {
     public sealed class Entry : IModEntryPoint,IWorldLifecycle {
-        public const string Version="0.7.65";
+        public const string Version="0.7.66";
         static Recorder current;
         static DiagnosticWindow diagnostic;
         static MarkerRuntime markers;
@@ -39,7 +39,7 @@ namespace EnusDE.Signaltechnik {
         static SettingsWindow settingsWindow;
         ConstructionIntegration constructionIntegration;
         HandbookIntegration handbookIntegration;
-        SettingsMenu menu;
+        static SettingsMenu menu;
         TrackMenuIntegration trackMenu;
         SignTooltipHooks tooltipHooks;
         TransferHooks transfers;
@@ -59,7 +59,7 @@ namespace EnusDE.Signaltechnik {
             RegisterBridge(RailroaderModule.Shared);
             var registered=ModuleRegistry.GetModule("railroader");
             if(registered!=null&&!ReferenceEquals(registered,RailroaderModule.Shared))RegisterBridge(registered);
-            menu=new SettingsMenu(SettingsSnapshot,SaveSettings,store.FilePath);
+            menu=new SettingsMenu(SettingsSnapshot,SaveSettings);
             settingsWindow=new SettingsWindow(menu.BuildStandalone,message=>log.Warning(message));
             try{trackMenu=new TrackMenuIntegration();trackMenu.Start(()=>markers!=null&&!Game.State.StateManager.IsUnloading&&Game.State.StateManager.IsHost&&settings.Markers.Visible,(at,kind)=>markers?.FromTrack(at,kind),message=>log.Warning(message),()=>signals?.PickingPoint==true,node=>signals?.TryAssignWorldPoint(node)==true);}
             catch(Exception e){log.Warning("Gleis-Kontextmenü nicht verfügbar: "+e.Message);}
@@ -176,8 +176,14 @@ namespace EnusDE.Signaltechnik {
         public static bool PlacingObject=>markers!=null&&markers.IsPlacing;
         internal static bool BlockWorldObjectClick=>signals?.ConsumeSelectionInput()==true||WorldPointerInput.OverUi();
         public static void OpenMarker(string id,int direction=0){if(signals?.OfferWorldSignalPick(id,direction)==true)return;markers?.OpenObject(id,direction);}
-        internal static void ActivateMarker(string id,int direction,bool secondary){if(signals?.OfferWorldSignalPick(id,direction)==true)return;if(secondary)markers?.OpenObjectContext(id,direction);else markers?.OpenObject(id,direction);}
+        internal static void ActivateMarker(string id,int direction,bool secondary){
+            if(signals?.OfferWorldSignalPick(id,direction)==true)return;
+            if(secondary)markers?.OpenObjectContext(id,direction);
+            else markers?.OpenObjectPrimary(id,direction);
+        }
+        internal static bool OpenWorldSignalRequest(MarkerRecord signal,int direction)=>signals?.OpenWorldSignalRequest(signal,direction)==true;
         internal static string WorldSelectionHint(string id)=>signals?.WorldSelectionHint(id);
+        internal static string MarkerClickHint(string id)=>markers?.ClickHint(id);
         internal static bool TryPickWorldObject(string id)=>signals?.OfferWorldSignalPick(id,0)==true;
         internal static void BuildSignalContactStatus(UI.Builder.UIPanelBuilder c,string id)=>signals?.BuildSignalContactStatus(c,id);
         internal static PointCircuitOption[] PointCircuitOptions()=>signals?.PointCircuitOptions()??Array.Empty<PointCircuitOption>();
@@ -203,12 +209,20 @@ namespace EnusDE.Signaltechnik {
         internal static void ReloadBackupConfiguration(){try{markers?.ReloadBackupConfiguration();}finally{signals?.ReloadBackupConfiguration();}}
         internal static void OpenAutomation()=>signals?.OpenAutomation();
         internal static void BuildAutomationSettings(UI.Builder.UIPanelBuilder b){if(signals==null)b.AddLabel(LocalText.Get("Zuerst eine Welt laden."));else signals.BuildAutomationSettings(b);}
+        internal static void BuildWaypointSetup(UI.Builder.UIPanelBuilder b,Action settingsApplied) {
+            if(signals==null)b.AddLabel(LocalText.Get("Zuerst eine Welt laden."));
+            else signals.BuildWaypointSetup(b,settingsApplied);
+        }
         internal static void BuildSignalRoleEditor(UI.Builder.UIPanelBuilder b,string id,Action verify=null)=>signals?.BuildSignalRoleEditor(b,id,verify);
         internal static void BuildSignalOperatingEditor(UI.Builder.UIPanelBuilder b,string id,Action verify=null)=>signals?.BuildSignalOperatingEditor(b,id,verify);
         internal static bool IgnoresOwnSignal(string id)=>signals?.IgnoreOwnSignal(id)==true;
         internal static void PlaceAutomationContact(Track.Location at)=>signals?.PlaceAutomationContact(at);
         public static void OpenInterlocking(){markers?.EndBuildMode();signals?.Open();}
         public static void OpenSettings()=>settingsWindow?.Open();
+        internal static void OpenAutomationSettings() {
+            menu?.FocusOperatingSettings();
+            settingsWindow?.Open(refresh:true);
+        }
         internal static bool WorkspaceAvailable=>signals?.WorkspaceAvailable==true;
         internal static bool WorkspaceEditable=>signals?.WorkspaceEditable==true;
         internal static void OpenWorkspaceMode(bool editing){markers?.EndBuildMode();signals?.OpenMode(editing);}

@@ -47,6 +47,16 @@ namespace EnusDE.Signaltechnik {
             c.AddLabel(LocalText.Select("Activate the MOW equipment and stop within 250 track metres of the site. Closing build mode retains all confirmed work orders. Shared construction is managed by the host.","MOW-Ausrüstung aktivieren und innerhalb von 250 Gleismetern bei der Baustelle anhalten. Das Beenden des Baumodus erhält bestätigte Bauaufträge. Gemeinsamen Bau verwaltet der Host."));
             c.AddButton(LocalText.Get("Anzeige aktualisieren"),RebuildTool);
         }
-        void BuildReadOnly(UI.Builder.UIPanelBuilder c) {var row=Selected;if(row==null){c.AddLabel(LocalText.Get("Objekt nicht mehr vorhanden."));return;}c.AddTitle(row.Name,MarkerRecord.KindLabel(row.Kind));c.AddLabel(row.Planned?"Baustelle · noch nicht betriebsbereit":"Signalbild: "+Entry.SignalAspect(row.Id));if(StateManager.IsHost)c.AddButton(LocalText.Select("Edit in build mode","Im Baumodus bearbeiten"),()=>{int side=directionTab;page=Page.Configure;LoadDraft();directionTab=side;ShowTool();});else c.AddLabel(LocalText.Get("Die Konfiguration übernimmt der Host."));}
+        void BuildReadOnly(UI.Builder.UIPanelBuilder c) {
+            var row=Selected;
+            if(row==null){c.AddLabel(LocalText.Get("Objekt nicht mehr vorhanden."));return;}
+            c.AddTitle(row.Name,MarkerRecord.KindLabel(row.Kind));
+            string face=WorldSignalPickFace.Resolve(row,directionTab);
+            if(row.Planned)c.AddLabel(LocalText.Select("Construction site · not in service","Baustelle · noch nicht betriebsbereit"));
+            else if(face!=null)c.AddLabel(LocalText.Select("Signal indication: ","Signalbild: ")+Entry.SignalAspect(face));
+            string world=scope;int side=directionTab;
+            if(StateManager.IsHost)c.AddButton(LocalText.Select("Edit in build mode","Im Baumodus bearbeiten"),()=>Act(()=>EnterPickedObjectEdit(row.Id,side,world)));
+            else c.AddLabel(LocalText.Get("Die Konfiguration übernimmt der Host."));
+        }
     }
 }

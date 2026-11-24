@@ -120,8 +120,8 @@ namespace EnusDE.Signaltechnik {
             AddWorkspaceTool("DISPATCH",WindowText("Operate from the track diagram","Gleisbild bedienen"),()=>{CloseWorkspaceContext();Mode(0);},()=>panelPage==0);
             if(!OnDemandRoutes)AddWorkspaceTool("FS",WindowText("Operate stored routes","Gespeicherte Fahrstraßen bedienen"),()=>WorkspacePage(2),()=>panelPage==2);
             AddWorkspaceTool("LOCK",WindowText("All routes and retained locks","Festlegungen – alle Stellwerke"),()=>WorkspacePage(6),()=>panelPage==6);
-            AddWorkspaceTool("ID","Automatikstatus",()=>WorkspacePage(7),()=>panelPage==7);
-            AddWorkspaceTool("STW",WindowText("Master modules and central takeover","ESTW-Module und zentrale Übernahme"),()=>WorkspacePage(8),()=>panelPage==8);
+            AddWorkspaceTool("REQUESTS",WindowText("Automatic requests","Automatische Anfragen"),()=>WorkspacePage(7),()=>panelPage==7);
+            AddWorkspaceTool("MODULES",WindowText("Master modules and central takeover","ESTW-Module und zentrale Übernahme"),()=>WorkspacePage(8),()=>panelPage==8);
             AddWorkspaceTool("↔",WindowText("Open line / GWB permissions","Freie Strecke / GWB-Erlaubnisse"),OpenFreeLines,()=>panelPage==9);
             AddWorkspaceTool("?",WindowText("Handbook","Handbuch"),()=>WorkspacePage(5),()=>panelPage==5);
             if(StateManager.IsHost) {
@@ -131,7 +131,7 @@ namespace EnusDE.Signaltechnik {
                 rect.anchoredPosition=new Vector2(8,8);rect.sizeDelta=new Vector2(46,38);
                 (stop.targetGraphic as Image).color=new Color(.48f,.09f,.08f);
             }
-            CompleteWorkspace(builder,BuildDispatcherFields,()=>panelPage==7?"Automatikstatus":panelPage==6?"Festlegungen · alle Stellwerke":panelPage==2?WindowText("Routes","Fahrstraßen"):WorkspacePaneTitle());
+            CompleteWorkspace(builder,BuildDispatcherFields,WorkspacePaneTitle);
         }
 
         void CreateWorkspaceSurface(UIPanelBuilder builder) {
@@ -160,7 +160,16 @@ namespace EnusDE.Signaltechnik {
             workspaceTools.Add(((Image)button.targetGraphic,selected));
         }
 
-        string WorkspacePaneTitle()=>panelPage==4?WindowText("Interlockings","Stellwerke"):panelPage==5?WindowText("Handbook","Handbuch"):WindowText("Selection","Auswahl");
+        string WorkspacePaneTitle()=>panelPage switch {
+            2=>WindowText("Routes","Fahrstraßen"),
+            4=>WindowText("Interlockings","Stellwerke"),
+            5=>WindowText("Handbook","Handbuch"),
+            6=>WindowText("All routes and retained locks","Festlegungen – alle Stellwerke"),
+            7=>WindowText("Automatic requests","Automatische Anfragen"),
+            8=>WindowText("Master modules and central takeover","ESTW-Module und zentrale Übernahme"),
+            9=>WindowText("Open line / GWB permissions","Freie Strecke / GWB-Erlaubnisse"),
+            _=>WindowText("Selection","Auswahl")
+        };
 
         void CompleteWorkspace(UIPanelBuilder builder,Action<UIPanelBuilder> fields,Func<string> paneTitle) {
             var zoom=WorkspaceSurface.Rect(workspace.Header,"Zoom");

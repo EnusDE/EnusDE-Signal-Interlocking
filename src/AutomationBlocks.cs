@@ -19,7 +19,7 @@ namespace EnusDE.Signaltechnik {
             directionBlocks.CheckStations=CheckAutomationStations;
             directionBlocks.ProtectRoute=NeedsDirectionCoordination;
             automationHooks=new AutomationHooks();
-            try{automationHooks.Start(ProtectAiPoint,BuildCarInfoEntry);}catch(Exception e){automationHookError=e.Message;log?.Warning("Automatik-Anbindung: "+e.Message);}
+            try{automationHooks.Start(ProtectAiPoint,BuildCarAutomation);}catch(Exception e){automationHookError=e.Message;log?.Warning("Automatik-Anbindung: "+e.Message);}
             try{contactScene=new AutomationContactScene(transform,OpenAutomationContact);}catch(Exception e){log?.Warning("Kontaktmodell nicht verfügbar; Kontaktfunktion bleibt aktiv: "+e.Message);}
         }
         void SaveAutomation(Action<DeskLibrary> update) {
@@ -84,11 +84,12 @@ namespace EnusDE.Signaltechnik {
         void RequireMonitoredPlan(RouteChainPlan plan) {
             if(!Automation.BlockEnabled||blockError!=null)throw new InvalidOperationException(blockError??"Blockabstimmung ist ausgeschaltet.");
             if(plan.Routes.Any(r=>r.Path==null||r.Path.Count==0))throw new InvalidOperationException("Gerichteten Fahrweg zuerst aktualisieren.");
-            var monitored=desks.Blocks.Values.Where(b=>b.IsCircuit&&CircuitUsable(b))
-                .SelectMany(b=>b.Path).Concat(desks.Blocks.Values.Where(b=>b.Point!=null&&PointCircuitVisibility.Enabled(desks,b.Point)).SelectMany(b=>UsablePointGuards(b).Select(s=>new DirectedRouteSection{Section=s}))).ToList();
-            if(!DirectionBlockBuilder.Covers(plan.Routes.SelectMany(r=>r.Path),new[]{new DirectionBlock{Axis=monitored}}))
-                throw new InvalidOperationException(LocalText.Select("Block check: route is not fully covered by configured GFM sections / enabled point detection. Missing coverage on: ","Blockprüfung: Fahrweg nicht vollständig durch eingerichtete GFM-Abschnitte / aktivierte Weichen-GFM überwacht. Fehlende Abdeckung auf: ")+
-                    string.Join("; ",plan.Routes.SelectMany(r=>r.Path).Where(p=>!DirectionBlockBuilder.Covers(new[]{p},new[]{new DirectionBlock{Axis=monitored}})).Select(p=>p.Section.Segment+" · "+SignUnits.Number(p.Section.From)+"–"+SignUnits.Number(p.Section.To)+" m").Distinct().Take(8)));
+            var monitored=desks.Blocks.Values.Where(b=>b.IsCircuit&&CircuitUsable(b)).SelectMany(b=>b.Path.Select(p=>p.Section))
+                .Concat(desks.Blocks.Values.Where(b=>b.Point!=null&&PointCircuitVisibility.Enabled(desks,b.Point)).SelectMany(UsablePointGuards));
+            var gaps=GfmCoverage.Gaps(plan.Routes.SelectMany(r=>r.Path).Select(p=>p.Section),monitored,.05);
+            if(gaps.Count>0)
+                throw new InvalidOperationException(LocalText.Select("Missing track detection on ","Gleisfreimeldung fehlt auf ")+
+                    string.Join(" · ",gaps.Take(8).Select(g=>g.Segment+" "+SignUnits.Number(g.From)+"–"+SignUnits.Number(g.To)+" m")));
         }
         string ManualCoverageNotice(IEnumerable<RouteDefinition> plan) {
             if(!Automation.AllowUnmonitoredManualRoutes)return "";

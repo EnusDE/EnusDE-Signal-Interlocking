@@ -37,6 +37,34 @@ namespace EnusDE.Signaltechnik {
             var masters=cars.Where(c=>c.IsLocomotive&&config.Role(c.id,signature)==MovementRole.Train).ToArray();
             return masters.Length==1?new AutomationTrain{Master=masters[0].id,Consist=signature,Cars=cars}:null;
         }
+        // Discover the native order without constructing the full waypoint path for idle locomotives.
+        public static bool HasActiveWaypoint(Car car) {
+            var planner=(car as BaseLocomotive)?.AutoEngineerPlanner;
+            return TryOrders(planner,out var current)&&current.Enabled&&current.Mode==Game.Messages.AutoEngineerMode.Waypoint;
+        }
+
+        public static bool HasUniqueWaypointDriver(Car selected,IEnumerable<Car> consist) {
+            bool found=false;
+            foreach(var car in consist) {
+                var planner=(car as BaseLocomotive)?.AutoEngineerPlanner;
+                if(planner==null)continue;
+                if(!TryOrders(planner,out var current))return false;
+                if(car==selected)found=current.Mode==Game.Messages.AutoEngineerMode.Waypoint;
+                else if(current.Enabled&&current.Mode!=Game.Messages.AutoEngineerMode.Off)return false;
+            }
+            return found;
+        }
+
+        static bool TryOrders(AutoEngineerPlanner planner,out Orders current) {
+            current=default;
+            if(planner==null||orders==null)return false;
+            try{current=(Orders)orders.GetValue(planner);return true;}
+            catch(Exception){return false;}
+        }
+
+        public static bool IsFixedWaypoint(OrderWaypoint? waypoint)=>waypoint.HasValue&&
+            !waypoint.Value.WantsCouple&&!string.IsNullOrEmpty(waypoint.Value.LocationString);
+
         public static AutomationIntent Intent(Car locomotive,bool allowPausedWaypoint=false) {
             var planner=(locomotive as BaseLocomotive)?.AutoEngineerPlanner;
             if(planner==null)return new AutomationIntent{Mode=AutomationDrivingMode.Manual,Signature="manual"};
@@ -45,7 +73,7 @@ namespace EnusDE.Signaltechnik {
                 intent.Signature=OrderSignature(current);
                 if(current.Mode!=Game.Messages.AutoEngineerMode.Off&&!current.Enabled&&!(allowPausedWaypoint&&current.Mode==Game.Messages.AutoEngineerMode.Waypoint)){intent.Ready=false;intent.Reason=LocalText.Get("KI-Fahrauftrag pausiert / ohne Fahrfreigabe.");return intent;}
                 if(current.Mode!=Game.Messages.AutoEngineerMode.Waypoint)return intent;
-                if(!current.Waypoint.HasValue||current.Waypoint.Value.WantsCouple){intent.Ready=false;intent.Reason=LocalText.Get("Kein fester Wegpunkt oder Kuppelauftrag: keine Zugautomatik.");return intent;}
+                if(!IsFixedWaypoint(current.Waypoint)){intent.Ready=false;intent.Reason=LocalText.Get("Kein fester Wegpunkt oder Kuppelauftrag: keine Zugautomatik.");return intent;}
                 var target=(Location?)routeTarget.GetValue(planner);var steps=route.GetValue(planner) as List<Track.Search.RouteSearch.Step>;
                 if(!target.HasValue||!target.Value.IsValid||steps==null||steps.Count==0){intent.Ready=false;intent.Reason=LocalText.Get("Wegpunkt-Gleisweg wird noch ermittelt.");return intent;}
                 var canonical=target.Value.WithEnd(TrackSegment.End.A);intent.Target=new MarkerAnchor{Segment=canonical.segment.id,Meters=canonical.distance};
@@ -63,16 +91,35 @@ namespace EnusDE.Signaltechnik {
             return current.Mode+"|"+current.Forward+"|"+target;
         }
 
-        public static bool TryWaypointApproach(Car locomotive,AutomationIntent intent,out WaypointApproach approach,bool allowPausedWaypoint=false) {
+        public static bool TryWaypointApproach(Car locomotive,AutomationIntent intent,out WaypointApproach approach,bool allowPausedWaypoint=false)=>
+            TryWaypointApproach(locomotive,intent,out approach,out _,allowPausedWaypoint);
+
+        public static bool TryWaypointApproach(Car locomotive,AutomationIntent intent,out WaypointApproach approach,out string reason,bool allowPausedWaypoint=false) {
             approach=null;
+            reason=null;
             if(!(locomotive is BaseLocomotive engine)||engine.IsInBardo||engine.IsDerailed||intent==null||!intent.Ready||intent.Mode!=AutomationDrivingMode.Waypoint||intent.Target==null)return false;
             var planner=engine.AutoEngineerPlanner;
-            if(planner==null||routeStart==null||plannedWaypoint==null)return false;
+            if(planner==null||routeStart==null||plannedWaypoint==null) {
+                reason=LocalText.Select("The native waypoint path is unavailable.","Der native Wegpunktfahrweg steht nicht zur Verfügung.");
+                return false;
+            }
             try {
                 var current=(Orders)orders.GetValue(planner);
-                if((!current.Enabled&&!allowPausedWaypoint)||current.Mode!=Game.Messages.AutoEngineerMode.Waypoint||!current.Waypoint.HasValue||current.Waypoint.Value.WantsCouple||current.Waypoint.Value.IsPosed)return false;
-                if(intent.Signature!=OrderSignature(current)||!current.Waypoint.Value.Equals((OrderWaypoint)plannedWaypoint.GetValue(planner)))return false;
-                if(!engine.IsStopped(0)&&(engine.velocity>=0)!=current.Forward)return false;
+                if((!current.Enabled&&!allowPausedWaypoint)||current.Mode!=Game.Messages.AutoEngineerMode.Waypoint)return false;
+                // The native picker places the whole consist at a fixed waypoint. Such an
+                // arrival orientation is fine if the active path below never reverses.
+                if(!IsFixedWaypoint(current.Waypoint)) {
+                    reason=LocalText.Get("Kein fester Wegpunkt oder Kuppelauftrag: keine Zugautomatik.");
+                    return false;
+                }
+                if(intent.Signature!=OrderSignature(current)||!current.Waypoint.Value.Equals((OrderWaypoint)plannedWaypoint.GetValue(planner))) {
+                    reason=LocalText.Select("Waiting for the Auto Engineer to plan the current waypoint.","Wartet, bis der Auto Engineer den aktuellen Wegpunkt berechnet hat.");
+                    return false;
+                }
+                if(!engine.IsStopped(0)&&(engine.velocity>=0)!=current.Forward) {
+                    reason=LocalText.Select("The locomotive is moving against the waypoint direction.","Die Lok bewegt sich entgegen der Wegpunktrichtung.");
+                    return false;
+                }
                 var steps=route.GetValue(planner) as List<RouteSearch.Step>;
                 if(steps==null||steps.Count<2||steps.Count>10001)return false;
                 var arguments=new object[]{engine,current.Forward,ConsistEnd.A};
@@ -80,9 +127,13 @@ namespace EnusDE.Signaltechnik {
                 // wheel bound of the currently leading consist end rather than the locomotive.
                 var head=(Location)routeStart.Invoke(null,arguments);
                 var leadingEnd=(ConsistEnd)arguments[2];
-                if(!head.IsValid||!TryWaypointSections(steps,leadingEnd,out var sections))return false;
+                if(!head.IsValid||!TryWaypointSections(steps,leadingEnd,out var sections)) {
+                    reason=LocalText.Select("The Auto Engineer path or the leading end is ambiguous.","Der Fahrweg des Auto Engineer oder die Zugspitze ist nicht eindeutig.");
+                    return false;
+                }
                 var canonical=head.WithEnd(TrackSegment.End.A);
                 approach=WaypointApproach.Create(sections,new MarkerAnchor{Segment=canonical.segment.id,Meters=canonical.distance},!head.EndIsA,intent.Target);
+                if(approach==null)reason=LocalText.Select("The train front is outside the planned direction, or has reached the waypoint.","Die Zugspitze liegt außerhalb des geplanten Fahrwegs oder hat den Wegpunkt erreicht.");
                 return approach!=null;
             } catch(Exception) {
                 return false;

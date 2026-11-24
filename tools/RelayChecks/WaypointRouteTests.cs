@@ -24,6 +24,16 @@ static class WaypointRouteTests {
         var earlyAuxiliary=Signal("early","a",36,MarkerRecord.Auxiliary);
         var stopAuxiliary=Signal("stop","b",45,MarkerRecord.Auxiliary);
         var physical=new[]{first,platformEnd,reverse,shunting,otherBranch};
+        Check(approach.NextSignal(physical)==shunting,"a standalone shunt signal remains a governing start ahead of a later main signal");
+        var running=new RouteRun{Stage=RouteStage.Running,Entered=true,HeadKnown=true,TrainCars=new[]{"wagon","engine"},
+            Route=new RouteDefinition{ViaSignals=new List<RouteViaSignal>{new RouteViaSignal{Id=shunting.Id}}}};
+        Check(WaypointRoutePolicy.HasViaAuthority(running,shunting.Id,new[]{"engine","wagon"},LocalSignalAspect.Shunt)&&
+            !WaypointRoutePolicy.HasViaAuthority(running,shunting.Id,new[]{"engine","other"},LocalSignalAspect.Shunt)&&
+            !WaypointRoutePolicy.HasViaAuthority(running,shunting.Id,new[]{"engine","wagon"},LocalSignalAspect.Stop),
+            "only a proved via release for this exact consist covers a standalone shunt signal");
+        running.PassedSignals.Add(shunting.Id);
+        Check(!WaypointRoutePolicy.HasViaAuthority(running,shunting.Id,new[]{"engine","wagon"},LocalSignalAspect.Shunt),
+            "a released via signal cannot be passed again by the waypoint automaton");
         Check(WaypointRoutePolicy.Destination(approach,start,physical,new[]{earlyAuxiliary,stopAuxiliary},false)==first,
             "waypoint train leg ends at the first same-direction main signal before the stop and does not choose an early auxiliary");
         Check(WaypointRoutePolicy.Destination(approach,start,physical,Array.Empty<MarkerRecord>(),true)==shunting,

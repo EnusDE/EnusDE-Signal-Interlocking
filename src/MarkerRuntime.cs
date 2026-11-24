@@ -222,19 +222,56 @@ namespace EnusDE.Signaltechnik {
             var row=records.FirstOrDefault(x=>x.Id==id)??Entry.AutomaticPointBoxes().FirstOrDefault(x=>x.Id==id);
             return row==null?"Signaltechnik":row.IsCircuitBox?CircuitIdentity.Caption(row):row.Name;
         }
+        internal string ClickHint(string id) {
+            var row=records.FirstOrDefault(r=>r.Id==id);
+            if(row==null||row.Planned||row.Kind!=MarkerRecord.Main&&row.Kind!=MarkerRecord.Shunt)return null;
+            if(quickCircuitActive)return LocalText.Select("Click: set detection boundary","Anklicken: GFM-Grenze setzen");
+            return StateManager.IsHost
+                ?LocalText.Select("Left-click: request a route · Right-click: signal actions","Linksklick: Fahrstraße anfordern · Rechtsklick: Signalaktionen")
+                :LocalText.Select("Click: inspect signal","Anklicken: Signal ansehen");
+        }
+        internal void OpenObjectPrimary(string id,int direction) {
+            if(edit.Repeating||QuickCircuitClick(id))return;
+            var row=records.FirstOrDefault(r=>r.Id==id);
+            if(row==null)return;
+            if(!row.Planned&&(row.Kind==MarkerRecord.Main||row.Kind==MarkerRecord.Shunt)) {
+                if(!Entry.OpenWorldSignalRequest(row,direction))InspectObject(id,direction);
+                return;
+            }
+            OpenObject(id,direction);
+        }
         public void OpenObject(string id,int direction=0) {
             if(edit.Repeating)return;
-            if(StateManager.IsHost&&records.Any(r=>r.Id==id&&r.Kind==MarkerRecord.Main&&r.Name.StartsWith("RS-",StringComparison.OrdinalIgnoreCase)))Act(()=>{repository.NormalizeSignalCode(id);RefreshRecords();});
             if(QuickCircuitClick(id))return;
             if(!records.Any(r=>r.Id==id))return;
-            if(!StateManager.IsHost||!buildMode.Active){selectedId=id;directionTab=direction==1?1:0;page=Page.ReadOnly;ShowTool();return;}
+            if(!buildMode.Active||!CanEdit(out _)){InspectObject(id,direction);return;}
+            ConfigurePickedObject(id,direction);
+        }
+        void ConfigurePickedObject(string id,int direction) {
+            if(records.Any(r=>r.Id==id&&r.Kind==MarkerRecord.Main&&r.Name.StartsWith("RS-",StringComparison.OrdinalIgnoreCase)))Act(()=>{repository.NormalizeSignalCode(id);RefreshRecords();});
             edit.Cancel();scene.HidePreview();selectedId=id;selectedEditFor=null;LoadDraft();directionTab=direction==1?1:0;page=Page.Configure;ShowTool();
         }
+        void InspectObject(string id,int direction) {
+            if(stopped||StateManager.IsUnloading||IsPlacing||!records.Any(r=>r.Id==id))return;
+            selectedId=id;directionTab=direction==1?1:0;page=Page.ReadOnly;ShowTool();
+        }
         internal void OpenObjectContext(string id,int direction) {
-            if(edit.Repeating)return;
+            if(stopped||StateManager.IsUnloading||IsPlacing)return;
             var row=records.FirstOrDefault(r=>r.Id==id);if(row?.IsSignal!=true){OpenObject(id,direction);return;}
+            string world=scope;
+            bool Current()=>!stopped&&!StateManager.IsUnloading&&!IsPlacing&&scope==world&&Entry.Shared?.WorldKey==world&&records.Any(r=>r.Id==id);
             var menu=UI.ContextMenu.ContextMenu.Shared;menu.Clear();
-            menu.AddButton(UI.ContextMenu.ContextMenuQuadrant.General,LocalText.Select("Edit","Bearbeiten"),()=>Act(()=>OpenObject(id,direction)));menu.Show(row.DisplayTitle);
+            menu.AddButton(UI.ContextMenu.ContextMenuQuadrant.General,LocalText.Select("Inspect signal","Signal ansehen"),()=>{if(Current())InspectObject(id,direction);});
+            if(CanEdit(out _))
+                menu.AddButton(UI.ContextMenu.ContextMenuQuadrant.General,LocalText.Select("Edit signal in build mode","Signal im Baumodus bearbeiten"),()=>Act(()=>{
+                    if(Current())EnterPickedObjectEdit(id,direction,world);
+                }));
+            menu.Show(row.DisplayTitle);
+        }
+        void EnterPickedObjectEdit(string id,int direction,string world) {
+            if(IsPlacing||scope!=world||Entry.Shared?.WorldKey!=world||!CanEdit(out _)||!records.Any(r=>r.Id==id))return;
+            if(!buildMode.Active)OpenFromPicker(WorkspaceMode.Build);
+            if(buildMode.Active)ConfigurePickedObject(id,direction);
         }
         void LoadDraft() {
             var row=Selected;if(row==null)return;
@@ -377,6 +414,7 @@ namespace EnusDE.Signaltechnik {
         void RebuildTool(){if(manager!=null&&!StateManager.IsUnloading)CustomWindowHandle.Create(WindowId)?.SetNeedsRebuild();}
         string AnchorText(MarkerAnchor anchor)=>anchor==null?"Keine gültige Vorschau.":anchor.Segment+" · "+anchor.Meters.ToString("0.00")+" m ab Ende A · seitlich "+anchor.Lateral.ToString("0.00")+" m";
         readonly UIState<bool> technicalExpanded=new UIState<bool>(false);
+        readonly UIState<bool> buildDetectionExpanded=new UIState<bool>(false),buildSignalVariantsExpanded=new UIState<bool>(false),buildStockExpanded=new UIState<bool>(false);
         void Navigate(Page next) {
             if(page==Page.PointBox&&next!=Page.PointBox)scene.HidePreview();
             if(page==Page.Placement&&next!=Page.Placement){edit.Cancel();scene.HidePreview();RefreshScene();}
@@ -419,30 +457,31 @@ namespace EnusDE.Signaltechnik {
             edit.HlSignal=hl;edit.PresentationPack=presentationPack;RenderPreview();
         }
         void BuildHome(UIPanelBuilder c) {
-            foreach(var pack in SignalPresentationPacks.Installed)if(Entry.Shared?.CanPlacePresentation(pack.Id)==true) {
-                foreach(var kind in new[]{MarkerRecord.Main,MarkerRecord.Distant,MarkerRecord.Shunt}) {
-                    var id=pack.Id;var signalKind=kind;
-                    c.AddButton(pack.Name+" · "+MarkerRecord.KindLabel(kind),()=>Act(()=>StartHomePlacement(signalKind,false,id)));
-                }
-            }
-            c.AddButton(LocalText.Select("Detection boundary quick tool","GFM-Schnellwerkzeug"),()=>Navigate(Page.QuickCircuits));
-            c.AddButton(LocalText.Get("Weichen-Gleisfreimeldung"),()=>Navigate(Page.PointCircuits));
-            c.AddTitle(LocalText.Get("Bauen"),buildTrack.HasValue&&buildTrack.Value.IsValid?"Vorgemerkte Gleisposition · "+buildTrack.Value.segment.id:
-                "Objekt wählen → Maus aufs Gleis → Linksklick");
+            c.AddLabel(buildTrack.HasValue&&buildTrack.Value.IsValid
+                ?LocalText.Select("Selected track position","Vorgemerkte Gleisposition")+" · "+buildTrack.Value.segment.id
+                :LocalText.Select("Choose an object, then click the track to place it.","Objekt wählen, dann zum Platzieren auf das Gleis klicken."));
             if(buildTrack.HasValue)c.AddButton(LocalText.Get("Position neu mit der Maus wählen"),()=>{buildTrack=null;RebuildTool();});
             BuildPalette(c);
-            if(options.EnableHlSignalsTest) {
-                c.AddButtonLarge(LocalText.Select("Hl main signal · test","Hl-Hauptsignal · Test"),()=>Act(()=>StartHomePlacement(MarkerRecord.Main,true)));
-                c.AddButtonLarge(LocalText.Select("Hl distant signal · test","Hl-Vorsignal · Test"),()=>Act(()=>StartHomePlacement(MarkerRecord.Distant,true)));
-            }
-            c.AddButton(LocalText.Get("Material und Bauaufträge"),OpenMaterials);
-            c.AddButton(LocalText.Get("Bestandssignale ungültig kennzeichnen"),()=>Act(OpenStockSignals));
-            c.AddLabel(LocalText.Get("Einen platzierten Mast anklicken, um seine Richtungen und Signalbegriffe einzurichten. Rangiersignale können auch einzeln stehen."));
+            c.AddExpandable(LocalText.Select("Track detection tools","Werkzeuge für die Gleisfreimeldung"),buildDetectionExpanded,tools=>{
+                tools.AddButton(LocalText.Select("Detection boundary quick tool","GFM-Schnellwerkzeug"),()=>Navigate(Page.QuickCircuits));
+                tools.AddButton(LocalText.Get("Weichen-Gleisfreimeldung"),()=>Navigate(Page.PointCircuits));
+            },ExpandableStyle.SectionHeader);
+            var packs=SignalPresentationPacks.Installed.Where(pack=>Entry.Shared?.CanPlacePresentation(pack.Id)==true).ToArray();
+            if(packs.Length>0||options.EnableHlSignalsTest)
+                c.AddExpandable(LocalText.Select("Additional signal types","Weitere Signalbauformen"),buildSignalVariantsExpanded,variants=>{
+                    foreach(var pack in packs)foreach(var kind in new[]{MarkerRecord.Main,MarkerRecord.Distant,MarkerRecord.Shunt}) {
+                        var id=pack.Id;var signalKind=kind;
+                        variants.AddButton(pack.Name+" · "+MarkerRecord.KindLabel(kind),()=>Act(()=>StartHomePlacement(signalKind,false,id)));
+                    }
+                    if(options.EnableHlSignalsTest) {
+                        variants.AddButtonLarge(LocalText.Select("Hl main signal · test","Hl-Hauptsignal · Test"),()=>Act(()=>StartHomePlacement(MarkerRecord.Main,true)));
+                        variants.AddButtonLarge(LocalText.Select("Hl distant signal · test","Hl-Vorsignal · Test"),()=>Act(()=>StartHomePlacement(MarkerRecord.Distant,true)));
+                    }
+                },ExpandableStyle.SectionHeader);
+            c.AddExpandable(LocalText.Select("Original game signals","Originalsignale des Spiels"),buildStockExpanded,
+                tools=>tools.AddButton(LocalText.Get("Bestandssignale ungültig kennzeichnen"),()=>Act(OpenStockSignals)),ExpandableStyle.SectionHeader);
             c.AddLabel(LocalText.Select("Escape cancels placement. Right mouse can still control the camera.","Escape bricht die Platzierung ab. Die rechte Maustaste bleibt für die Kamera verfügbar."));
-            c.AddLabel(LocalText.Select("Signals use continuous placement: keep placing with left-click, finish with Escape, then click individual signals to edit them.","Signale fortlaufend setzen: mit Linksklick weiterbauen, mit Escape beenden, danach einzelne Signale zum Bearbeiten anklicken."));
-            var defaults=Defaults;
-            c.AddLabel(LocalText.Get("Host-Vorgaben: ")+SignUnits.Number(defaults.Lateral)+" m seitlich · "+SignUnits.Number(defaults.Height)+" m Höhe.");
-            c.AddLabel(LocalText.Get("Vorgaben ändern: Auswahlfenster → Einstellungen."));
+            c.AddLabel(LocalText.Select("Right-click a signal to edit its construction.","Rechtsklick auf ein Signal öffnet seine Bauaktionen."));
         }
         void BuildObjects(UIPanelBuilder c) {
             c.AddButton(LocalText.Get("Weichen-Gleisfreimeldung"),()=>Navigate(Page.PointCircuits));

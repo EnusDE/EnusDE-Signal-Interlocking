@@ -79,7 +79,7 @@ namespace EnusDE.Signaltechnik {
         void TickAutomation(double now) {
             RefreshDirectionBlocks();RefreshLineDirections();directionBlocks.Observe(engine.Active,now);lineDirections.Observe(engine.Active,now);stationCapacity.Observe(now);
             automationStatus=Automation?.Enabled==true?"Kontakt-Automatik aktiv · nur ausdrücklich festgelegte Zugfahrten.":"Kontakt-Automatik ausgeschaltet.";
-            int waypointCount=waypointDuties.Values.Count(d=>d.Automatic);
+            int waypointCount=WaypointAutomationCount();
             if(waypointCount>0)automationStatus=LocalText.Select("Locomotives with waypoint automation: ","Loks mit Wegpunkt-Automatik: ")+waypointCount+" · "+LocalText.Get(automationStatus);
             if(blockError!=null)automationStatus=blockError;
             bool admittedThisTick=false;

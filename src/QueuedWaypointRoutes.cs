@@ -15,13 +15,13 @@ namespace EnusDE.Signaltechnik {
 
         readonly Dictionary<string,WaypointPreparation> waypointPreparations=new Dictionary<string,WaypointPreparation>();
 
-        MarkerRecord WaypointDestination(AutomaticRequest request,MovementRole role,WaypointApproach approach,out MarkerRecord source,out RouteKind kind) {
-            source=Object(request.Signal);
+        MarkerRecord WaypointDestination(string signal,MovementRole role,WaypointApproach approach,out MarkerRecord source,out RouteKind kind) {
+            source=Object(signal);
             bool shunting=role==MovementRole.Shunt;
             kind=RouteMovement.Default(source,shunting);
-            if(source==null||role==MovementRole.Unassigned||OperatingState(request.Signal)!=SignalOperatingState.Active||!SignalCatalogue.Supports(source,shunting,kind==RouteKind.Slow))
+            if(source==null||role==MovementRole.Unassigned||OperatingState(signal)!=SignalOperatingState.Active||!SignalCatalogue.Supports(source,shunting,kind==RouteKind.Slow))
                 throw new InvalidOperationException(LocalText.Select("The next signal cannot authorize this movement.","Das nächste Signal kann diese Fahrart nicht freigeben."));
-            var station=SignalStation(request.Signal);
+            var station=SignalStation(signal);
             if(station==null)throw new InvalidOperationException(LocalText.Select("Assign the start signal to a local interlocking first.","Zuerst das Startsignal einem örtlichen Stellwerk zuordnen."));
             var auxiliary=station.Panel.Tiles.Where(t=>!t.ReadOnlySignal&&t.Target?.Function==AuxiliaryFunction.RouteDestination)
                 .Select(t=>t.Target.Id).Distinct().Where(id=>BoundLineTarget(id)==null).Select(AuxiliaryEndpoint).Where(s=>s!=null);
@@ -37,7 +37,7 @@ namespace EnusDE.Signaltechnik {
             plans=null;
             MarkerRecord source,target;
             RouteKind kind;
-            try{target=WaypointDestination(request,role,approach,out source,out kind);}
+            try{target=WaypointDestination(request.Signal,role,approach,out source,out kind);}
             catch{CancelWaypointPreparation(request.Id);throw;}
             string sourceAnchor=SignalWorldBridge.AnchorKey(source),destinationAnchor=SignalWorldBridge.AnchorKey(target);
             var shared=Entry.Shared;
@@ -78,7 +78,7 @@ namespace EnusDE.Signaltechnik {
         }
 
         void RequireWaypointPlan(AutomaticRequest request,MovementRole role,WaypointApproach approach,RouteChainPlan plan) {
-            var target=WaypointDestination(request,role,approach,out var source,out var kind);
+            var target=WaypointDestination(request.Signal,role,approach,out var source,out var kind);
             if(!WaypointRoutePolicy.Matches(approach,source,target,kind,plan))
                 throw new InvalidOperationException(LocalText.Select("The route no longer matches the current waypoint path.","Die Fahrstraße passt nicht mehr zum aktuellen Wegpunktfahrweg."));
             if(role==MovementRole.Shunt&&NeedsDirectionCoordination(plan.Routes[0]))

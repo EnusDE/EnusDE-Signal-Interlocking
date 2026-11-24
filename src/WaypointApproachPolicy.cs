@@ -68,12 +68,20 @@ namespace EnusDE.Signaltechnik {
         }
 
         public bool TryLocateAhead(MarkerRecord signal,out double distance,double limit=300) {
+            return LocateAhead(signal,out distance,limit,false);
+        }
+
+        bool LocateAhead(MarkerRecord signal,out double distance,double limit,bool includeOpposite) {
             distance=0;
             if(signal?.Anchor==null||!TryLocate(signal.Anchor.Segment,signal.Anchor.Meters,out double progress,out bool reverse))return false;
-            if(reverse!=signal.FacingReverse||progress<0||progress>limit||progress>=Distance-EndClearance)return false;
+            if((!includeOpposite&&reverse!=signal.FacingReverse)||progress<0||progress>limit||progress>=Distance-EndClearance)return false;
             distance=progress;
             return true;
         }
+
+        public MarkerRecord[] SignalsAhead(IEnumerable<MarkerRecord> signals,double limit=300,bool includeOpposite=false)=>signals
+            .Select(signal=>(Signal:signal,Distance:LocateAhead(signal,out double progress,limit,includeOpposite)?progress:double.PositiveInfinity))
+            .Where(s=>!double.IsPositiveInfinity(s.Distance)).OrderBy(s=>s.Distance).Select(s=>s.Signal).ToArray();
 
         public MarkerRecord NextSignal(IEnumerable<MarkerRecord> governingSignals,double limit=300) {
             var matches=new List<(MarkerRecord signal,double distance)>();

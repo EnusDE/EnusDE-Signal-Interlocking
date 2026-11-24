@@ -112,6 +112,9 @@ public static class SettingsWindowFixture {
         Check(manager.IsOpen(id)&&firstDraws>0&&UI.Builder.UIPanelBuilder.Labels.Contains("Settings"),"standalone settings opens its own scrollable window with an English heading");
         window.Open();
         Check(draws==firstDraws&&ReferenceEquals(owned,manager.GetDefinition(id)),"opening already visible settings does not toggle it closed or rebuild its contents");
+        window.Open(refresh:true);
+        Check(draws==firstDraws+1&&manager.IsOpen(id)&&ReferenceEquals(owned,manager.GetDefinition(id)),
+            "an operation settings shortcut can refresh the existing window without toggling it closed");
         draft="unsaved edits";manager.CloseWindow(id);window.Open();
         Check(manager.IsOpen(id)&&draft=="unsaved edits"&&draws>firstDraws,"close and reopen retains the existing settings editor and pending values");
         LocalText.Configure(()=>"de");manager.CloseWindow(id);window.Open();

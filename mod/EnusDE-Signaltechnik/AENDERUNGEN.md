@@ -1,3 +1,12 @@
+# 0.7.66-P0 · Signalbedienung und Wegpunktanfragen
+
+- Linksklick auf ein Signal öffnet beim Host die Fahrstraßenanfrage. Rechtsklick öffnet die Objektaktionen.
+- Ein Schalter im Zahnrad aktiviert automatische Anfragen für feste Wegpunkte. Die Lokinfo und das Spielprotokoll zeigen den Wartegrund.
+- Der Editor gruppiert die Einrichtung nach Aufgaben. Der Hintergrundkatalog verbindet aktive Meldegrenzen über Signale ohne eigenen Melder hinweg.
+- Die Spiel- und Mehrspielerabnahme steht aus.
+
+[Bedienungsanleitung](Guides/WAYPOINT-0.7.66.de.md)
+
 # 0.7.65-P0 · Örtliche Wegpunkt-Automatik
 
 - In der Lokinfo Wegpunkt-Automatik einschalten, pausieren oder einmalig den nächsten Fahrweg anfragen.

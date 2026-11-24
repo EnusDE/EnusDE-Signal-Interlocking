@@ -6,7 +6,7 @@ namespace EnusDE.Signaltechnik {
         public string ObjectId;
         public float MaxPickDistance=>1000;
         public int Priority=>1;
-        public TooltipInfo TooltipInfo=>new TooltipInfo(Entry.MarkerCaption(ObjectId),Entry.WorldSelectionHint(ObjectId)??(TrackCircuit.TryPointId(ObjectId,out _,out _)?LocalText.Select("Automatic point box · click: edit position","Automatischer Weichenkasten · anklicken: Position bearbeiten"):LocalText.Select("Click: configure","Anklicken: konfigurieren")));
+        public TooltipInfo TooltipInfo=>new TooltipInfo(Entry.MarkerCaption(ObjectId),Entry.WorldSelectionHint(ObjectId)??(TrackCircuit.TryPointId(ObjectId,out _,out _)?LocalText.Select("Automatic point box · click: edit position","Automatischer Weichenkasten · anklicken: Position bearbeiten"):Entry.MarkerClickHint(ObjectId)??LocalText.Select("Click: configure","Anklicken: konfigurieren")));
         public PickableActivationFilter ActivationFilter=>Entry.PlacingObject?PickableActivationFilter.None:PickableActivationFilter.Any;
         public void Activate(PickableActivateEvent value){if(Entry.PlacingObject||Entry.BlockWorldObjectClick)return;if(TrackCircuit.TryPointId(ObjectId,out _,out _)){if(Entry.TryPickWorldObject(ObjectId))return;if(Entry.WorkspaceEditable)Entry.OpenPointBoundary(ObjectId);return;}var camera=Camera.main;var mast=transform.parent;bool back=camera!=null&&mast!=null&&Vector3.Dot(camera.transform.position-mast.position,mast.forward)>0;Entry.ActivateMarker(ObjectId,back?1:0,value.Activation==PickableActivation.Secondary);}
         public void Deactivate(){}

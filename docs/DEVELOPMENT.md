@@ -1,4 +1,15 @@
-# Development status and continuation — 0.7.65
+# Development status and continuation — 0.7.66
+
+## World signal controls, waypoint requests and GFM
+
+- The normal world interaction opens a route request for a finished main or shunt signal. The host chooses the movement where needed and a reachable destination. The existing dispatcher and interlocking check the request. The object context menu provides inspection and the permission-checked build editor. Remote players see the signal state through the existing replication.
+- The launcher gear offers one world setting for automatic waypoint requests, which activates the host signal connection and block coordination. The standard map picker creates an oriented waypoint in Railroader 0.6.3. The reader accepts this format when the game's own path proves one continuous direction. Orders request one eligible local leg at a time. The native locomotive Signalling tab shows the current reason and offers movement selection, pause and a single request. Gameplay diagnostics log state changes, including failures before an actual request.
+- The background catalog uses physical detector cuts even when ordinary signals split the drawn track. Automatic fields prefer a unique physical section. Existing explicit diagram bindings remain authoritative. The inspection shows the exact uncovered portions of a test path.
+- The next in-game tests are a normal fixed map waypoint through a shunt-capable location, a protected point initially in the other position, a manual signal request, a GFM join near a point and host/client visibility. Remote driver requests, interlocking handover and waypoint orders involving coupling or reversals are future work.
+
+The full build and offline suite passed **2,113 checks with zero failures** against local Railroader 0.6.3 assemblies. The checks include native map-waypoint values, path reachability, locomotive tab callbacks, physical track detection and Runenwacht 0.2.2 registration against this build. The game reached its title screen. This build still needs installation through the mod manager and acceptance in a world.
+
+[English instructions](../mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.66.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.66.de.md).
 
 ## Runenwacht 0.2.2 compatibility update
 

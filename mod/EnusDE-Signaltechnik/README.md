@@ -1,6 +1,6 @@
-# EnusDE Signal & Interlocking 0.7.65-P0
+# EnusDE Signal & Interlocking 0.7.66-P0
 
-0.7.65 adds local Auto Engineer waypoint route requests for Train and Shunt, with enable, pause and single request in the locomotive panel. [English workflow](Guides/WAYPOINT-0.7.65.en.md) · [Deutsche Anleitung](Guides/WAYPOINT-0.7.65.de.md). Actual driving and multiplayer acceptance remain pending.
+Enable local waypoint requests from the launcher gear, set a waypoint in Auto Engineer and read its status in the locomotive's Signalling tab. The host can also click a world signal to request a route. [English workflow](Guides/WAYPOINT-0.7.66.en.md) · [Deutsche Anleitung](Guides/WAYPOINT-0.7.66.de.md). Gameplay and multiplayer acceptance remain pending.
 
 0.7.64 / Runenwacht 0.2.0: detailed geometry, daylight-readable crystal bodies, separate light veins, PBR textures and framed technical/name plates. Host Build editor gains individual lamp tests without routes, native Stop holds and affected-route exclusion. [English guide](Guides/RUNENWACHT-0.7.64.en.md) · [Deutsch](Guides/RUNENWACHT-0.7.64.de.md). All game/AI/MP tests remain pending.
 

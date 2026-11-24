@@ -157,7 +157,7 @@ public static class SignalApiTests {
             Calls(typeof(Entry).GetMethod("OpenSettings")).Contains("SettingsWindow.Open")&&
             Calls(picker.GetMethod("SelectSettings",local)).Contains("ModePicker.Close")&&
             !Calls(picker.GetMethod("SelectSettings",local)).Any(c=>c.Contains("CanOpen")||c.Contains("OpenWorkspaceMode"))&&
-            Calls(settingsWindow.GetMethod("Open")).Contains("WindowManager.RegisterCustomWindow"),
+            Calls(settingsWindow.GetMethod("Open",local,null,new[]{typeof(bool)},null)).Contains("WindowManager.RegisterCustomWindow"),
             "launcher settings use their own native window without patching Company or preferences pages or gating access on workspace permissions");
         var automatic=Calls(runtime.GetMethod("CommitAutomaticPlan",local));
         var prepare=Calls(runtime.GetMethod("PrepareRequestedPlan",local));

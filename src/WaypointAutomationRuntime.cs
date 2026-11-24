@@ -3,31 +3,47 @@ using System.Collections.Generic;
 using System.Linq;
 using Game.State;
 using Model;
-using UI.Windows;
 using UnityEngine;
 
 namespace EnusDE.Signaltechnik {
     public sealed partial class SignalRuntime {
         sealed class WaypointDuty {
             public string Consist;
-            public MovementRole Movement;
-            public bool Automatic;
-            public string Status;
+            public string CurrentIntent;
+            public MovementRole Selection;
+            public bool? AutomaticOverride;
+            public string Status,RequestStatusKey,ObservationStatusKey;
             public string SuppressedSignal,SuppressedIntent;
         }
 
-        // A fresh session always starts with explicit driver control.
+        // Saved world permission is independent of the current driver's local pause.
         readonly Dictionary<string,WaypointDuty> waypointDuties=new Dictionary<string,WaypointDuty>(StringComparer.Ordinal);
+        Car[] waypointRoster=Array.Empty<Car>();
+        double nextWaypointRoster;
         int waypointCursor;
+        bool waypointDiscoveryHeld;
+        bool WaypointDiscoveryHeld=>waypointDiscoveryHeld;
+        bool WorldWaypointAutomatic=>Automation?.AutoDiscoverWaypoints==true&&!waypointDiscoveryHeld;
+        bool IsWaypointAutomatic(WaypointDuty duty)=>Automation?.AutoDiscoverWaypoints==true&&(duty?.AutomaticOverride??!waypointDiscoveryHeld);
+        int WaypointAutomationCount()=>waypointDuties.Values.Count(IsWaypointAutomatic);
+        void ResumeWaypointDiscovery(){waypointDiscoveryHeld=false;nextWaypointRoster=0;}
 
-        bool WaypointAutomationEnabled(Car car)=>StateManager.IsHost&&car!=null&&
-            waypointDuties.TryGetValue(car.id,out var duty)&&duty.Automatic;
+        bool WaypointAutomationEnabled(Car car) {
+            if(!StateManager.IsHost||!AvailableWaypointCar(car))return false;
+            waypointDuties.TryGetValue(car.id,out var duty);
+            return IsWaypointAutomatic(duty);
+        }
+
+        MovementRole WaypointMovementSelection(Car car)=>car!=null&&waypointDuties.TryGetValue(car.id,out var duty)?duty.Selection:MovementRole.Unassigned;
 
         string WaypointAutomationStatus(Car car) {
             if(car==null)return "";
             if(StateManager.IsHost) {
+                string issue=WaypointReadinessIssue(car);
+                if(issue!=null)return issue;
                 if(waypointDuties.TryGetValue(car.id,out var duty))return LocalText.Get(duty.Status??WaypointOff());
-                return WaypointOff();
+                if(WaypointDiscoveryHeld)return LocalText.Select("STOP has paused automatic waypoint discovery.","HALT hat die automatische Wegpunkterkennung pausiert.");
+                return WorldWaypointAutomatic?AwaitWaypoint():WaypointOff();
             }
             if(Entry.Shared?.LiveFresh!=true)return LocalText.Select("Waiting for host status.","Wartet auf Status vom Host.");
             var request=Entry.Shared.Live.Automation?.Requests.LastOrDefault(r=>r.Locomotive==car.id&&r.Source!="");
@@ -40,119 +56,238 @@ namespace EnusDE.Signaltechnik {
         static string ChangedWaypoint()=>LocalText.Select("Waypoint, direction or consist changed.","Wegpunkt, Fahrtrichtung oder Verband geändert.");
         static bool PendingWaypointRequest(AutomaticRequest request)=>request.Stage==AutomaticRequestStage.Waiting||request.Stage==AutomaticRequestStage.Submitted;
 
+        static bool AvailableWaypointCar(Car car)=>car!=null&&car.IsLocomotive&&car.IsOwnedByPlayer&&!car.IsDerailed&&!car.IsInBardo;
+
         void CheckWaypointCar(Car car) {
-            if(!RouteWorkAvailable||!OperatingReady||Automation==null||car==null||!car.IsLocomotive||!car.IsOwnedByPlayer||car.IsDerailed||car.IsInBardo)
+            if(!RouteWorkAvailable||!OperatingReady||Automation==null||!AvailableWaypointCar(car))
                 throw new InvalidOperationException(LocalText.Select("Choose an available locomotive in the host session.","Eine verfügbare Lok in der Host-Sitzung auswählen."));
         }
 
-        WaypointDuty ReadWaypointDuty(Car car) {
-            CheckWaypointCar(car);
-            if(!aiEnabled||automationHookError!=null)
-                throw new InvalidOperationException(LocalText.Select("Enable the Auto Engineer signal connection in Settings.","In den Einstellungen die Auto-Engineer-Signalanbindung einschalten."));
-            if(!Automation.BlockEnabled)throw new InvalidOperationException(LocalText.Select("Enable block coordination for waypoint requests.","Für Wegpunktanfragen die Blockabstimmung einschalten."));
-            var cars=AutomationNative.Consist(car);
-            string signature=AutomationNative.Signature(cars);
-            var role=Automation.Role(car.id,signature);
-            if(role!=MovementRole.Train&&role!=MovementRole.Shunt)
-                throw new InvalidOperationException(LocalText.Select("Apply Train or Shunt for this locomotive first.","Für diese Lok zuerst Zugfahrt oder Rangierfahrt übernehmen."));
-            return new WaypointDuty{Consist=signature,Movement=role,Status=AwaitWaypoint()};
+        string WaypointReadinessIssue(Car car) {
+            if(!StateManager.IsHost)return null;
+            if(!RouteWorkAvailable||!OperatingReady||Automation==null||!AvailableWaypointCar(car))
+                return LocalText.Select("Choose an available locomotive in the host session.","Eine verfügbare Lok in der Host-Sitzung auswählen.");
+            if(automationHookError!=null)return LocalText.Select("Native waypoint integration unavailable: ","Native Wegpunktanbindung nicht verfügbar: ")+automationHookError;
+            if(!aiEnabled)
+                return LocalText.Select("Enable the Auto Engineer signal connection in Settings.","In den Einstellungen die Auto-Engineer-Signalanbindung einschalten.");
+            if(!Automation.BlockEnabled)return LocalText.Select("Enable block coordination for waypoint requests.","Für Wegpunktanfragen die Blockabstimmung einschalten.");
+            return null;
         }
 
-        void StoreWaypointDuty(Car car,WaypointDuty duty) {
-            if(!waypointDuties.ContainsKey(car.id)&&waypointDuties.Count>=512)
+        void RequireWaypointReady(Car car) {
+            CheckWaypointCar(car);
+            string issue=WaypointReadinessIssue(car);
+            if(issue!=null)throw new InvalidOperationException(issue);
+        }
+
+        WaypointDuty GetWaypointDuty(Car car) {
+            if(waypointDuties.TryGetValue(car.id,out var duty))return duty;
+            if(waypointDuties.Count>=512)
                 throw new InvalidOperationException(LocalText.Select("Too many locomotive selections in this session.","Zu viele Lok-Auswahlen in dieser Spielsitzung."));
-            waypointDuties[car.id]=duty;
+            duty=new WaypointDuty();waypointDuties.Add(car.id,duty);return duty;
         }
 
-        void SetWaypointAutomation(Car car,bool enabled) {
+        MovementRole PreferredWaypointMovement(Car car,WaypointDuty duty)=>duty.Selection!=MovementRole.Unassigned?duty.Selection:
+            Automation.Role(car.id,duty.Consist);
+
+        void SetWaypointMovement(Car car,MovementRole selection) {
             CheckWaypointCar(car);
+            if(!Enum.IsDefined(typeof(MovementRole),selection))throw new ArgumentOutOfRangeException(nameof(selection));
+            var duty=GetWaypointDuty(car);
+            if(duty.Selection==selection)return;
+            duty.Selection=selection;
+            TransferWaypointControl(car,LocalText.Select("Waypoint movement selection changed.","Fahrart für Wegpunktfahrten geändert."));
+            duty.SuppressedSignal=duty.SuppressedIntent=null;
+            SetWaypointStatus(car.id,duty,"movement_changed",IsWaypointAutomatic(duty)?AwaitWaypoint():WaypointOff());
+        }
+
+        void SetWaypointAutomation(Car car,bool enabled)=>SetWaypointAutomation(car,enabled,WaypointMovementSelection(car));
+
+        void SetWaypointAutomation(Car car,bool enabled,MovementRole selection) {
+            CheckWaypointCar(car);
+            string signature=null;
             if(enabled) {
-                var duty=ReadWaypointDuty(car);
-                duty.Automatic=true;
-                StoreWaypointDuty(car,duty);
-                return;
+                RequireWaypointReady(car);
+                if(Automation.AutoDiscoverWaypoints!=true)
+                    throw new InvalidOperationException(LocalText.Select("Enable automatic waypoint requests for this world first.","Zuerst automatische Wegpunktanfragen für diese Welt einschalten."));
+                signature=AutomationNative.Signature(AutomationNative.Consist(car));
             }
-            if(!waypointDuties.TryGetValue(car.id,out var current))return;
-            current.Automatic=false;
-            current.Status=WaypointOff();
+            SetWaypointMovement(car,selection);
+            var duty=GetWaypointDuty(car);
+            duty.AutomaticOverride=enabled;
+            nextWaypointRoster=0;
+            if(enabled) {
+                duty.Consist=signature;
+                duty.CurrentIntent=null;
+                duty.SuppressedSignal=duty.SuppressedIntent=null;
+                SetWaypointStatus(car.id,duty,"enabled",AwaitWaypoint());
+            } else {
+                TransferWaypointControl(car,WaypointOff());
+                SetWaypointStatus(car.id,duty,"paused",WaypointOff());
+            }
+        }
+
+        void TransferWaypointControl(Car car,string reason) {
             foreach(var request in automaticRequests.Where(r=>r.Waypoint&&r.Locomotive==car.id&&PendingWaypointRequest(r)).ToArray()) {
                 if(request.WaypointRun?.Entered==true||request.WaypointRun?.Permitted==true)request.HandedOver=true;
-                else WithdrawAutomaticRequest(request,current.Status);
+                else WithdrawAutomaticRequest(request,reason);
             }
         }
 
-        void RequestWaypointRoute(Car car) {
-            var duty=ReadWaypointDuty(car);
+        void RequestWaypointRoute(Car car)=>RequestWaypointRoute(car,WaypointMovementSelection(car));
+
+        void RequestWaypointRoute(Car car,MovementRole selection) {
+            RequireWaypointReady(car);
             if(WaypointAutomationEnabled(car))return;
             if(automaticRequests.Any(r=>r.Locomotive==car.id&&PendingWaypointRequest(r)&&r.WaypointRun?.Entered!=true))
                 throw new InvalidOperationException(LocalText.Select("This locomotive already has a route request.","Für diese Lok läuft bereits eine Fahrstraßenanfrage."));
             var intent=AutomationNative.Intent(car,allowPausedWaypoint:true);
             if(intent.Mode!=AutomationDrivingMode.Waypoint)throw new InvalidOperationException(AwaitWaypoint());
-            bool located=TryWaypointStart(car,intent,duty.Movement,out _,out var signal,out var reason,allowPausedWaypoint:true);
-            StoreWaypointDuty(car,duty);
-            QueueWaypointRequest(car,duty,intent,located?signal:null,Time.realtimeSinceStartup,true,reason);
+            var consist=AutomationNative.Consist(car);
+            if(!AutomationNative.HasUniqueWaypointDriver(car,consist))throw new InvalidOperationException(WaypointDriverConflict());
+            SetWaypointMovement(car,selection);
+            var duty=GetWaypointDuty(car);
+            duty.Consist=AutomationNative.Signature(consist);duty.CurrentIntent=intent.Signature;
+            bool located=TryWaypointStart(car,consist,intent,PreferredWaypointMovement(car,duty),out _,out var signal,out var movement,out var reason,allowPausedWaypoint:true);
+            QueueWaypointRequest(car,duty,intent,located?signal:null,movement,Time.realtimeSinceStartup,true,reason);
         }
 
-        bool TryWaypointStart(Car car,AutomationIntent intent,MovementRole role,out WaypointApproach approach,out MarkerRecord source,out string reason,bool allowPausedWaypoint=false) {
-            approach=null;source=null;
+        bool TryWaypointStart(Car car,Car[] consist,AutomationIntent intent,MovementRole selection,out WaypointApproach approach,out MarkerRecord source,out MovementRole movement,out string reason,bool allowPausedWaypoint=false) {
+            approach=null;source=null;movement=selection==MovementRole.Shunt?MovementRole.Shunt:MovementRole.Train;
             if(intent.Mode!=AutomationDrivingMode.Waypoint){reason=AwaitWaypoint();return false;}
             if(!intent.Ready){reason=intent.Reason??WaitNativePath();return false;}
-            if(!AutomationNative.TryWaypointApproach(car,intent,out approach,allowPausedWaypoint)){reason=WaitNativePath();return false;}
+            if(!AutomationNative.TryWaypointApproach(car,intent,out approach,out reason,allowPausedWaypoint)){reason=reason??WaitNativePath();return false;}
             var currentApproach=approach;
-            source=currentApproach.NextSignal(SignalObjects.Where(s=>!s.Planned&&
-                (s.Kind==MarkerRecord.Main||role==MovementRole.Shunt&&s.Kind==MarkerRecord.Shunt)&&
-                currentApproach.TryLocateAhead(s,out _)&&!IgnoreOwnSignal(s.Id)));
-            if(source==null){reason=LocalText.Select("No signal to request before the waypoint within 300 m.","Innerhalb von 300 m liegt vor dem Wegpunkt kein anzufragendes Signal.");return false;}
+            var forward=currentApproach.SignalsAhead(SignalObjects.Where(s=>!s.Planned&&(s.Kind==MarkerRecord.Main||s.Kind==MarkerRecord.Shunt)));
+            var cars=consist.Select(c=>c.id).ToArray();
+            var governing=forward.Where(s=>!IgnoreOwnSignal(s.Id)&&!CoveredWaypointVia(s,cars));
+            source=currentApproach.NextSignal(governing);
+            if(source==null) {
+                source=forward.FirstOrDefault(s=>IgnoreOwnSignal(s.Id));
+                if(source==null)reason=NoWaypointSignal(currentApproach,out source);
+                else reason=source.DisplayTitle+" · "+LocalText.Select("Signal is not in service or is not bound to the interlocking.","Signal ist außer Betrieb oder nicht mit dem Stellwerk verbunden.");
+                return false;
+            }
+            string caption=source.DisplayTitle+" · ";
             if(OperatingState(source.Id)!=SignalOperatingState.Active||lampTest.Holds(source.Id))
-                {reason=LocalText.Select("The next signal is unavailable.","Das nächste Signal ist nicht verfügbar.");return false;}
-            if(!SignalCatalogue.Supports(source,role==MovementRole.Shunt,false)&&
-                !(role==MovementRole.Train&&SignalCatalogue.Supports(source,false,true)))
-                {reason=LocalText.Select("The next signal does not support this movement.","Das nächste Signal unterstützt diese Fahrart nicht.");return false;}
+                {reason=caption+LocalText.Select("The next signal is unavailable.","Das nächste Signal ist nicht verfügbar.");return false;}
+            bool shuntOnly=!SignalCatalogue.Supports(source,false,false)&&!SignalCatalogue.Supports(source,false,true)&&SignalCatalogue.Supports(source,true,false);
+            if(shuntOnly&&selection==MovementRole.Train)
+                {reason=caption+LocalText.Select("The nearest signal is for shunting. Choose Shunting for this waypoint.","Das nächste Signal gehört zur Rangierfahrt. Für diesen Wegpunkt Rangierfahrt wählen.");return false;}
+            if(shuntOnly&&selection==MovementRole.Unassigned) {
+                // A declared shunt-only signal with a local destination can determine the movement type.
+                try{WaypointDestination(source.Id,MovementRole.Shunt,approach,out _,out _);movement=MovementRole.Shunt;}
+                catch(InvalidOperationException failure){reason=caption+LocalText.Get(failure.Message);return false;}
+            }
+            if(!SignalCatalogue.Supports(source,movement==MovementRole.Shunt,false)&&
+                !(movement==MovementRole.Train&&SignalCatalogue.Supports(source,false,true)))
+                {reason=caption+LocalText.Select("The next signal does not support this movement.","Das nächste Signal unterstützt diese Fahrart nicht.");return false;}
             var owner=SignalStation(source.Id);
-            if(owner==null){reason=LocalText.Select("Assign the next signal to a local interlocking.","Das nächste Signal einem Ortsstellwerk zuordnen.");return false;}
+            if(owner==null){reason=caption+LocalText.Select("Assign the next signal to a local interlocking.","Das nächste Signal einem Ortsstellwerk zuordnen.");return false;}
             if(Automation.Signals.TryGetValue(source.Id,out var rule)&&!rule.AllowWaypoint)
-                {reason=LocalText.Select("Waypoint requests are switched off at this signal.","Wegpunktanfragen sind an diesem Signal ausgeschaltet.");return false;}
+                {reason=caption+LocalText.Select("Waypoint requests are switched off at this signal.","Wegpunktanfragen sind an diesem Signal ausgeschaltet.");return false;}
             reason=null;return true;
         }
 
-        void QueueWaypointRequest(Car car,WaypointDuty duty,AutomationIntent intent,MarkerRecord source,double now,bool driver,string reason=null) {
+        bool CoveredWaypointVia(MarkerRecord signal,string[] cars) {
+            if(signal.Kind!=MarkerRecord.Shunt)return false;
+            var route=engine.ForViaSignal(signal.Id);
+            return route!=null&&WaypointRoutePolicy.HasViaAuthority(route,signal.Id,cars,Aspect(signal.Id));
+        }
+
+        string NoWaypointSignal(WaypointApproach approach,out MarkerRecord opposite) {
+            opposite=approach.SignalsAhead(SignalObjects.Where(s=>!s.Planned&&(s.Kind==MarkerRecord.Main||s.Kind==MarkerRecord.Shunt)),includeOpposite:true)
+                .FirstOrDefault(s=>!approach.TryLocateAhead(s,out _));
+            if(opposite!=null)return opposite.DisplayTitle+" · "+LocalText.Select("Faces the opposite direction from this waypoint path.","Zeigt entgegen der Fahrtrichtung dieses Wegpunkts.");
+            return LocalText.Select("No governing signal on the next 300 m before the waypoint.","Kein zuständiges Signal auf den nächsten 300 Gleismetern vor dem Wegpunkt.");
+        }
+
+        static string WaypointDriverConflict()=>LocalText.Select("The consist needs exactly one Auto Engineer driver for this waypoint.","Der Verband braucht genau eine Auto-Engineer-Lok für diesen Wegpunkt.");
+
+        void SetWaypointStatus(string locomotive,WaypointDuty duty,string state,string reason,MarkerRecord source=null,AutomaticRequest request=null,AutomationIntent intent=null,WaypointApproach approach=null) {
+            string observed=source?.Id??request?.Signal;
+            string key=state+"|"+reason+"|"+observed+"|"+request?.Target+"|"+intent?.Signature+"|"+request?.Id;
+            if(request==null) {
+                if(duty.ObservationStatusKey==key)return;
+                duty.ObservationStatusKey=key;
+            } else {
+                if(duty.RequestStatusKey==key)return;
+                duty.RequestStatusKey=key;
+            }
+            duty.Status=reason;
+            string caption=source?.DisplayTitle??(observed==null?null:Code(observed));
+            double? distance=null;
+            if(source?.Anchor!=null&&approach!=null&&approach.TryLocate(source.Anchor.Segment,source.Anchor.Meters,out double progress,out _))distance=Math.Round(progress,1);
+            try {
+                log?.Info("Waypoint "+locomotive+" · "+state+(caption==null?"":" · "+caption)+" · "+reason);
+                Entry.RecordSignalEvent("waypoint_state",new {id=observed??locomotive,code=caption,vehicle_id=locomotive,state,reason,
+                    entry=observed,exit=request?.Target,movement=request?.Movement.ToString()??duty.Selection.ToString(),request=request?.Id,
+                    distance_m=distance,waypoint_segment=intent?.Target?.Segment,direction=source?.FacingReverse,source="host_waypoint",movement_verified=false});
+            }catch{/* Observations never change an interlocking result. */}
+        }
+
+        void QueueWaypointRequest(Car car,WaypointDuty duty,AutomationIntent intent,MarkerRecord source,MovementRole movement,double now,bool driver,string reason=null) {
             if(!MakeAutomaticRequestRoom()) {
-                duty.Status=LocalText.Select("The request list is full.","Die Anfragenliste ist voll.");
+                SetWaypointStatus(car.id,duty,"no_request",LocalText.Select("The request list is full.","Die Anfragenliste ist voll."),source,intent:intent);
                 return;
             }
             var request=new AutomaticRequest{Waypoint=true,DriverRequested=driver,Locomotive=car.id,Consist=duty.Consist,
-                Signal=source?.Id,Intent=intent.Signature,Movement=duty.Movement,Created=now,
+                Signal=source?.Id,Intent=intent.Signature,Movement=movement,Created=now,
                 Reason=reason??LocalText.Select("Route requested.","Fahrstraße angefragt.")};
-            automaticRequests.Add(request);duty.Status=request.Reason;
+            automaticRequests.Add(request);
+            SetWaypointStatus(car.id,duty,request.Stage.ToString(),request.Reason,source,request);
         }
 
         void DiscoverWaypointRequests(double now) {
-            if(TrainController.Shared==null||!aiEnabled||!OperatingReady||automationHookError!=null||Automation?.BlockEnabled!=true)return;
-            var enabled=waypointDuties.Where(p=>p.Value.Automatic).ToArray();
-            for(int i=0;i<Math.Min(8,enabled.Length);i++) {
-                if(waypointCursor>=enabled.Length)waypointCursor=0;
-                var pair=enabled[waypointCursor++];
-                var duty=pair.Value;
-                if(automaticRequests.Any(r=>r.Locomotive==pair.Key&&PendingWaypointRequest(r)&&r.WaypointRun?.Entered!=true))continue;
+            if(TrainController.Shared==null||Automation?.AutoDiscoverWaypoints!=true||
+                (waypointDiscoveryHeld&&!waypointDuties.Values.Any(IsWaypointAutomatic)))return;
+            if(now>=nextWaypointRoster) {
+                waypointRoster=TrainController.Shared.Cars.Where(AvailableWaypointCar).ToArray();
+                nextWaypointRoster=now+2;
+            }
+            for(int i=0;i<Math.Min(8,waypointRoster.Length);i++) {
+                if(waypointCursor>=waypointRoster.Length)waypointCursor=0;
+                var car=waypointRoster[waypointCursor++];
+                if(!AvailableWaypointCar(car))continue;
+                waypointDuties.TryGetValue(car.id,out var duty);
+                if(!IsWaypointAutomatic(duty)||automaticRequests.Any(r=>r.Locomotive==car.id&&PendingWaypointRequest(r)&&r.WaypointRun?.Entered!=true))continue;
+                bool activeWaypoint=AutomationNative.HasActiveWaypoint(car);
+                if(!activeWaypoint) {
+                    if(duty!=null)SetWaypointStatus(car.id,duty,"no_request",AwaitWaypoint());
+                    continue;
+                }
                 try {
-                    if(!TryCurrentWaypointCar(pair.Key,duty,out var car,out _)) {
-                        duty.Automatic=false;duty.Status=ChangedWaypoint();continue;
-                    }
+                    duty=GetWaypointDuty(car);
+                    string issue=WaypointReadinessIssue(car);
+                    if(issue!=null){SetWaypointStatus(car.id,duty,"no_request",issue);continue;}
                     var intent=AutomationNative.Intent(car);
-                    if(!TryWaypointStart(car,intent,duty.Movement,out _,out var source,out var reason)){duty.Status=reason;continue;}
+                    var consist=AutomationNative.Consist(car);
+                    if(!AutomationNative.HasUniqueWaypointDriver(car,consist)) {
+                        SetWaypointStatus(car.id,duty,"no_request",WaypointDriverConflict(),intent:intent);
+                        continue;
+                    }
+                    string signature=AutomationNative.Signature(consist);
+                    if(duty.Consist!=null&&signature!=duty.Consist&&intent.Signature==duty.CurrentIntent) {
+                        SetWaypointStatus(car.id,duty,"no_request",LocalText.Select("Consist changed. Set a new waypoint or re-enable automation for this locomotive.","Verband geändert. Einen neuen Wegpunkt setzen oder die Automatik an dieser Lok erneut einschalten."),intent:intent);
+                        continue;
+                    }
+                    duty.Consist=signature;duty.CurrentIntent=intent.Signature;
+                    if(!TryWaypointStart(car,consist,intent,PreferredWaypointMovement(car,duty),out var approach,out var source,out var movement,out var reason)) {
+                        SetWaypointStatus(car.id,duty,"no_request",reason,source,intent:intent,approach:approach);
+                        continue;
+                    }
                     if(duty.SuppressedSignal==source.Id&&duty.SuppressedIntent==intent.Signature)continue;
-                    if(automaticRequests.Any(r=>r.Waypoint&&r.Locomotive==pair.Key&&PendingWaypointRequest(r)&&r.Signal==source.Id))continue;
-                    QueueWaypointRequest(car,duty,intent,source,now,false);
-                }catch(Exception e){duty.Status=LocalText.Get(e.Message);}
+                    if(automaticRequests.Any(r=>r.Waypoint&&r.Locomotive==car.id&&PendingWaypointRequest(r)&&r.Signal==source.Id))continue;
+                    QueueWaypointRequest(car,duty,intent,source,movement,now,false);
+                }catch(Exception e){if(duty!=null)SetWaypointStatus(car.id,duty,"no_request",LocalText.Get(e.Message));}
             }
         }
 
         bool TryCurrentWaypointCar(string id,WaypointDuty duty,out Car car,out Car[] cars) {
             car=null;cars=null;
-            if(TrainController.Shared==null||!TrainController.Shared.TryGetCarForId(id,out car)||car==null||
-                !car.IsOwnedByPlayer||!car.IsLocomotive||car.IsDerailed||car.IsInBardo)return false;
+            if(TrainController.Shared==null||!TrainController.Shared.TryGetCarForId(id,out car)||!AvailableWaypointCar(car))return false;
             cars=AutomationNative.Consist(car);
-            return AutomationNative.Signature(cars)==duty.Consist&&Automation.Role(id,duty.Consist)==duty.Movement;
+            return AutomationNative.Signature(cars)==duty.Consist;
         }
 
         void TickWaypointRequest(AutomaticRequest request,double now,ref bool admittedThisTick) {
@@ -172,24 +307,34 @@ namespace EnusDE.Signaltechnik {
                         return;
                     }
                 }
-                if(duty==null||!request.DriverRequested&&!duty.Automatic||!aiEnabled||!OperatingReady||automationHookError!=null||Automation?.BlockEnabled!=true)
+                if(duty==null||!aiEnabled||!OperatingReady||automationHookError!=null||Automation?.BlockEnabled!=true)
                     throw new OperationCanceledException(LocalText.Select("Waypoint requests paused.","Wegpunktanfragen pausiert."));
-                if(duty.Consist!=request.Consist||duty.Movement!=request.Movement||!TryCurrentWaypointCar(request.Locomotive,duty,out var car,out var cars))
+                if(!request.DriverRequested&&!IsWaypointAutomatic(duty)) {
+                    if(run?.Permitted==true) {
+                        request.HandedOver=true;
+                        request.Reason=LocalText.Select("Route set. Driver has taken over.","Fahrstraße gestellt. Fahrer hat übernommen.");
+                        return;
+                    }
+                    throw new OperationCanceledException(LocalText.Select("Waypoint requests paused.","Wegpunktanfragen pausiert."));
+                }
+                if(duty.Consist!=request.Consist||!TryCurrentWaypointCar(request.Locomotive,duty,out var car,out var cars))
                     throw new OperationCanceledException(ChangedWaypoint());
                 var intent=AutomationNative.Intent(car,allowPausedWaypoint:request.DriverRequested);
                 if(intent.Signature!=request.Intent||intent.Mode!=AutomationDrivingMode.Waypoint)throw new OperationCanceledException(ChangedWaypoint());
+                if(!AutomationNative.HasUniqueWaypointDriver(car,cars))throw new OperationCanceledException(WaypointDriverConflict());
                 if(run?.Permitted==true&&intent.Ready&&run.TrainCars!=null) {
                     world.TrainProgress(run.Route,run.TrainCars,out var head,out _);
                     // The front has reached the route. Let the usual passage offset and train-tail checks finish.
                     if(head>=0){request.HandedOver=request.DriverRequested;request.Reason=LocalText.Select("Train reaching the route.","Zug erreicht die Fahrstraße.");return;}
                 }
-                if(!TryWaypointStart(car,intent,request.Movement,out var approach,out var source,out var reason,request.DriverRequested)) {
+                if(!TryWaypointStart(car,cars,intent,PreferredWaypointMovement(car,duty),out var approach,out var source,out var movement,out var reason,request.DriverRequested)) {
                     if(run!=null)throw new OperationCanceledException(reason);
                     CancelWaypointPreparation(request.Id);
                     request.Reason=reason;return;
                 }
-                if(request.Signal==null&&request.DriverRequested)request.Signal=source.Id;
+                if(request.Signal==null&&request.DriverRequested){request.Signal=source.Id;request.Movement=movement;}
                 if(source.Id!=request.Signal)throw new OperationCanceledException(LocalText.Select("The approaching signal has changed.","Das Signal vor dem Zug hat sich geändert."));
+                if(movement!=request.Movement)throw new OperationCanceledException(LocalText.Select("The movement type changed.","Die Fahrart hat sich geändert."));
                 var owner=SignalStation(source.Id);
                 if(Automation.PausedStations.Contains(owner.Id)&&run?.Permitted!=true) {
                     if(run!=null)throw new OperationCanceledException(LocalText.Select("The dispatcher has taken over this interlocking.","Der Fahrdienstleiter hat dieses Stellwerk übernommen."));
@@ -226,7 +371,7 @@ namespace EnusDE.Signaltechnik {
                 else{request.NextAttempt=now+3;request.Reason=LocalText.Get(e.Message);}
             }finally {
                 if(duty!=null&&(!automaticRequests.Any(r=>r.Waypoint&&r.Locomotive==request.Locomotive&&PendingWaypointRequest(r)&&r.Created>request.Created)))
-                    duty.Status=request.Reason;
+                    SetWaypointStatus(request.Locomotive,duty,request.Stage.ToString(),request.Reason,request:request);
             }
         }
 
@@ -244,17 +389,22 @@ namespace EnusDE.Signaltechnik {
             }
             SuppressWaypointRetry(request);
             request.Stage=AutomaticRequestStage.Cancelled;request.Reason=reason;
-            if(waypointDuties.TryGetValue(request.Locomotive,out var duty))duty.Status=reason;
+            if(waypointDuties.TryGetValue(request.Locomotive,out var duty))
+                SetWaypointStatus(request.Locomotive,duty,request.Stage.ToString(),reason,request:request);
         }
 
         void PauseWaypointRequests() {
-            foreach(var duty in waypointDuties.Values){duty.Automatic=false;duty.Status=WaypointOff();}
-            CustomWindowHandle.Create(CarInfoWindowId)?.SetNeedsRebuild();
+            waypointDiscoveryHeld=true;
+            foreach(var pair in waypointDuties) {
+                if(pair.Value.AutomaticOverride==true)pair.Value.AutomaticOverride=null;
+                SetWaypointStatus(pair.Key,pair.Value,"paused",WaypointOff());
+            }
         }
 
         void ResetWaypointSession() {
             ClearWaypointPreparations();waypointDuties.Clear();
-            automaticRequests.RemoveAll(r=>r.Waypoint);waypointCursor=0;
+            automaticRequests.RemoveAll(r=>r.Waypoint);waypointCursor=0;waypointRoster=Array.Empty<Car>();nextWaypointRoster=0;
+            waypointDiscoveryHeld=false;
         }
     }
 }

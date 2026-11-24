@@ -97,17 +97,24 @@ namespace EnusDE.Signaltechnik {
             c.AddSearchChoice(WindowText("Start signal","Startsignal"),signals.Select(s=>s.DisplayTitle).ToList(),Array.FindIndex(signals,s=>s.Id==gfmTestStart),i=>{gfmTestStart=signals[i].Id;Changed();});
             c.AddSearchChoice(WindowText("Destination signal","Zielsignal"),signals.Select(s=>s.DisplayTitle).ToList(),Array.FindIndex(signals,s=>s.Id==gfmTestEnd),i=>{gfmTestEnd=signals[i].Id;Changed();});
             c.AddSearchChoice(WindowText("Movement type","Fahrart"),new List<string>{WindowText("Train","Zugfahrt"),WindowText("Reduced train route","Langsamfahrt"),WindowText("Shunting","Rangierfahrt")},(int)gfmTestKind,i=>{gfmTestKind=(RouteKind)i;Changed();});
-            c.AddButton(WindowText("Calculate test paths · no operation","Testwege berechnen · keine Bedienung"),()=>Act(()=>{
+            void ShowGaps() {
+                var path=gfmTestPlans[gfmTestChoice].SelectMany(r=>r.Path).Select(p=>p.Section).ToArray();
+                gfmTestMissing=GfmCoverage.Gaps(path,GfmInspectionCoverage());
+                HighlightGfm(desks.Blocks.Values.Where(b=>b.Sections.Any(s=>path.Any(s.Overlaps))).Select(b=>b.Id),gfmTestMissing);
+            }
+            c.AddButton(WindowText("Find detection gaps","Freimeldelücken suchen"),()=>Act(()=>{
                 RequireFreshGfmInspection();
-                gfmTestPlans=AutomaticRoutePlanner.Find(gfmInspectionInput,SignalObjects.Where(s=>!s.Planned),Object(gfmTestStart),Object(gfmTestEnd),gfmTestKind);gfmTestChoice=0;gfmTestMissing=null;ClearGfmHighlight();RefreshWorkspaceFields();
+                gfmTestPlans=AutomaticRoutePlanner.Find(gfmInspectionInput,SignalObjects.Where(s=>!s.Planned),Object(gfmTestStart),Object(gfmTestEnd),gfmTestKind);
+                gfmTestChoice=0;gfmTestMissing=null;ClearGfmHighlight();
+                if(gfmTestPlans.Count>0)ShowGaps();
+                RefreshWorkspaceFields();
             }));
             if(gfmTestPlans==null)return;
             if(gfmTestPlans.Count==0){c.AddLabel(WindowText("No matching path found for this direction and movement type.","Für diese Richtung und Fahrart keinen passenden Weg gefunden."));return;}
-            c.AddSearchChoice(WindowText("Test path","Testweg"),gfmTestPlans.Select((p,i)=>WindowText("Path ","Weg ")+(i+1)+" · "+SignUnits.Number(p.Sum(r=>r.Length))+" m · "+string.Join(" → ",p.Select(r=>SignalCaption(r.Exit)))).ToList(),gfmTestChoice,i=>{gfmTestChoice=i;gfmTestMissing=null;ClearGfmHighlight();RefreshWorkspaceFields();});
-            c.AddButton(WindowText("Show coverage and exact gaps","Abdeckung und genaue Lücken anzeigen"),()=>Act(()=>{
-                RequireFreshGfmInspection();var path=gfmTestPlans[gfmTestChoice].SelectMany(r=>r.Path).Select(p=>p.Section).ToArray();
-                gfmTestMissing=GfmCoverage.Gaps(path,GfmInspectionCoverage());
-                HighlightGfm(desks.Blocks.Values.Where(b=>b.Sections.Any(s=>path.Any(s.Overlaps))).Select(b=>b.Id),gfmTestMissing);RefreshWorkspaceFields();
+            if(gfmTestPlans.Count>1)c.AddSearchChoice(WindowText("Test path","Testweg"),gfmTestPlans.Select((p,i)=>WindowText("Path ","Weg ")+(i+1)+" · "+SignUnits.Number(p.Sum(r=>r.Length))+" m · "+string.Join(" → ",p.Select(r=>SignalCaption(r.Exit)))).ToList(),gfmTestChoice,i=>Act(()=>{
+                RequireFreshGfmInspection();
+                if(gfmTestPlans==null||i<0||i>=gfmTestPlans.Count)return;
+                gfmTestChoice=i;ShowGaps();RefreshWorkspaceFields();
             }));
             if(gfmTestMissing!=null){c.AddLabel(WindowText("Uncovered intervals: ","Nicht abgedeckte Meterbereiche: ")+gfmTestMissing.Count);foreach(var gap in gfmTestMissing.Take(64))c.AddLabel(gap.Segment+" · "+SignUnits.Number(gap.From)+"–"+SignUnits.Number(gap.To)+" m");}
         }

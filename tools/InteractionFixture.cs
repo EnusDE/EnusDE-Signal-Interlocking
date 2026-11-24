@@ -52,7 +52,7 @@ namespace Game.Mow {
 }
 namespace Model {public sealed class Car {public bool IsLocomotive=true;}}
 namespace UI.Builder {public struct UIPanelBuilder {}public sealed class UITabbedPanelBuilder {public void AddTab(string title,string id,Action<UIPanelBuilder> draw){draw(new UIPanelBuilder());}}}
-namespace UI.CarInspector {public sealed class CarInspector {Model.Car _car;void PopulatePanel(){Action<UI.Builder.UITabbedPanelBuilder> draw=tabs=>{if(_car!=null)_car.IsLocomotive=true;};draw(new UI.Builder.UITabbedPanelBuilder());}}}
+namespace UI.CarInspector {public sealed class CarInspector {Model.Car _car;public void Select(Model.Car car){_car=car;}void PopulatePanel(){Action<UI.Builder.UITabbedPanelBuilder> draw=tabs=>{if(_car!=null)_car.IsLocomotive=true;};draw(new UI.Builder.UITabbedPanelBuilder());}}}
 namespace Model.AI {public sealed class AutoEngineerPlanner {public int? LastSpeed;public Track.Signals.CTCSignal LastSignal;public int Calls;void CallSignalIfNeeded(Track.Signals.CTCSignal signal,Track.Signals.SignalAspect aspect){}void UpdateTargets(float speed,int direction){}void SetSignalSpeedRestriction(int? speed,int? approach,float distance,Track.Signals.CTCSignal signal,bool limited){LastSpeed=speed;LastSignal=signal;Calls++;}bool TrySetSwitch(Track.TrackNode node,bool thrown)=>true;void SetSwitchThrown(Track.TrackNode node,bool thrown){}static bool CheckThrowable(Track.TrackNode node,TrainController trains,System.Collections.Generic.ICollection<Model.Car> cars,ref int reason)=>true;}}
 public struct TooltipInfo {}
 public sealed class TrainController {void HandleSetSwitch(Game.Messages.SetSwitch change){}}
@@ -145,7 +145,14 @@ public static class InteractionFixture {
         runtime.Ignore=false;Call(typeof(SignalHooks),"ForecastTarget",planner,0,null,10f,proxy,true);
         Check(planner.Calls==2&&planner.LastSpeed==0&&ReferenceEquals(planner.LastSignal,proxy),"returning a signal to service restores native Stop treatment instead of retaining the bypass");
         var automation=new AutomationHooks();
-        automation.Start(id=>WaypointSwitchPolicy.Protect(id=="electric",false,false,()=>false),(_,car)=>{});
+        Model.Car vehicle=null;
+        Func<bool> vehicleCurrent=null;
+        automation.Start(id=>WaypointSwitchPolicy.Protect(id=="electric",false,false,()=>false),(_,car,current)=>{vehicle=car;vehicleCurrent=current;});
+        var inspector=new UI.CarInspector.CarInspector();var selectedCar=new Model.Car();inspector.Select(selectedCar);
+        Call(typeof(AutomationHooks),"AfterVehicleTabs",inspector,new UI.Builder.UITabbedPanelBuilder());
+        Check(ReferenceEquals(vehicle,selectedCar)&&vehicleCurrent?.Invoke()==true,"native locomotive tab receives the inspected vehicle without opening a second window");
+        inspector.Select(new Model.Car());
+        Check(vehicleCurrent?.Invoke()==false,"an old native locomotive tab rejects actions after the inspector changes vehicle");
         var electric=new Track.TrackNode{id="electric"};var hand=new Track.TrackNode{id="hand"};
         Check(!(bool)Call(typeof(AutomationHooks),"BeforeSetSwitch",electric)&&(bool)Call(typeof(AutomationHooks),"BeforeSetSwitch",hand),"native waypoint switch setter cannot move configured electric points with block coordination and optional protection disabled, but can move ordinary hand points");
         Check((bool)Call(typeof(AutomationHooks),"IsCtc",electric)&&!(bool)Call(typeof(AutomationHooks),"IsUnlocked",electric),"native waypoint planning treats own electric points as unavailable for AI throwing, regardless of signal aspect or requested speed");

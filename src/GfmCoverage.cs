@@ -4,15 +4,15 @@ using System.Collections.Generic;
 
 namespace EnusDE.Signaltechnik {
     public static class GfmCoverage {
-        public static List<TrackSection> Gaps(IEnumerable<TrackSection> path,IEnumerable<TrackSection> coverage) {
+        public static List<TrackSection> Gaps(IEnumerable<TrackSection> path,IEnumerable<TrackSection> coverage,double tolerance=.005) {
             var spans=coverage.ToLookup(s=>s.Segment,StringComparer.Ordinal);var gaps=new List<TrackSection>();
             foreach(var piece in path) {
                 double at=piece.From;
                 foreach(var span in spans[piece.Segment].Where(s=>s.To>piece.From&&s.From<piece.To).OrderBy(s=>s.From)) {
-                    if(span.From>at+.005)gaps.Add(new TrackSection{Segment=piece.Segment,From=at,To=Math.Min(span.From,piece.To)});
-                    at=Math.Max(at,Math.Min(span.To,piece.To));if(at>=piece.To-.005)break;
+                    if(span.From>at+tolerance)gaps.Add(new TrackSection{Segment=piece.Segment,From=at,To=Math.Min(span.From,piece.To)});
+                    at=Math.Max(at,Math.Min(span.To,piece.To));if(at>=piece.To-tolerance)break;
                 }
-                if(at<piece.To-.005)gaps.Add(new TrackSection{Segment=piece.Segment,From=at,To=piece.To});
+                if(at<piece.To-tolerance)gaps.Add(new TrackSection{Segment=piece.Segment,From=at,To=piece.To});
             }
             return gaps.GroupBy(s=>s.Key).Select(g=>g.First()).ToList();
         }

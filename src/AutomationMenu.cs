@@ -6,7 +6,6 @@ using Game.State;
 using Model;
 using Track;
 using UI.Builder;
-using UI.Windows;
 
 namespace EnusDE.Signaltechnik {
     public sealed partial class SignalRuntime {
@@ -30,21 +29,21 @@ namespace EnusDE.Signaltechnik {
             c.AddButton(LocalText.Get("Automatik-Einstellungen speichern"),()=>{Act(()=>{
                 if(scope!=selectedScope)throw new InvalidOperationException("Welt gewechselt. Einstellungen neu öffnen.");
                 if(blocks!=Automation.BlockEnabled&&(engine.Active.Count>0||directionBlocks.Leases.Count>0))throw new InvalidOperationException("Erst alle Fahrstraßen und Blockbindungen vollständig freifahren / sicher auflösen.");
+                if(!blocks&&Automation.AutoDiscoverWaypoints)throw new InvalidOperationException(LocalText.Select("Disable automatic waypoint requests before disabling block coordination.","Automatische Wegpunktanfragen vor der Blockabstimmung ausschalten."));
                 if(enabled&&(!aiEnabled||automationHookError!=null))throw new InvalidOperationException(automationHookError??"Zuerst AE-Signalanbindung einschalten und anwenden.");
                 SaveAutomation(d=>{d.Automation.Enabled=enabled;d.Automation.BlockEnabled=blocks;d.Automation.ProtectWaypointSwitches=protect;});status=LocalText.Get("Automatik-Einstellungen gespeichert.");
             });c.SetNeedsRebuild();});
-            c.AddButton(LocalText.Get("Automatisierung und KI öffnen"),OpenAutomation);
         }
         void BuildAutomationMenu(UIPanelBuilder c) {
             if(Automation==null){c.AddLabel(LocalText.Get("Anlage wird geladen."));return;}
             if(!editingWorkspace||!StateManager.IsHost){BuildAutomationStatus(c);return;}
-            var pages=new List<string>{LocalText.Get("Status und Anforderungen"),LocalText.Get("Signalrollen und Zielautomatik"),LocalText.Get("Kontaktpunkte und Achstest"),LocalText.Get("Stellwerke und Annahme"),LocalText.Get("Lok-Betriebsart")};
+            var pages=new List<string>{LocalText.Get("Status und Anforderungen"),LocalText.Get("Signalrollen und Zielautomatik"),LocalText.Get("Kontaktpunkte und Achstest"),LocalText.Get("Stellwerke und Annahme"),LocalText.Select("Contact automation locomotive role","Lok-Betriebsart für Kontakt-Automatik")};
             c.AddSearchChoice(LocalText.Get("Automatisierung und KI"),pages,automationPage,i=>{automationPage=i;RefreshWorkspaceFields();});
             if(automationPage==0){BuildRouteModeSettings(c);BuildAutomationStatus(c);}
             if(automationPage==1)BuildAutomaticSignal(c);
             if(automationPage==2)BuildContactEditor(c);
             if(automationPage==3)BuildStationAutomation(c);
-            if(automationPage==4)BuildCarAutomation(c,TrainController.Shared?.SelectedCar);
+            if(automationPage==4)BuildContactLocomotiveRole(c,TrainController.Shared?.SelectedCar);
         }
         void BuildAutomaticSignal(UIPanelBuilder c) {
             var ids=SignalObjects.Where(s=>s.Kind==MarkerRecord.Main&&!s.Planned).Select(s=>s.Id).OrderBy(Code).ToArray();
@@ -149,52 +148,80 @@ namespace EnusDE.Signaltechnik {
             c.AddLabel(LocalText.Get("Zuordnung aus Signalfeldern des Ortsstellwerks. Ein-/Ausfahrsignale als Bahnhofsgrenzen festlegen; Blocksignale trennen die gemeinsame Streckenrichtung nicht."));
             c.AddButton(LocalText.Get("Stellwerksbetrieb speichern"),()=>Act(()=>{if(scope!=selectedScope||deskId!=id)throw new InvalidOperationException("Stellwerk erneut auswählen.");if(kind!=CurrentDesk.SiteKind)RequireIdleAdministration();SaveAutomation(d=>{var target=d.Desks.Single(a=>a.Id==id);target.ShowInDispatcher=show;target.AutomaticOnly=only;target.Acceptance=acceptance;target.SiteKind=kind;});status=LocalText.Get("Stellwerksbetrieb gespeichert.");RefreshWorkspaceFields();}));
         }
-        internal void BuildCarAutomation(UIPanelBuilder c,Car car,Func<bool> stillCurrent=null) {
-            if(car==null||!car.IsLocomotive||Automation==null)return;
-            c.AddSection(LocalText.Get("Signaltechnik – Fahrinformationen"));
-            c.AddField(LocalText.Select("Waypoint route","Wegpunkt-Fahrstraße"),
-                ()=>car==null?"–":WaypointAutomationStatus(car),UIPanelBuilder.Frequency.Periodic);
-            Car[] consist;string signature;
-            try{consist=AutomationNative.Consist(car);signature=AutomationNative.Signature(consist);}catch(Exception e){c.AddLabel(e.Message);return;}
-            c.AddField(LocalText.Get("Betriebsart"),()=>CurrentMovementRole(car),UIPanelBuilder.Frequency.Periodic);
-            if(!StateManager.IsHost){c.AddLabel(LocalText.Get("Betriebsart legt im ersten Testpaket der Host fest."));return;}
-            int role=(int)Automation.Role(car.id,signature);string selectedScope=scope;
-            Car[] CurrentConsist() {
-                if(!StateManager.IsHost)throw new InvalidOperationException(LocalText.Select("The host controls waypoint route requests.","Der Host bedient Wegpunkt-Fahrstraßenanfragen."));
-                if(scope!=selectedScope||car==null||(stillCurrent!=null?!stillCurrent():TrainController.Shared?.SelectedCar!=car))
-                    throw new InvalidOperationException(LocalText.Select("Vehicle selection changed. Reopen its information window.","Fahrzeugauswahl geändert. Informationsfenster erneut öffnen."));
-                var current=AutomationNative.Consist(car);
-                if(AutomationNative.Signature(current)!=signature)throw new InvalidOperationException(LocalText.Select("The consist changed. Reopen the locomotive information window.","Verband inzwischen geändert. Lokfenster neu öffnen."));
-                return current;
+        void BuildCarAutomation(UIPanelBuilder c,Car car,Func<bool> stillCurrent) {
+            if(car==null||!car.IsLocomotive)return;
+            string worldScope=scope,actionError=null;
+            float actionErrorUntil=0;
+            bool Current()=>car!=null&&scope==worldScope&&stillCurrent();
+            c.AddSection(LocalText.Select("Waypoint routes","Wegpunkt-Fahrstraßen"));
+            c.AddField(LocalText.Select("Route status","Fahrstraßenstatus"),()=>!Current()?"–":
+                actionError!=null&&UnityEngine.Time.realtimeSinceStartup<actionErrorUntil?actionError:CarWaypointCaption(car),UIPanelBuilder.Frequency.Periodic);
+
+            if(!StateManager.IsHost||!car.IsOwnedByPlayer)return;
+            if(Automation==null||!Automation.AutoDiscoverWaypoints||WaypointReadinessIssue(car)!=null) {
+                if(Automation?.AutoDiscoverWaypoints!=true)c.AddLabel(LocalText.Select("World default: manual requests","Welt-Voreinstellung: manuelle Anfragen"));
+                c.AddButton(LocalText.Select("Operation and automation settings…","Einstellungen für Betrieb und Automatik …"),Entry.OpenAutomationSettings);
             }
-            void RefreshControls() {
-                c.SetNeedsRebuild();
-                CustomWindowHandle.Create(CarInfoWindowId)?.SetNeedsRebuild();
+
+            void Run(Action change) {
+                if(!Current())return;
+                Act(()=>{
+                    if(!StateManager.IsHost||!car.IsOwnedByPlayer)
+                        throw new InvalidOperationException(LocalText.Select("The host can change requests for owned locomotives.","Der Host kann Anfragen eigener Lokomotiven ändern."));
+                    change();
+                });
+                actionError=workspaceActionError;
+                actionErrorUntil=UnityEngine.Time.realtimeSinceStartup+5;
             }
-            bool enabled=WaypointAutomationEnabled(car);
-            string toggle=enabled?LocalText.Select("Pause waypoint automation","Wegpunkt-Automatik pausieren"):
-                LocalText.Select("Enable waypoint automation","Wegpunkt-Automatik einschalten");
-            c.AddButton(toggle,()=>Act(()=>{
-                CurrentConsist();
-                SetWaypointAutomation(car,!enabled);
-                RefreshControls();
+            var movements=new[]{MovementRole.Unassigned,MovementRole.Train,MovementRole.Shunt};
+            var labels=new List<string>{LocalText.Select("Automatic detection","Automatisch erkennen"),LocalText.Get("Zugfahrt"),LocalText.Get("Rangierfahrt")};
+            int choice=Math.Max(0,Array.IndexOf(movements,WaypointMovementSelection(car)));
+            c.AddField(LocalText.Select("Movement type","Fahrart"),c.AddDropdown(labels,choice,i=>Run(()=>SetWaypointMovement(car,movements[i]))));
+            c.AddFieldToggle(LocalText.Select("Automatic route requests","Fahrstraßen automatisch anfragen"),
+                ()=>Current()&&WaypointAutomationEnabled(car),enabled=>Run(()=>SetWaypointAutomation(car,enabled,WaypointMovementSelection(car))),true);
+            c.AddButton(LocalText.Select("Request next route once","Nächste Fahrstraße einmal anfragen"),()=>Run(()=>{
+                if(WaypointAutomationEnabled(car))throw new InvalidOperationException(LocalText.Select("Automatic route requests are active for this locomotive.","Diese Lok fragt bereits automatisch Fahrstraßen an."));
+                RequestWaypointRoute(car,WaypointMovementSelection(car));
             }));
-            if(!enabled)c.AddButton(LocalText.Select("Request route to waypoint","Fahrstraße zum Wegpunkt anfragen"),()=>Act(()=>{
-                CurrentConsist();
-                RequestWaypointRoute(car);
-                RefreshControls();
-            }));
-            c.AddLabel(LocalText.Select("Set a waypoint in the Auto Engineer and select Train or Shunting below.","Im Auto Engineer einen Wegpunkt setzen und unten Zugfahrt oder Rangierfahrt festlegen."));
+        }
+
+        string CarWaypointCaption(Car car) {
+            string start=null,target=null,movement=null;
+            if(StateManager.IsHost) {
+                string issue=WaypointReadinessIssue(car);
+                if(issue!=null)return issue;
+                var request=automaticRequests.LastOrDefault(r=>r.Waypoint&&r.Locomotive==car.id&&PendingWaypointRequest(r));
+                start=request?.Signal;target=request?.Target;movement=request?.Movement.ToString();
+            } else if(Entry.Shared?.LiveFresh==true) {
+                var request=Entry.Shared.Live.Automation?.Requests.LastOrDefault(r=>r.Source!=""&&r.Locomotive==car.id&&
+                    (r.State==nameof(AutomaticRequestStage.Waiting)||r.State==nameof(AutomaticRequestStage.Submitted)));
+                start=request?.Signal;target=request?.Target;movement=request?.Movement;
+            }
+            string message=WaypointAutomationStatus(car);
+            return string.IsNullOrEmpty(start)?message:RequestMovementPrefix(movement)+Code(start)+" → "+(string.IsNullOrEmpty(target)?"…":Code(target))+" · "+message;
+        }
+
+        void BuildContactLocomotiveRole(UIPanelBuilder c,Car car) {
+            if(car==null||!car.IsLocomotive||!car.IsOwnedByPlayer||Automation==null) {
+                c.AddLabel(LocalText.Select("Select an owned locomotive first.","Zuerst eine eigene Lok auswählen."));
+                return;
+            }
+            string signature;
+            try{signature=AutomationNative.Signature(AutomationNative.Consist(car));}
+            catch(Exception e){c.AddLabel(e.Message);return;}
+            string selectedScope=scope;
+            int role=(int)Automation.Role(car.id,signature);
             c.AddField(LocalText.Get("Festlegung für diese Lok"),c.AddDropdown(new List<string>{LocalText.Get("Keine Festlegung"),LocalText.Get("Rangierfahrt"),LocalText.Get("Zugfahrt")},role,i=>role=i));
             c.AddLabel(LocalText.Get("Nur Zugfahrt kann Kontakte auslösen. Andere gekuppelte Loks erhalten Keine Festlegung. Nach Kuppeln/Trennen erneut festlegen."));
             c.AddButton(LocalText.Get("Betriebsart für den Verband übernehmen"),()=>Act(()=>{
-                var current=CurrentConsist();
+                if(scope!=selectedScope||car==null||TrainController.Shared?.SelectedCar!=car||!car.IsOwnedByPlayer)return;
+                var current=AutomationNative.Consist(car);
+                if(AutomationNative.Signature(current)!=signature)throw new InvalidOperationException(LocalText.Select("The consist changed. Select the locomotive again.","Der Verband hat sich geändert. Lok erneut auswählen."));
                 SaveAutomation(d=>d.Automation.Assign(car.id,current.Where(a=>a.IsLocomotive).Select(a=>a.id),signature,(MovementRole)role));
                 status=LocalText.Get("Lok-Betriebsart gespeichert.");
-                RefreshControls();
+                c.SetNeedsRebuild();
             }));
         }
-        string CurrentMovementRole(Car car){try{return new[]{LocalText.Get("Keine Festlegung"),LocalText.Get("Rangierfahrt"),LocalText.Get("Zugfahrt")}[(int)Automation.Role(car.id,AutomationNative.Signature(AutomationNative.Consist(car)))];}catch{return LocalText.Select("Consist unavailable","Verband nicht lesbar");}}
         static string RequestStageText(string stage) {
             switch(stage) {
                 case nameof(AutomaticRequestStage.Waiting): return LocalText.Select("Waiting","Wartet");
@@ -204,11 +231,13 @@ namespace EnusDE.Signaltechnik {
                 default: return stage;
             }
         }
+        static string RequestMovementPrefix(string movement)=>movement==nameof(MovementRole.Train)?LocalText.Get("Zugfahrt")+" · ":
+            movement==nameof(MovementRole.Shunt)?LocalText.Get("Rangierfahrt")+" · ":"";
         string RequestCaption(AutomationStatus request) {
             string start=string.IsNullOrEmpty(request.Signal)?"…":Code(request.Signal);
             string destination=string.IsNullOrEmpty(request.Target)?"…":Code(request.Target);
             string locomotive=string.IsNullOrEmpty(request.Locomotive)?"":request.Locomotive+" · ";
-            string movement=request.Movement=="Train"?LocalText.Get("Zugfahrt")+" · ":request.Movement=="Shunt"?LocalText.Get("Rangierfahrt")+" · ":"";
+            string movement=RequestMovementPrefix(request.Movement);
             string source=request.Source=="Driver"?LocalText.Select("Driver request","Fahreranfrage")+" · ":"";
             return locomotive+movement+start+" → "+destination+" · "+source+RequestStageText(request.State);
         }

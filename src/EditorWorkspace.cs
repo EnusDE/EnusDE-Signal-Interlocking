@@ -124,7 +124,7 @@ namespace EnusDE.Signaltechnik {
         }
 
         string ReadEditorPaneTitle() {
-            if(panelPage==15)return WindowText("Setup assistant","Einrichtungsassistent");
+            if(panelPage==15)return WindowText("Set up and check","Einrichten und prüfen");
             if(panelPage==13)return WindowText("World GFM setup","GFM-Welteinrichtung");
             if(panelPage==12)return WindowText("GFM inspection","GFM-Prüfung");
             if(panelPage==11)return WindowText("Existing diagram detection","GFM im vorhandenen Gleisbild");
@@ -132,7 +132,7 @@ namespace EnusDE.Signaltechnik {
             if(panelPage==10)return WindowText("Automatic recognition","Automatische Erkennung");
             if(panelPage==4)return WindowText("Interlocking management","Stellwerksverwaltung");
             if(panelPage==8)return WindowText("Master modules","ESTW-Module");
-            if(panelPage==7)return WindowText("Automation and AI","Automatisierung und KI");
+            if(panelPage==7)return WindowText("Fixed targets, contacts and stations","Feste Ziele, Kontakte und Betriebsstellen");
             if(panelPage==2)return WindowText("Configure routes","Fahrstraßen einrichten");
             if(panelPage==3)return WindowText("World links","Spielwelt-Zuordnung");
             if(panelPage==5)return WindowText("Handbook","Handbuch");

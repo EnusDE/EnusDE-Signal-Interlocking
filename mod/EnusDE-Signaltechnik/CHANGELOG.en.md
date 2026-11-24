@@ -1,3 +1,12 @@
+# 0.7.66-P0 · Signal controls and waypoint requests
+
+- Left-click a world signal to request a route as host. Right-click for object actions.
+- Enable automatic requests for fixed waypoints from the launcher gear. The locomotive and game log show the reason for waiting.
+- The Editor groups setup by task. The background catalog connects working detection boundaries through signals without their own detector.
+- Gameplay and multiplayer acceptance remain pending.
+
+[Operating guide](Guides/WAYPOINT-0.7.66.en.md)
+
 # 0.7.65-P0 · Local waypoint automation
 
 - Enable or pause waypoint route requests from locomotive information, or request the next route once.

@@ -8,6 +8,12 @@ namespace EnusDE.Signaltechnik {
         const double TerminalExtension=300;
         const double MaximumLeg=10000;
 
+        public static bool HasViaAuthority(RouteRun run,string signal,string[] cars,LocalSignalAspect aspect) {
+            return aspect==LocalSignalAspect.Shunt&&run.Entered&&run.PermitsVia(signal)&&
+                run.TrainCars!=null&&cars.Length>0&&run.TrainCars.Length==cars.Length&&
+                new HashSet<string>(run.TrainCars,StringComparer.Ordinal).SetEquals(cars);
+        }
+
         // A stop inside a segment can reserve to its following signal or auxiliary endpoint.
         // Beyond the way point, only the final segment has a proven travel direction.
         static bool Project(WaypointApproach approach,string segment,double meters,out double distance,out bool reverse) {

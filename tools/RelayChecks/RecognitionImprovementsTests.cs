@@ -29,8 +29,14 @@ static class RecognitionImprovementsTests {
     static void LongSection(string a,string b) {
         var input=new NetworkInput{World=new string('e',64),Nodes=new List<PlanNode>{new PlanNode{Id="x"},new PlanNode{Id="y",X=3500}},Edges=new List<PlanEdge>{new PlanEdge{Id="long",A="x",B="y",Length=3500}},Cuts=new List<PlanCut>{
             new PlanCut{Segment="long",Meters=100,X=100,Signal=a,Boundary=a,BoundaryKind=1},new PlanCut{Segment="long",Meters=1750,X=1750,Signal=Id()},new PlanCut{Segment="long",Meters=3300,X=3300,Signal=b,Boundary=b,BoundaryKind=1}}};
-        var complete=DetectionNetwork.Build(input).Blocks.Values.Single(p=>p.IsCircuit);
+        var catalog=DetectionNetwork.Build(input);
+        var complete=catalog.Blocks.Values.Single(p=>p.IsCircuit);
         Check(complete.Path.Sum(p=>p.Section.To-p.Section.From)==3200&&TrackCircuit.Pair(complete.BoundaryA,complete.BoundaryB)==TrackCircuit.Pair(a,b),"a long GFM section covers its full 3200 metres despite an intermediate signal without its own boundary");
+        var display=Base(a,b);
+        foreach(var tile in new[]{display.At(4,3),display.At(6,3)})tile.AutoSegment="long";
+        display.At(4,3).AutoMeters=1500;display.At(6,3).AutoMeters=1850;
+        DetectionNetwork.RebindAutomatic(display,catalog.Blocks);
+        Check(display.At(4,3).BlockId==complete.Id&&display.At(6,3).BlockId==complete.Id,"both sides of a non-detector signal use the physical GFM circuit instead of overlapping fallback chains");
         input.Cuts[1].Boundary=Id();input.Cuts[1].BoundaryKind=3;
         Check(!DetectionNetwork.Build(input).Blocks.Values.Any(p=>p.IsCircuit&&p.Path.Sum(s=>s.Section.To-s.Section.From)==3200),"an actual one-sided C boundary still interrupts a long section and is never bypassed for a larger display");
     }

@@ -11,5 +11,19 @@ namespace EnusDE.Signaltechnik {
             foreach(var block in NetworkPlan.Build(detectorOnly,cancel,draw:false).Blocks.Values.Where(b=>b.IsCircuit))result.Blocks[block.Id]=block;
             return result;
         }
+
+        public static void RebindAutomatic(PanelDocument panel,Dictionary<string,TrackBlock> blocks) {
+            var bySegment=blocks.Values.Where(block=>block.Point==null)
+                .SelectMany(block=>block.Path.Select(piece=>new{Block=block,Section=piece.Section}))
+                .ToLookup(piece=>piece.Section.Segment);
+            foreach(var tile in panel.Tiles.Where(t=>t.AutoSegment!=""&&t.Kind!=PanelTileKind.Switch&&t.SecondBlock==""&&
+                t.Section==null&&t.CircuitRails?.Count is not >0)) {
+                var matching=bySegment[tile.AutoSegment].Where(piece=>piece.Section.From<=tile.AutoMeters&&tile.AutoMeters<=piece.Section.To)
+                    .Select(piece=>piece.Block).Distinct().ToArray();
+                var circuits=matching.Where(block=>block.IsCircuit).ToArray();
+                var candidates=circuits.Length>0?circuits:matching;
+                tile.BlockId=candidates.Length==1?candidates[0].Id:"";
+            }
+        }
     }
 }
