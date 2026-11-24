@@ -57,6 +57,11 @@ if(args.Length>4&&args[2]=="il") {
     return;
 }
 static void textMethod(MethodBase method){System.Console.WriteLine(method.DeclaringType.FullName+"::"+method);}
+if(args.Length==5&&args[2]=="presentation-contract") {
+    AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(args[4]));
+    Assembly.GetExecutingAssembly().GetType("PresentationPackTests").GetMethod("RunCompatibility").Invoke(null,new object[]{args[3]});
+    return;
+}
 if (args.Length > 4 && args[2] == "analyze") { DiagnosticsReport.Run(args[3],args[4]); return; }
 if (args.Length > 3 && args[2] == "bridge") {
     AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(Path.GetFullPath(args[3]),"build","recorder","EnusDE.Signaltechnik.dll"));

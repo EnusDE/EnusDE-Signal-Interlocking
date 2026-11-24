@@ -13,7 +13,7 @@ $arguments+='/reference:"'+(Join-Path $managed 'Relay.dll')+'"'
 $arguments+='/reference:"'+(Join-Path $managed 'Newtonsoft.Json.dll')+'"'
 $arguments+='/reference:"'+(Join-Path $project 'build\recorder\EnusDE.Signaltechnik.dll')+'"'
 $arguments+='/reference:"'+(Join-Path $project 'build/runenwacht/EnusDE.Runenwacht.dll')+'"'
-foreach($name in @('Core','Railroader','Railroader.Modding','MessagePack','com.rlabrecque.steamworks.net','UnityEngine.CoreModule','0Harmony')){$arguments+='/reference:"'+(Join-Path $managed ($name+'.dll'))+'"'}
+foreach($name in @('AssetPack.Common','Core','Railroader','Railroader.Modding','MessagePack','com.rlabrecque.steamworks.net','UnityEngine.CoreModule','0Harmony')){$arguments+='/reference:"'+(Join-Path $managed ($name+'.dll'))+'"'}
 Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'RelayChecks') -Filter '*.cs' | Sort-Object Name | ForEach-Object {$arguments+='"'+$_.FullName+'"'}
 $response=Join-Path $output 'compiler.rsp'
 [IO.File]::WriteAllLines($response,$arguments,[Text.UTF8Encoding]::new($false))

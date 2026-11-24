@@ -1,11 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AssetPack.Common;
+using AssetPack.Common.Dependencies;
+using AssetPack.Common.Versioning;
 using EnusDE.Signaltechnik;
 using EnusDE.Runenwacht;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Railroader.Modding;
 using UnityEngine;
 public static class PresentationPackTests {
     static void Check(bool ok,string text){if(!ok)throw new Exception("FAIL: "+text);System.Console.WriteLine("PASS: "+text);}
@@ -77,9 +82,63 @@ public static class PresentationPackTests {
         animation.Set(CrystalChannel.Green);animation.Advance(.03f);Check(animation.Level(CrystalChannel.Red)>0&&animation.Level(CrystalChannel.Red)<1&&animation.Level(CrystalChannel.Green)==0,"old red dims before the next permissive crystal lights");
         animation.Set(null);animation.Advance(1);Check(Enum.GetValues(typeof(CrystalChannel)).Cast<CrystalChannel>().All(c=>animation.Level(c)==0),"dark cancels outstanding animation without leaving an old clear light");
         animation.Advance(float.NaN);animation.Advance(float.PositiveInfinity);animation.Advance(-1);Check(animation.Level(CrystalChannel.Green)==0,"invalid frame times cannot corrupt crystal emission");
+        RunCompatibility(root);
+    }
+    public static void RunCompatibility(string root) {
         var manifest=JObject.Parse(File.ReadAllText(Path.Combine(root,"asset-packs/Runenwacht/mod/EnusDE-Runenwacht/Info.json")));
-        Check(manifest["dependencies"]["required"].Values<string>().Contains("enusde/signaltechnik =="+EnusDE.Signaltechnik.Entry.Version)&&manifest["assemblies"].Values<string>().SequenceEqual(new[]{"EnusDE.Runenwacht.dll"}),"optional pack declares the exact main version and only its own assembly");
-        Check(typeof(RunenwachtProvider).GetInterfaces().Contains(typeof(ISignalPresentationProvider)),"separately compiled Runenwacht assembly implements the public presentation contract");
+        var required=manifest["dependencies"]["required"].Values<string>().Select(value=>DependencyInfo.Parse(value,DependencyInfo.DependencyType.Required)).ToArray();
+        var dependency=required.Single(d=>d.Identifier=="enusde/signaltechnik");
+        var game=required.Single(d=>d.Identifier=="rr/game");
+        Check(required.Length==2&&dependency.Constraints.Count==1&&game.IsSatisfiedBy(new PackVersion("0.6.3"))&&
+            !game.IsSatisfiedBy(new PackVersion("0.6.4"))&&manifest["assemblies"].Values<string>().SequenceEqual(new[]{"EnusDE.Runenwacht.dll"}),
+            "optional pack requires the main mod and tested game line and carries only its own assembly");
+        Check(!dependency.IsSatisfiedBy(new PackVersion("0.7.63"))&&
+            new[]{"0.7.64","0.7.65","0.7.66","0.8.0","1.0.0"}.All(v=>dependency.IsSatisfiedBy(new PackVersion(v))),
+            "native dependency parser accepts the presentation baseline and later main versions while rejecting older ones");
+        var addon=new AssetPackInfo {Identifier=(string)manifest["identifier"],Version=(string)manifest["version"],
+            Dependencies=new AssetPackDependencies{Required=manifest["dependencies"]["required"].Values<string>().ToList()}};
+        var packs=new Dictionary<string,IDependencyNode> {
+            {addon.Identifier,addon},{"rr/game",new AssetPackInfo{Identifier="rr/game",Version="0.6.3"}}
+        };
+        var missing=DependencySorter.ValidateAndSortPacks(packs,null);
+        packs.Add("enusde/signaltechnik",new AssetPackInfo{Identifier="enusde/signaltechnik",Version="0.7.66"});
+        var available=DependencySorter.ValidateAndSortPacks(packs,null);
+        var order=available.ValidPacks.Select(p=>p.Identifier).ToArray();
+        Check(!missing.IsSuccess&&missing.ValidPacks.All(p=>p.Identifier!=addon.Identifier)&&available.IsSuccess&&
+            order.Length==3&&Array.IndexOf(order,addon.Identifier)>Array.IndexOf(order,"enusde/signaltechnik")&&
+            Array.IndexOf(order,addon.Identifier)>Array.IndexOf(order,"rr/game"),
+            "native load ordering excludes Runenwacht without the main mod and loads it after a later compatible version");
+        var pack=new RunenwachtProvider();
+        Check(typeof(RunenwachtProvider).GetInterfaces().Contains(typeof(ISignalPresentationProvider))&&pack.Version==(string)manifest["version"]&&
+            typeof(SignalFaceView).GetProperty(nameof(SignalFaceView.Code))?.PropertyType==typeof(string),
+            "separately compiled Runenwacht assembly implements the public presentation contract and matches its manifest version");
+        var first=new EnusDE.Runenwacht.Entry();var duplicate=new EnusDE.Runenwacht.Entry();var firstContext=new PackContext();var duplicateContext=new PackContext();
+        try {
+            first.OnModLoad(firstContext);
+            var registered=SignalPresentationPacks.Find(pack.Id);
+            var mainVersion=(string)typeof(EnusDE.Signaltechnik.Entry).GetField("Version").GetRawConstantValue();
+            Check(registered?.Version==pack.Version&&registered.ApiVersion==1&&firstContext.Messages.Infos==1&&firstContext.Messages.Warnings==0,
+                "the actual Runenwacht entry registers and exposes its API-v1 provider with main "+mainVersion);
+            duplicate.OnModLoad(duplicateContext);duplicate.OnModUnload();
+            Check(duplicateContext.Messages.Warnings==1&&ReferenceEquals(SignalPresentationPacks.Find(pack.Id),registered),
+                "a rejected Runenwacht registration logs a warning and leaves the existing provider intact");
+        } finally {duplicate.OnModUnload();first.OnModUnload();}
+        Check(SignalPresentationPacks.Find(pack.Id)==null,"the Runenwacht entry unregisters its provider at unload");
+    }
+    sealed class PackContext:IModContext {
+        public readonly PackLog Messages=new PackLog();
+        public string ModIdentifier=>"enusde/runenwacht";
+        public string ModDirectory=>"fixture";
+        public IModLogger Log=>Messages;
+        public bool CheckDependency(string identifier)=>identifier=="enusde/signaltechnik";
+    }
+    sealed class PackLog:IModLogger {
+        public int Infos,Warnings;
+        public void Debug(string message){}
+        public void Info(string message)=>Infos++;
+        public void Warning(string message)=>Warnings++;
+        public void Error(string message)=>throw new Exception(message);
+        public void Error(Exception error,string message)=>throw new Exception(message,error);
     }
     static void CheckExclusive(CrystalTransition t){var levels=Enum.GetValues(typeof(CrystalChannel)).Cast<CrystalChannel>().Select(t.Level).ToArray();if(levels.Count(x=>x>0)>1||levels.Any(x=>float.IsNaN(x)||x<0||x>1))throw new Exception("FAIL: overlapping or invalid crystal channels");}
 }

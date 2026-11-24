@@ -1,6 +1,8 @@
-# Runenwacht 0.2.1 — visibility and mounted hardware
+# Runenwacht 0.2.2
 
-Requires main mod **0.7.65** and Railroader **0.6.3**. This package contains the Runenwacht 0.2.1 models with the new main dependency. Replace it through your mod manager and restart the entire game. Host and clients need matching packages.
+Requires **EnusDE Signal & Interlocking 0.7.64 or later** with a compatible presentation API v1, and Railroader **0.6.3**. Replace the old Runenwacht package through your mod manager and restart Railroader. If the game disabled Runenwacht after the previous version mismatch, enable it again in Mods. You can keep this package installed through compatible main updates. Host and clients still need matching packages for multiplayer.
+
+If the presentation API can no longer register the provider after a breaking change, Runenwacht reports the issue in the game log. Saved signals use the main mod's built-in appearance until a compatible provider is available.
 
 ## Light at near and far distances
 

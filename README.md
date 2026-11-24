@@ -22,7 +22,7 @@ Place configurable railway signals, draw an interlocking diagram, connect it to 
 
 0.7.65 adds opt-in local Auto Engineer waypoint requests for train and shunting routes, with a locomotive pause button, a single driver request and dispatcher status. [English guide](mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.65.en.md) · [Deutsche Anleitung](mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.65.de.md).
 
-Optional **Runenwacht 0.2.1** updates distance visibility, dark inactive crystals and connected hardware while main 0.7.64 stays unchanged. [English](asset-packs/Runenwacht/CHANGES-0.2.1.en.md) · [Deutsch](asset-packs/Runenwacht/CHANGES-0.2.1.de.md).
+Optional **Runenwacht 0.2.2** requires main **0.7.64 or later** with compatible presentation API v1. A compatible main update can reuse the same signal pack. [Runenwacht reference and installation](asset-packs/Runenwacht/README.md).
 
 0.7.64 / Runenwacht 0.2.0 improves the models and daylight materials, adds framed technical/name plates, and provides host-only individual lamp tests without routes. Native output stays Stop during a test; affected routes are excluded. [English instructions](mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.en.md) · [Deutsch](mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.de.md). In-game/AI/MP acceptance is still pending.
 

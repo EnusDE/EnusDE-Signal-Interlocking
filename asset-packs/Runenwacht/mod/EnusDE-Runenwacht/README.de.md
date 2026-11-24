@@ -1,6 +1,8 @@
-# Runenwacht 0.2.1 — Sichtbarkeit und befestigte Bauteile
+# Runenwacht 0.2.2
 
-Benötigt das Hauptmod **0.7.65** und Railroader **0.6.3**. Dieses Paket enthält die Runenwacht-Modelle 0.2.1 für den neuen Hauptmod-Stand. Das Paket über den Modmanager ersetzen und das Spiel vollständig neu starten. Host und Clients benötigen passende Paketversionen.
+Benötigt **EnusDE Signal & Interlocking ab 0.7.64** mit kompatibler Darstellungsschnittstelle API v1 und Railroader **0.6.3**. Dieses Paket einmalig über den Modmanager ersetzen und Railroader vollständig neu starten. Falls das Spiel Runenwacht nach der früheren Versionssperre deaktiviert hat, im Mods-Menü erneut aktivieren. Bei kompatiblen Hauptmod-Updates kann dieses Paket installiert bleiben. Im Mehrspieler verwenden Host und Clients weiterhin passende Paketversionen.
+
+Kann sich API v1 nach einer späteren grundlegenden Änderung nicht registrieren, meldet Runenwacht den Grund im Spielprotokoll. Die gespeicherten Signale verwenden dann die Standarddarstellung des Hauptmods.
 
 ## Leuchten aus der Nähe und Entfernung
 

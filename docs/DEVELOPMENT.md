@@ -1,5 +1,11 @@
 # Development status and continuation — 0.7.65
 
+## Runenwacht 0.2.2 compatibility update
+
+Runenwacht requires EnusDE Signal & Interlocking **0.7.64 or later** with a compatible presentation API v1. The minimum supplies the signal-code field used by the models. The game checks the required dependency and loads the main mod first. The presentation registry checks compatibility. A registration failure is logged and the main mod can display saved signals with its built-in models. Update Runenwacht once and re-enable it in Mods if Railroader disabled it after the earlier version mismatch.
+
+The full suite completed with **2,102 checks and zero failures**. Railroader's native dependency parser and load ordering were checked against missing, older and later main versions. The same Runenwacht 0.2.2 DLL registered offline with main 0.7.64 and 0.7.65. The main 0.7.65 DLL matches the previously delivered ZIP byte for byte. One optional pack ZIP is prepared. [Runenwacht guide](../asset-packs/Runenwacht/README.md).
+
 ## Waypoint automation in 0.7.65
 
 The locomotive panel enables, pauses or requests a single local Train or Shunt route for a fixed Auto Engineer waypoint. It uses the current directed native path and leading consist end. Preparation begins within 300 track metres. Admission within 25 metres requires a positively identified train, complete track detection, a clear destination, verified point protection, standard locking and a free route. Active conflicting routes are left to ordinary dispatcher handling. The normal route engine continues monitoring a cleared route when the driver takes over. The host can withdraw requests from the dispatcher status panel and clients can read the replicated request status.

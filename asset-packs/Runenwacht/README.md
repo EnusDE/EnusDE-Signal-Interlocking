@@ -1,12 +1,16 @@
-# Runenwacht 0.2.1 — presentation API v1 example
+# Runenwacht 0.2.2 — presentation API v1 example
 
 [Deutsch](#deutsch) · [English installation and acceptance guide](../../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.en.md) · [Deutsche Anleitung](../../mod/EnusDE-Signaltechnik/Guides/RUNENWACHT-0.7.64.de.md)
 
-Fictional manufacturer: **Zwergische Kristallwerke Kupfergrund**. System: **Runenwacht**. Original EnusDE experimental designs; the name does not identify real railway equipment. This optional mod supplies presentation, not operating rules or AI. Main 0.7.64 and Railroader 0.6.3 are required. There is no automatic asset transfer or public-release assertion.
+Fictional manufacturer: **Zwergische Kristallwerke Kupfergrund**. System: **Runenwacht**. Original EnusDE experimental signal presentation. Requires Railroader **0.6.3** and EnusDE Signal & Interlocking **0.7.64 or later** with a compatible presentation API v1.
+
+## 0.2.2 compatibility update
+
+The manifest requires the first main version that supplies the full API used by this pack. Compatible main updates can reuse this installation. The provider registers against presentation API v1 at load. If it cannot register, it logs a warning and saved signals can use the main mod's built-in presentation until a compatible pack is available.
 
 ## 0.2.1 visibility and connections
 
-Requires unchanged main 0.7.64. Dark inactive crystals, restrained near body glow and smoothly increased active-body emission at distance; no new billboards/point lights, no permission changes. Actual front/rear plate supports, continuous mast buses, insulated routed branches, rounded elbows and a crescent pedestal. [English changes/acceptance](CHANGES-0.2.1.en.md) · [Deutsch](CHANGES-0.2.1.de.md). `CrystalAppearance.cs` owns the pure visual curve. Run the full repository tests, then `Package.ps1` here to create only the new optional archive. The main DLL remains byte-identical. Game near/far visibility and mechanical views remain open for acceptance.
+Dark inactive crystals, restrained near body glow and smoothly increased active-body emission at distance. Front/rear plate supports, continuous mast buses, insulated routed branches, rounded elbows and a crescent pedestal. [English changes/acceptance](CHANGES-0.2.1.en.md) · [Deutsch](CHANGES-0.2.1.de.md). `CrystalAppearance.cs` owns the visual curve. Run the full repository tests, then `Package.ps1` here to create the optional archive. Game near/far visibility and mechanical views remain open for acceptance.
 
 ## 0.2.0 quality and testing pass
 
@@ -22,7 +26,7 @@ Layered riveted housing, curved crescent support, centre red crystal with fixed 
 - `src/RunenwachtModel.cs`: Unity presentation instance, directional modular heads, materials, pick bounds, caption/brightness application, animation and disposal.
 - `src/RunenwachtGeometry.cs`: original procedural mesh generator with bevels, sealed profiles, conduits, UVs and faceted gemstones for housings, runes and permanent crystals.
 - `src/CrystalLogic.cs`: fixed-colour channel mapping and exclusive animated transitions.
-- `mod/EnusDE-Runenwacht/Info.json`: separate manifest; own assembly only, exact required main/game versions.
+- `mod/EnusDE-Runenwacht/Info.json`: separate manifest with its own assembly, minimum main version and required game version.
 - `Build.ps1`: builds the pack after the main DLL exists; nothing installs or runs the game.
 
 From the repository root, `Test.ps1 -GameDirectory '<game>'` builds both assemblies and runs the normal suite plus geometry fixture. To build only the pack after the main, use `asset-packs/Runenwacht/Build.ps1`. `Package.ps1` here packages the optional pack only; `tools/Package-Runenwacht.ps1` packages previously tested outputs into two new archives; it refuses existing output filenames and does not run tests for you. Build artifacts stay outside tracked source.
@@ -43,6 +47,6 @@ This example has no external model/texture/audio downloads. Shared albedo and me
 
 ## Deutsch
 
-Eigenes optionales Modpaket und API-v1-Beispiel für Runenwacht der fiktiven **Zwergischen Kristallwerke Kupfergrund**. Das Hauptmod liefert den Betriebszustand; das Paket zeichnet Gehäuse, feste Kristallfarben und Lichtanimationen. Freischaltung nur experimentell per Konsole plus kostenloser Welt-Testlizenz. Beide Pakete müssen zunächst auf Host und Clients manuell installiert werden. Es gibt keine automatische Übertragung und keine Zahlungsfunktion. Vollständige deutsche Einrichtung und noch offene Spielprüfungen stehen in der oben verlinkten Anleitung.
+Eigenes optionales Modpaket und API-v1-Beispiel für Runenwacht der fiktiven **Zwergischen Kristallwerke Kupfergrund**. Das Hauptmod liefert den Betriebszustand, das Paket zeichnet Gehäuse, feste Kristallfarben und Lichtanimationen. **Ab Hauptmod 0.7.64** bleibt Runenwacht über kompatible Updates hinweg ladbar. Schlägt die Registrierung fehl, zeigt das Hauptmod gespeicherte Signale mit der eigenen Darstellung an. Neue Platzierungen erfordern weiterhin die experimentelle Freischaltung plus kostenlose Welt-Testlizenz. Die deutsche Einrichtung ist oben verlinkt.
 
 Für weitere Pakete: eigener Modordner, eigenes Manifest und eigene Assembly; `ISignalPresentationProvider` registrieren, immutable Zustände darstellen und alle selbst erzeugten Meshes/Materialien zuverlässig freigeben. Interne Betriebslogik bleibt im Hauptmod. Lokales Koordinatensystem: Meter, Y nach oben, Vorderseite nach −Z. Quellcode und Referenz sind öffentlich lesbar; eine allgemeine Weiterverteilungslizenz wird dadurch nicht erteilt.

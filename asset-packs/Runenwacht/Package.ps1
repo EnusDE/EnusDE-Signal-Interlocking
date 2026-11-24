@@ -3,15 +3,14 @@ $ErrorActionPreference='Stop'
 $project=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $source=Join-Path $PSScriptRoot 'mod/EnusDE-Runenwacht'
 $manifest=Get-Content -LiteralPath (Join-Path $source 'Info.json') -Raw | ConvertFrom-Json
-$main=Get-Content -LiteralPath (Join-Path $project 'mod/EnusDE-Signaltechnik/Info.json') -Raw | ConvertFrom-Json
-if($manifest.dependencies.required -notcontains ('enusde/signaltechnik =='+$main.version)){throw 'Pack/main dependency mismatch.'}
+if($manifest.dependencies.required -notcontains 'enusde/signaltechnik >=0.7.64'){throw 'Runenwacht must require the presentation API baseline (main 0.7.64 or later).'}
 $dll=Get-Item -LiteralPath (Join-Path $project 'build/runenwacht/EnusDE.Runenwacht.dll')
 $results=Get-Item -LiteralPath (Join-Path $project 'build/checks/RESULTS.txt')
 $text=Get-Content -LiteralPath $results.FullName -Raw
-if($text -match 'FAIL:' -or $text -notmatch 'PASS: inactive channels and disabled emission remain dark' -or $text -notmatch 'PASS: plaque arms and clamp reach'){throw 'Run the complete successful Test.ps1 suite first.'}
+if($text -match 'FAIL:' -or $text -notmatch 'PASS: inactive channels and disabled emission remain dark' -or $text -notmatch 'PASS: plaque arms and clamp reach' -or $text -notmatch 'PASS: native dependency parser accepts the presentation baseline'){throw 'Run the complete successful Test.ps1 suite first.'}
 if($results.LastWriteTimeUtc -lt $dll.LastWriteTimeUtc -or (Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | Where-Object {$_.LastWriteTimeUtc -gt $dll.LastWriteTimeUtc})){throw 'Source/build/test checkpoint is stale.'}
 $null=New-Item -ItemType Directory -Path $OutputDirectory -Force
-$path=Join-Path $OutputDirectory ('EnusDE-Runenwacht-'+$manifest.version+'-for-'+$main.version+'-TEST.zip')
+$path=Join-Path $OutputDirectory ('EnusDE-Runenwacht-'+$manifest.version+'-TEST.zip')
 if(Test-Path -LiteralPath $path){throw ('Refusing to overwrite existing archive: '+$path)}
 $created=$false
 try {

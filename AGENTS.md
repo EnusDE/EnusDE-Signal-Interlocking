@@ -35,7 +35,7 @@
 ## Optional presentation packs (owner decision, 22 November 2026)
 
 - The main mod owns signal/route/AI authority. Optional installed packs implement the immutable presentation API and own their models, materials, light animations and cleanup. Keep the main usable without any pack and preserve saved IDs with a visible built-in fallback.
-- Runenwacht under `asset-packs/Runenwacht` is the public reference implementation. Its manifest pins the exact main/game versions; update this dependency when advancing the main version and run `Test.ps1`, which builds/checks both assemblies. Do not bundle main/game DLLs into the optional pack.
+- Runenwacht under `asset-packs/Runenwacht` is the public reference implementation. Require main 0.7.64 or later, the first build with every presentation API v1 member used by the pack. Keep the separately tested game dependency. Preserve the API v1 binary contract for existing packs. Use the presentation API registration check for compatibility, and leave the minimum main version fixed during compatible main updates. Run `Test.ps1` to build and check both assemblies. Do not bundle main/game DLLs into the optional pack.
 - Keep each crystal's colour fixed, all crystal geometry physically installed, and conflicting light channels exclusive. Opaque backs/hoods and correct front/back orientation are part of the design. Rendering never grants movement authority.
 - Experiment activation is console-only and OFF per session; new selections additionally require an installed compatible pack and a separate saved world test license. Current licenses are free test grants, not paid purchases. No automatic asset transfer or completed in-game/MP validation may be claimed. Preserve host authority and bilingual UI/docs.
 
