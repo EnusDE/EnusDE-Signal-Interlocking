@@ -1,3 +1,13 @@
+# 0.7.65-P0 · Örtliche Wegpunkt-Automatik
+
+- In der Lokinfo Wegpunkt-Automatik einschalten, pausieren oder einmalig den nächsten Fahrweg anfragen.
+- Gerichteten Wegpunkt-Fahrweg, Fahrart und eindeutig erkannten Verband prüfen. Jeweils eine örtliche Fahrstraße vorbereiten. Bei Übernahme gelten die normalen Verschlüsse weiter.
+- Automatikstatus zeigt Lok, Fahrart, Start, Ziel und Wartegrund. Der Host kann wartende Anfragen zurücknehmen. HALT pausiert weitere automatische Anfragen.
+- Feste örtliche Wegpunkte mit freien und vollständig überwachten Fahrwegen. Echte Auto-Engineer-, Bedienungs- und Mehrspielerprüfung offen.
+- Runenwacht 0.2.1 mit aktualisierter Hauptmod-Abhängigkeit gebaut.
+
+[Wegpunkt-Anleitung](Guides/WAYPOINT-0.7.65.de.md)
+
 ## 0.7.64 — Runenwacht-Qualität und einzelne Lampentests
 
 - Runenwacht 0.2.0: mittige Rot-/Bernstein-/Grün-Gruppe, Sichelträger, ausgearbeitete Gehäuse/Leitungen/Keramik, UV-/PBR-Texturen für die aktive Pipeline, facettierte Körper und getrennte feine Leuchtadern.

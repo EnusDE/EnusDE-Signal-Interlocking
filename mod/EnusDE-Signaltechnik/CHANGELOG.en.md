@@ -1,3 +1,13 @@
+# 0.7.65-P0 · Local waypoint automation
+
+- Enable or pause waypoint route requests from locomotive information, or request the next route once.
+- Match the directed native path, movement type and identified consist. Prepare one local route at a time and preserve ordinary locking when the driver takes over.
+- Dispatcher status shows locomotive, movement, endpoints and waiting reason. The host can withdraw a pending request and STOP pauses further automatic requests.
+- Local fixed waypoints, clear and fully monitored routes. Real Auto Engineer, UI and multiplayer testing pending.
+- Runenwacht 0.2.1 is rebuilt with the updated main dependency.
+
+[Waypoint guide](Guides/WAYPOINT-0.7.65.en.md)
+
 ## 0.7.64 — Runenwacht quality pass and individual lamp testing
 
 - Runenwacht 0.2.0: centred red/amber/green crystal cluster, curved crescent and detailed housings/conduits/ceramics, UV/PBR textures selected for the active pipeline, non-emissive faceted bodies plus fine animated light veins.

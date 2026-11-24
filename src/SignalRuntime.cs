@@ -101,7 +101,7 @@ namespace EnusDE.Signaltechnik {
                 if(objects.WorldKey!=null&&scope!=objects.WorldKey) {
                     if(scope!=null&&engine.Active.Count>0){engine.HaltAll();lastRead=-100;status=LocalText.Get("Spielstandzuordnung geändert. Vorherige Verschlüsse zuerst sicher auflösen.");return;}
                     if(scope!=null){engine.HaltAll();RemoveProxies();world.Dispose();world=new SignalWorldBridge(this,transform);}
-                    scope=objects.WorldKey;store=new InterlockingStore(directory,scope,shared.Routes,shared.PutRoutes);
+                    ResetWaypointSession();scope=objects.WorldKey;store=new InterlockingStore(directory,scope,shared.Routes,shared.PutRoutes);
                     try{routes=store.Load();status=LocalText.Get("Stellwerk bereit. Alle Signale starten mit Halt.");}catch(Exception e){loadFailed=true;status=LocalText.Get("Stellwerksdatei bleibt erhalten: ")+e.Message;}
                     LoadPanel();
                 }

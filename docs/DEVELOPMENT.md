@@ -1,4 +1,14 @@
-# Development status and continuation — 0.7.64
+# Development status and continuation — 0.7.65
+
+## Waypoint automation in 0.7.65
+
+The locomotive panel enables, pauses or requests a single local Train or Shunt route for a fixed Auto Engineer waypoint. It uses the current directed native path and leading consist end. Preparation begins within 300 track metres. Admission within 25 metres requires a positively identified train, complete track detection, a clear destination, verified point protection, standard locking and a free route. Active conflicting routes are left to ordinary dispatcher handling. The normal route engine continues monitoring a cleared route when the driver takes over. The host can withdraw requests from the dispatcher status panel and clients can read the replicated request status.
+
+Local interlocking only in this test build. Coupling orders, reversals, interlocking handover between players and automatic cross-station services remain follow-up work. Unknown paths or signal ambiguity keep requests waiting. Native route availability behind a protected point in the wrong position, actual driving and multiplayer need game verification. The optional Runenwacht 0.2.1 package pins the updated main dependency. [English instructions](../mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.65.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/WAYPOINT-0.7.65.de.md).
+
+The complete Build.ps1/Test.ps1 run on 24 November 2026 passed **2,097 checks, 0 failures** with local Railroader 0.6.3 libraries. Twenty-seven new checks cover approach selection, directed route matching and guarded interlocking admission. No game session was launched. The train and shunt UI, real route availability and multiplayer still need acceptance.
+
+## Earlier Runenwacht checkpoints
 
 Optional-pack checkpoint **Runenwacht 0.2.1**, main remains **0.7.64**. User game feedback confirms opaque rear housing but identifies weak distant light, bright inactive crystals and disconnected hardware. Pack-only changes address these with dark non-emitting resting surfaces, camera-distance gain on the selected full crystal body and fine detail near the camera, physical plaque supports and routed insulated connections. No native/route/UI/main-source changes. Full Test.ps1: **2,070 PASS, 0 FAIL**; main DLL hash byte-identical before/after. Numeric/geometry checks are offline; new near/far day/night readability, rear occlusion and attachment views need user game acceptance. [English](../asset-packs/Runenwacht/CHANGES-0.2.1.en.md) · [Deutsch](../asset-packs/Runenwacht/CHANGES-0.2.1.de.md).
 
@@ -46,7 +56,7 @@ Noch offen: tatsächliche Sichtbarkeit/Shader, alle Signalbilder, Boden-/Klickfl
 
 [Deutsch](#deutsch) · [Project overview](../README.md) · [Build instructions](BUILD.md)
 
-## Current change
+## Earlier change
 
 `main` is the canonical source. Version **0.7.62** fixes missing native interchange suppliers: a copied interchange IndustryDTO gains the two stable signal cargos before the native factory registers component IDs and schedules. Buy destinations, price/payment, handling, off-map service and return remain native. Existing supplier entries and cached map data remain unchanged. Ambiguous/empty interchange definitions are skipped. See [English buying/model guide](../mod/EnusDE-Signaltechnik/Guides/INTERCHANGE-0.7.62.en.md) or [Deutsch](../mod/EnusDE-Signaltechnik/Guides/INTERCHANGE-0.7.62.de.md).
 

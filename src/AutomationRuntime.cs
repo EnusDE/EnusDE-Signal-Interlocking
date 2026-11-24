@@ -52,6 +52,7 @@ namespace EnusDE.Signaltechnik {
                 }
                 if(!contact.Enabled||Automation.Enabled!=true||OperatingState(contact.Signal)!=SignalOperatingState.Active||crossing<=0&&!near)continue;
                 var train=AutomationNative.Train(car,Automation);if(train==null||!seen.Add(train.Consist))continue;
+                if(waypointDuties.TryGetValue(train.Master,out var duty)&&duty.Consist==train.Consist)continue;
                 string latch=contact.Id+"/"+train.Consist;if(!contactLatches.Add(latch))continue;
                 EnqueueAutomaticRequest(contact,train,now);
             }
@@ -67,15 +68,23 @@ namespace EnusDE.Signaltechnik {
         }
         void EnqueueAutomaticRequest(AutomationContact contact,AutomationTrain train,double now) {
             if(automaticRequests.Any(r=>r.Contact==contact.Id&&r.Consist==train.Consist&&(r.Stage==AutomaticRequestStage.Waiting||r.Stage==AutomaticRequestStage.Submitted)))return;
-            while(automaticRequests.Count>=64) {var old=automaticRequests.FirstOrDefault(r=>r.Stage==AutomaticRequestStage.Completed||r.Stage==AutomaticRequestStage.Cancelled);if(old==null)return;automaticRequests.Remove(old);}
+            if(!MakeAutomaticRequestRoom())return;
             automaticRequests.Add(new AutomaticRequest{Contact=contact.Id,Locomotive=train.Master,Consist=train.Consist,Signal=contact.Signal,Created=now,Reason="Kontakt erreicht; Fahrwegprüfung steht an."});
+        }
+        bool MakeAutomaticRequestRoom() {
+            if(automaticRequests.Count<64)return true;
+            var old=automaticRequests.FirstOrDefault(r=>!PendingWaypointRequest(r));
+            return old!=null&&automaticRequests.Remove(old);
         }
         void TickAutomation(double now) {
             RefreshDirectionBlocks();RefreshLineDirections();directionBlocks.Observe(engine.Active,now);lineDirections.Observe(engine.Active,now);stationCapacity.Observe(now);
             automationStatus=Automation?.Enabled==true?"Kontakt-Automatik aktiv · nur ausdrücklich festgelegte Zugfahrten.":"Kontakt-Automatik ausgeschaltet.";
+            int waypointCount=waypointDuties.Values.Count(d=>d.Automatic);
+            if(waypointCount>0)automationStatus=LocalText.Select("Locomotives with waypoint automation: ","Loks mit Wegpunkt-Automatik: ")+waypointCount+" · "+LocalText.Get(automationStatus);
             if(blockError!=null)automationStatus=blockError;
             bool admittedThisTick=false;
             foreach(var request in automaticRequests.Where(r=>r.Stage==AutomaticRequestStage.Waiting||r.Stage==AutomaticRequestStage.Submitted).ToArray()) {
+                if(request.Waypoint){TickWaypointRequest(request,now,ref admittedThisTick);continue;}
                 var active=engine.Active.Where(r=>request.Routes.Contains(r.Route.Id)).ToArray();
                 if(request.Stage==AutomaticRequestStage.Submitted&&active.Length==0){request.Stage=AutomaticRequestStage.Completed;request.Reason=LocalText.Get("Fahrstraßenfolge abgearbeitet / sicher aufgelöst.");continue;}
                 if(request.Stage==AutomaticRequestStage.Submitted&&active.Any(r=>r.Entered)){request.Reason=LocalText.Get("Zug eingefahren; normale Zugschluss- und Verschlussprüfung läuft.");continue;}
@@ -133,8 +142,10 @@ namespace EnusDE.Signaltechnik {
                 }catch(OperationCanceledException e){WithdrawAutomaticRequest(request,e.Message);}
                  catch(Exception e){if(request.Stage==AutomaticRequestStage.Submitted)WithdrawAutomaticRequest(request,e.Message);else request.Reason=e.Message;}
             }
+            DiscoverWaypointRequests(now);
         }
         void WithdrawAutomaticRequest(AutomaticRequest request,string reason) {
+            if(request.Waypoint){WithdrawWaypointRequest(request,reason);return;}
             if(preparedAutomaticRoutes.TryGetValue(request.Id,out var preparation)){routeWork.Cancel(preparation.Key);preparedAutomaticRoutes.Remove(request.Id);}
             if(request.Stage==AutomaticRequestStage.Submitted){string id=request.Routes.FirstOrDefault(value=>engine.Active.Any(r=>r.Route.Id==value));if(id!=null)try{engine.CancelChain(id,world);}catch(Exception e){reason+=" · Rücknahme wartet: "+e.Message;}}
             request.Stage=AutomaticRequestStage.Cancelled;request.Reason=reason+" Vorhandene Restverschlüsse bleiben geprüft gebunden.";
@@ -143,7 +154,8 @@ namespace EnusDE.Signaltechnik {
         public AutomationLiveFrame AutomationFrame() {
             var frame=new AutomationLiveFrame{Status=AutomationText(automationStatus,512)};
             frame.Lines=LineDirectionFrame().ToList();
-            frame.Requests=automaticRequests.Select(r=>new AutomationStatus{Id=r.Id,State=r.Stage.ToString(),Reason=AutomationText(r.Reason,512),Locomotive=r.Locomotive??"",Signal=r.Signal??"",Target=r.Target??""}).ToList();
+            frame.Requests=automaticRequests.Select(r=>new AutomationStatus{Id=r.Id,State=r.Stage.ToString(),Reason=AutomationText(r.Reason,512),Locomotive=r.Locomotive??"",Signal=r.Signal??"",Target=r.Target??"",
+                Source=r.Waypoint?(r.DriverRequested?"Driver":"Waypoint"):"",Movement=r.Waypoint?r.Movement.ToString():""}).ToList();
             frame.Blocks=directionBlocks.Leases.Take(512).Select(b=>new AutomationStatus{Id=b.Id,State="Richtung gebunden",Direction=b.Direction,Reason=AutomationText(b.Reason+" · "+string.Join(", ",b.Routes.Select(id=>OperationalRoutes.FirstOrDefault(r=>r.Id==id)?.Code??id)),512)}).ToList();
             frame.Contacts=Automation?.Contacts.Select(c=>{var r=ContactReading(c.Id);return new AutomationStatus{Id=c.Id,State=c.Enabled?"aktiv":"deaktiviert",Signal=c.Signal,Count=r.ForwardAxles+r.ReverseAxles,Balance=r.ForwardAxles-r.ReverseAxles,Reason=AutomationText(r.Detail,512)};}).ToList()??new List<AutomationStatus>();
             return frame;

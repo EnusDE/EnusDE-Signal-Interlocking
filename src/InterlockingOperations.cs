@@ -12,16 +12,45 @@ namespace EnusDE.Signaltechnik {
             double value=route.ProtectionWaitSeconds>=0?route.ProtectionWaitSeconds:fallback;
             if(double.IsNaN(value)||double.IsInfinity(value)||value<0||value>300)throw new InvalidOperationException("Schutzwartezeit muss 0–300 Sekunden betragen.");return value;
         }
-        void BeginRequest(RouteDefinition definition,IInterlockingWorld world,double fallback) {
+        public RouteRun RequestWaypoint(RouteDefinition definition,IInterlockingWorld world,string[] trainCars,double protectionWait=15,Action prepare=null) {
+            RouteRun result=null;
+            ObserveRequest(new[]{definition},world,()=>{
+                var expected=trainCars?.OrderBy(id=>id,StringComparer.Ordinal).ToArray();
+                if(expected==null||expected.Length==0||expected.Length>256||expected.Any(string.IsNullOrEmpty)||expected.Distinct(StringComparer.Ordinal).Count()!=expected.Length)
+                    throw new InvalidOperationException(LocalText.Select("Waypoint train identity is incomplete.","Der Wegpunktzug ist nicht vollständig zugeordnet."));
+                RequireWaypointTrain(definition,world,expected);
+                using(var admission=Admission?.Reserve(new[]{definition})) {
+                    BeginRequest(definition,world,protectionWait,expected);
+                    result=active[definition.Id];
+                    try{prepare?.Invoke();admission?.Commit();}catch{active.Remove(definition.Id);RefreshChains();throw;}
+                }
+            });
+            return result;
+        }
+        static void RequireWaypointTrain(RouteDefinition route,IInterlockingWorld world,string[] expected) {
+            if(!(world is ISectionalWorld sectional)||!sectional.CaptureTrain(route,out var actual)||actual==null||
+                !actual.OrderBy(id=>id,StringComparer.Ordinal).SequenceEqual(expected))
+                throw new InvalidOperationException(LocalText.Select("Waiting for the requesting train to be identified at the signal.","Wartet, bis der anfragende Zug am Signal eindeutig erkannt wird."));
+        }
+        static void RequireClearWaypointRoute(RouteDefinition route,IInterlockingWorld world) {
+            if(Read(route.Sections,world)!=TrackOccupancy.Clear)
+                throw new InvalidOperationException(LocalText.Select("Waypoint route needs a free, readable path and destination.","Wegpunktfahrt braucht einen freien, lesbaren Fahrweg und ein freies Ziel."));
+        }
+        void BeginRequest(RouteDefinition definition,IInterlockingWorld world,double fallback,string[] waypointCars=null) {
             definition.Validate();var route=definition.Clone();double wait=WaitSeconds(route,fallback);
             if(active.TryGetValue(route.Id,out var existing))throw new RouteConflictException(new[]{existing});
             if(active.Count>=16)throw new InvalidOperationException("Grenze von 16 aktiven Festlegungen erreicht. Unter Festlegungen prüfen.");
             var conflicts=active.Values.Where(r=>Conflict(route,r)).ToArray();
+            if(waypointCars!=null) {
+                if(conflicts.Length>0)throw new RouteConflictException(conflicts);
+                RequireClearWaypointRoute(route,world);
+            }
             if(Incorporate(route,conflicts,world))return;
             if(conflicts.Length>0&&(route.Shunting||conflicts.Any(r=>!r.Route.Shunting)))throw new RouteConflictException(conflicts);
             if(!world.PathValid(route))throw new InvalidOperationException("Fahrwegzuordnung ungültig. Fahrweg zuerst aktualisieren.");
             if(conflicts.Length==0){var obstruction=RequestObstruction(route,world);if(obstruction!=null)throw new InvalidOperationException(obstruction);}
             var run=new RouteRun{Route=route,Stage=conflicts.Length==0?RouteStage.Preparing:RouteStage.WaitingProtection,StartedAt=clock(),WaitUntil=clock()+(conflicts.Length==0?0:wait)};
+            if(waypointCars!=null){run.ExpectedWaypointCars=waypointCars;run.TrainCars=waypointCars.ToArray();}
             run.Reason=conflicts.Length==0?"Fahrstraße läuft ein; Signale Halt":"Rangierzustimmung zurückgenommen; Schutzwartezeit und Freiprüfung";
             run.WithdrawnRoutes=conflicts.Select(r=>r.Route.Id).ToArray();
             foreach(var old in conflicts){old.Stage=RouteStage.Cancelled;old.Reason=LocalText.Get("Zugfahrt angefordert: Rangierzustimmung zurückgenommen; Verschlüsse bis zur Freiprüfung behalten.");}
@@ -41,6 +70,7 @@ namespace EnusDE.Signaltechnik {
             run.Stage=RouteStage.Preparing;run.StartedAt=clock();run.Reason=LocalText.Get("Fahrweg frei; Weichen werden geprüft und festgelegt.");
         }
         void ContinuePreparation(RouteRun run,IInterlockingWorld world) {
+            if(run.ExpectedWaypointCars!=null){RequireWaypointTrain(run.Route,world,run.ExpectedWaypointCars);RequireClearWaypointRoute(run.Route,world);}
             CheckFlanks(run,world);
             if(clock()-run.StartedAt>120)throw new InvalidOperationException("Weichen-/Endlagenprüfung nach 120 Sekunden nicht abgeschlossen.");
             if(!world.PathValid(run.Route))throw new InvalidOperationException("Fahrwegzuordnung ungültig. Fahrweg zuerst aktualisieren.");

@@ -152,34 +152,95 @@ namespace EnusDE.Signaltechnik {
         internal void BuildCarAutomation(UIPanelBuilder c,Car car,Func<bool> stillCurrent=null) {
             if(car==null||!car.IsLocomotive||Automation==null)return;
             c.AddSection(LocalText.Get("Signaltechnik – Fahrinformationen"));
+            c.AddField(LocalText.Select("Waypoint route","Wegpunkt-Fahrstraße"),
+                ()=>car==null?"–":WaypointAutomationStatus(car),UIPanelBuilder.Frequency.Periodic);
             Car[] consist;string signature;
             try{consist=AutomationNative.Consist(car);signature=AutomationNative.Signature(consist);}catch(Exception e){c.AddLabel(e.Message);return;}
             c.AddField(LocalText.Get("Betriebsart"),()=>CurrentMovementRole(car),UIPanelBuilder.Frequency.Periodic);
             if(!StateManager.IsHost){c.AddLabel(LocalText.Get("Betriebsart legt im ersten Testpaket der Host fest."));return;}
             int role=(int)Automation.Role(car.id,signature);string selectedScope=scope;
+            Car[] CurrentConsist() {
+                if(!StateManager.IsHost)throw new InvalidOperationException(LocalText.Select("The host controls waypoint route requests.","Der Host bedient Wegpunkt-Fahrstraßenanfragen."));
+                if(scope!=selectedScope||car==null||(stillCurrent!=null?!stillCurrent():TrainController.Shared?.SelectedCar!=car))
+                    throw new InvalidOperationException(LocalText.Select("Vehicle selection changed. Reopen its information window.","Fahrzeugauswahl geändert. Informationsfenster erneut öffnen."));
+                var current=AutomationNative.Consist(car);
+                if(AutomationNative.Signature(current)!=signature)throw new InvalidOperationException(LocalText.Select("The consist changed. Reopen the locomotive information window.","Verband inzwischen geändert. Lokfenster neu öffnen."));
+                return current;
+            }
+            void RefreshControls() {
+                c.SetNeedsRebuild();
+                CustomWindowHandle.Create(CarInfoWindowId)?.SetNeedsRebuild();
+            }
+            bool enabled=WaypointAutomationEnabled(car);
+            string toggle=enabled?LocalText.Select("Pause waypoint automation","Wegpunkt-Automatik pausieren"):
+                LocalText.Select("Enable waypoint automation","Wegpunkt-Automatik einschalten");
+            c.AddButton(toggle,()=>Act(()=>{
+                CurrentConsist();
+                SetWaypointAutomation(car,!enabled);
+                RefreshControls();
+            }));
+            if(!enabled)c.AddButton(LocalText.Select("Request route to waypoint","Fahrstraße zum Wegpunkt anfragen"),()=>Act(()=>{
+                CurrentConsist();
+                RequestWaypointRoute(car);
+                RefreshControls();
+            }));
+            c.AddLabel(LocalText.Select("Set a waypoint in the Auto Engineer and select Train or Shunting below.","Im Auto Engineer einen Wegpunkt setzen und unten Zugfahrt oder Rangierfahrt festlegen."));
             c.AddField(LocalText.Get("Festlegung für diese Lok"),c.AddDropdown(new List<string>{LocalText.Get("Keine Festlegung"),LocalText.Get("Rangierfahrt"),LocalText.Get("Zugfahrt")},role,i=>role=i));
             c.AddLabel(LocalText.Get("Nur Zugfahrt kann Kontakte auslösen. Andere gekuppelte Loks erhalten Keine Festlegung. Nach Kuppeln/Trennen erneut festlegen."));
             c.AddButton(LocalText.Get("Betriebsart für den Verband übernehmen"),()=>Act(()=>{
-                if(stillCurrent!=null&&!stillCurrent())throw new InvalidOperationException(LocalText.Select("Vehicle selection changed. Reopen its information window.","Fahrzeugauswahl geändert. Informationsfenster erneut öffnen."));
-                if(scope!=selectedScope||car==null)throw new InvalidOperationException("Lok erneut auswählen.");var current=AutomationNative.Consist(car);string hash=AutomationNative.Signature(current);
-                if(hash!=signature)throw new InvalidOperationException("Verband inzwischen geändert. Lokfenster neu öffnen.");
-                SaveAutomation(d=>d.Automation.Assign(car.id,current.Where(a=>a.IsLocomotive).Select(a=>a.id),hash,(MovementRole)role));status=LocalText.Get("Lok-Betriebsart gespeichert.");CustomWindowHandle.Create(CarInfoWindowId)?.SetNeedsRebuild();
+                var current=CurrentConsist();
+                SaveAutomation(d=>d.Automation.Assign(car.id,current.Where(a=>a.IsLocomotive).Select(a=>a.id),signature,(MovementRole)role));
+                status=LocalText.Get("Lok-Betriebsart gespeichert.");
+                RefreshControls();
             }));
         }
         string CurrentMovementRole(Car car){try{return new[]{LocalText.Get("Keine Festlegung"),LocalText.Get("Rangierfahrt"),LocalText.Get("Zugfahrt")}[(int)Automation.Role(car.id,AutomationNative.Signature(AutomationNative.Consist(car)))];}catch{return LocalText.Select("Consist unavailable","Verband nicht lesbar");}}
+        static string RequestStageText(string stage) {
+            switch(stage) {
+                case nameof(AutomaticRequestStage.Waiting): return LocalText.Select("Waiting","Wartet");
+                case nameof(AutomaticRequestStage.Submitted): return LocalText.Select("Submitted to interlocking","Beim Stellwerk angefordert");
+                case nameof(AutomaticRequestStage.Completed): return LocalText.Select("Finished","Abgeschlossen");
+                case nameof(AutomaticRequestStage.Cancelled): return LocalText.Select("Withdrawn","Zurückgenommen");
+                default: return stage;
+            }
+        }
+        string RequestCaption(AutomationStatus request) {
+            string start=string.IsNullOrEmpty(request.Signal)?"…":Code(request.Signal);
+            string destination=string.IsNullOrEmpty(request.Target)?"…":Code(request.Target);
+            string locomotive=string.IsNullOrEmpty(request.Locomotive)?"":request.Locomotive+" · ";
+            string movement=request.Movement=="Train"?LocalText.Get("Zugfahrt")+" · ":request.Movement=="Shunt"?LocalText.Get("Rangierfahrt")+" · ":"";
+            string source=request.Source=="Driver"?LocalText.Select("Driver request","Fahreranfrage")+" · ":"";
+            return locomotive+movement+start+" → "+destination+" · "+source+RequestStageText(request.State);
+        }
         void BuildAutomationStatus(UIPanelBuilder c) {
             AutomationLiveFrame Read()=>StateManager.IsHost?AutomationFrame():Entry.Shared?.LiveFresh==true?Entry.Shared.Live.Automation:null;
             c.AddField(LocalText.Get("Automatik"),()=>Read()?.Status??"Keine frischen Host-Daten; Signale bleiben Halt.",UIPanelBuilder.Frequency.Periodic);
             if(automationHookError!=null)c.AddLabel(LocalText.Get("Native Anbindung: ")+automationHookError);
             if(StateManager.IsHost)c.AddLabel(directionBlocks.Blocks.Count+" automatisch ermittelte Blockketten · "+directionBlocks.Leases.Count+" Richtungsbindungen.");
             c.AddField(LocalText.Get("Blockrichtungen"),()=>string.Join("\n",Read()?.Blocks.Select(b=>b.Id+(b.Direction>0?" → ":" ← ")+b.Reason)??new string[0]),UIPanelBuilder.Frequency.Periodic);
-            var requests=Read()?.Requests.ToArray()??new AutomationStatus[0];
+            var requests=Read()?.Requests.AsEnumerable().Reverse().ToArray()??new AutomationStatus[0];
             c.AddButton(LocalText.Get("Statusliste aktualisieren"),RefreshWorkspaceFields);
-            if(requests.Length==0){c.AddLabel(LocalText.Get("Noch keine Kontaktanforderung."));return;}
-            int index=Math.Max(0,Array.FindIndex(requests,r=>r.Id==automationRequest));automationRequest=requests[index].Id;string id=automationRequest;
-            c.AddSearchChoice(LocalText.Get("Anforderung"),requests.Select(r=>Code(r.Signal)+" → "+Code(r.Target)+" · "+r.State).ToList(),index,i=>{automationRequest=requests[i].Id;RefreshWorkspaceFields();});
-            c.AddField(LocalText.Get("Zustand"),()=>{var r=Read()?.Requests.FirstOrDefault(a=>a.Id==id);return r==null?"Nicht mehr vorhanden":r.State+" · "+r.Reason;},UIPanelBuilder.Frequency.Periodic);
-            if(StateManager.IsHost)c.AddButton(LocalText.Get("Anforderung zurücknehmen"),()=>Act(()=>{var r=automaticRequests.FirstOrDefault(a=>a.Id==id);if(r==null)return;if(engine.Active.Any(a=>r.Routes.Contains(a.Route.Id)&&a.Entered))throw new InvalidOperationException("Zug bereits eingefahren. Normale Fahrstraßenauflösung benutzen.");WithdrawAutomaticRequest(r,"Vom Host zurückgenommen.");RefreshWorkspaceFields();}));
+            if(requests.Length==0) {
+                c.AddField(LocalText.Get("Anforderung"),()=>{
+                    var latest=Read()?.Requests.LastOrDefault();
+                    return latest==null?LocalText.Select("No route requests yet.","Noch keine Fahrstraßenanfragen."):RequestCaption(latest)+" · "+latest.Reason;
+                },UIPanelBuilder.Frequency.Periodic);
+                return;
+            }
+            int index=Math.Max(0,Array.FindIndex(requests,r=>r.Id==automationRequest));automationRequest=requests[index].Id;string id=automationRequest,selectedWorld=scope;
+            c.AddSearchChoice(LocalText.Get("Anforderung"),requests.Select(RequestCaption).ToList(),index,i=>{automationRequest=requests[i].Id;RefreshWorkspaceFields();});
+            c.AddField(LocalText.Get("Zustand"),()=>{
+                var request=Read()?.Requests.FirstOrDefault(a=>a.Id==id);
+                return request==null?LocalText.Select("No longer available","Nicht mehr vorhanden"):RequestStageText(request.State)+" · "+request.Reason;
+            },UIPanelBuilder.Frequency.Periodic);
+            if(StateManager.IsHost)c.AddButton(LocalText.Get("Anforderung zurücknehmen"),()=>Act(()=>{
+                if(!StateManager.IsHost||scope!=selectedWorld)return;
+                var request=automaticRequests.FirstOrDefault(a=>a.Id==id);
+                if(request==null||request.Stage==AutomaticRequestStage.Completed||request.Stage==AutomaticRequestStage.Cancelled)return;
+                if(engine.Active.Any(a=>request.Routes.Contains(a.Route.Id)&&a.Entered))throw new InvalidOperationException(LocalText.Select("Train has entered the route. Use the normal route release.","Zug bereits eingefahren. Normale Fahrstraßenauflösung benutzen."));
+                WithdrawAutomaticRequest(request,LocalText.Select("Withdrawn by the host.","Vom Host zurückgenommen."));
+                RefreshWorkspaceFields();
+            }));
         }
     }
 }

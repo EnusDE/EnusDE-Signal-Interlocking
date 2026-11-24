@@ -12,7 +12,7 @@ namespace EnusDE.Signaltechnik {
         string routeWorkProgress="";
         bool RouteWorkAvailable=>!stopped&&!backupSuspended&&!StateManager.IsUnloading&&StateManager.IsHost&&Entry.Shared?.ConfigurationReady==true&&scope!=null&&scope==objects.WorldKey;
         static string RouteWorkKey(string start,string end,RouteKind kind)=>start+"/"+end+"/"+(int)kind;
-        void CancelRouteWork(){routeWork.Clear();preparedAutomaticRoutes.Clear();routeWorkProgress="";}
+        void CancelRouteWork(){ClearWaypointPreparations();routeWork.Clear();preparedAutomaticRoutes.Clear();routeWorkProgress="";}
         void TickRouteWork() {
             if(!RouteWorkAvailable){CancelRouteWork();return;}
             int before=routeWork.Count;routeWork.Advance();
@@ -23,7 +23,7 @@ namespace EnusDE.Signaltechnik {
             c.AddSection(WindowText("Queued route preparation","Fahrstraßen-Vorbereitung"));
             c.AddField(WindowText("Pending requests","Ausstehende Anforderungen"),()=>routeWork.Count.ToString(),UIPanelBuilder.Frequency.Periodic);
             c.AddField(WindowText("Progress","Fortschritt"),()=>routeWorkProgress,UIPanelBuilder.Frequency.Periodic);
-            c.AddButton(WindowText("Cancel pending preparations","Ausstehende Vorbereitungen abbrechen"),()=>{foreach(var request in automaticRequests.Where(r=>preparedAutomaticRoutes.ContainsKey(r.Id)).ToArray())WithdrawAutomaticRequest(request,WindowText("Preparation cancelled.","Vorbereitung abgebrochen."));CancelRouteWork();status=WindowText("Pending preparations cancelled. Existing route locks remain supervised.","Ausstehende Vorbereitungen abgebrochen. Bestehende Fahrstraßenverschlüsse bleiben überwacht.");RefreshWorkspaceFields();});
+            c.AddButton(WindowText("Cancel pending preparations","Ausstehende Vorbereitungen abbrechen"),()=>{foreach(var request in automaticRequests.Where(r=>preparedAutomaticRoutes.ContainsKey(r.Id)||r.Waypoint&&r.Stage==AutomaticRequestStage.Waiting).ToArray())WithdrawAutomaticRequest(request,WindowText("Preparation cancelled.","Vorbereitung abgebrochen."));CancelRouteWork();status=WindowText("Pending preparations cancelled. Existing route locks remain supervised.","Ausstehende Vorbereitungen abgebrochen. Bestehende Fahrstraßenverschlüsse bleiben überwacht.");RefreshWorkspaceFields();});
         }
         void QueueDestination(string start,string destination,RouteKind kind) {
             RequireDispatcher();string selectedWorld=scope,selectedDesk=deskId;

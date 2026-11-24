@@ -125,7 +125,7 @@ namespace EnusDE.Signaltechnik {
             AddWorkspaceTool("↔",WindowText("Open line / GWB permissions","Freie Strecke / GWB-Erlaubnisse"),OpenFreeLines,()=>panelPage==9);
             AddWorkspaceTool("?",WindowText("Handbook","Handbuch"),()=>WorkspacePage(5),()=>panelPage==5);
             if(StateManager.IsHost) {
-                var stop=workspace.Button(workspace.Root,WindowText("STOP","HALT"),()=>Act(()=>{RequireDispatcher();CancelRouteWork();foreach(var pending in automaticRequests.Where(r=>r.Stage==AutomaticRequestStage.Waiting||r.Stage==AutomaticRequestStage.Submitted).ToArray())WithdrawAutomaticRequest(pending,"Alle Signale Halt angefordert.");engine.HaltAll();panelButtons.Clear();status=LocalText.Get("Alle Signale Halt. Erforderliche Verschlüsse bleiben erhalten.");}),WindowText("Set all own signals to stop","Alle eigenen Signale auf Halt"));
+                var stop=workspace.Button(workspace.Root,WindowText("STOP","HALT"),()=>Act(()=>{RequireDispatcher();PauseWaypointRequests();CancelRouteWork();foreach(var pending in automaticRequests.Where(r=>r.Stage==AutomaticRequestStage.Waiting||r.Stage==AutomaticRequestStage.Submitted).ToArray())WithdrawAutomaticRequest(pending,"Alle Signale Halt angefordert.");engine.HaltAll();panelButtons.Clear();status=LocalText.Get("Alle Signale Halt. Erforderliche Verschlüsse bleiben erhalten.");}),WindowText("Set all own signals to stop","Alle eigenen Signale auf Halt"));
                 var rect=stop.GetComponent<RectTransform>();
                 rect.anchorMin=rect.anchorMax=rect.pivot=Vector2.zero;
                 rect.anchoredPosition=new Vector2(8,8);rect.sizeDelta=new Vector2(46,38);

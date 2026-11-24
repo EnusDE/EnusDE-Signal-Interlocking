@@ -55,6 +55,9 @@ namespace EnusDE.Signaltechnik {
         public string[] Routes=new string[0];
         public AutomaticRequestStage Stage;
         public double Created,NextAttempt,LastHead=double.NaN;
+        public bool Waypoint,DriverRequested,HandedOver;
+        public MovementRole Movement;
+        public RouteRun WaypointRun;
     }
     public sealed class ContactObservation {
         public string Id;
@@ -64,6 +67,7 @@ namespace EnusDE.Signaltechnik {
     }
     public sealed class AutomationStatus {
         public string Id="",State="",Reason="",Locomotive="",Signal="",Target="";
+        public string Source="",Movement="";
         public long Count,Balance;
         public int Direction;
         public int RequestedDirection;
@@ -77,6 +81,8 @@ namespace EnusDE.Signaltechnik {
                 throw new System.IO.InvalidDataException("Automatik-Livemeldungen ungültig.");
             foreach(var s in Requests.Concat(Blocks).Concat(Contacts).Concat(Lines))if(s==null||s.Id==null||s.Id.Length>128||s.State==null||s.State.Length>128||s.Reason==null||s.Reason.Length>512||s.Locomotive==null||s.Locomotive.Length>128||s.Signal==null||s.Signal.Length>128||s.Target==null||s.Target.Length>128||s.Direction< -1||s.Direction>1)
                 throw new System.IO.InvalidDataException("Ungültige Automatikmeldung.");
+            if(Requests.Any(s=>s.Source==null||s.Source!=""&&s.Source!="Waypoint"&&s.Source!="Driver"||s.Movement==null||s.Movement!=""&&s.Movement!="Train"&&s.Movement!="Shunt"))
+                throw new System.IO.InvalidDataException("Invalid waypoint request status.");
             if(Lines.Any(s=>s.RequestedDirection< -1||s.RequestedDirection>1||s.Revision<0))throw new System.IO.InvalidDataException(LocalText.Select("Invalid permission state.","Ungültiger Erlaubniszustand."));
         }
     }

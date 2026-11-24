@@ -1,6 +1,6 @@
 # Runenwacht 0.2.1 — Sichtbarkeit und befestigte Bauteile
 
-Benötigt das vorhandene Hauptmod **0.7.64** und Railroader **0.6.3**. Dieses Update ändert nur das optionale Runenwacht-Paket; Hauptmod-Produktionsquellen und kompilierte Hauptmod-DLL bleiben unverändert. Das alte optionale Paket wie üblich ersetzen und das Spiel neu starten. Host und Clients benötigen passende identische Paketversionen. Bestehende Signal-IDs, Positionen, Kopfkonfigurationen, Weltlizenzen und die Testansteuerung bleiben erhalten.
+Benötigt das Hauptmod **0.7.65** und Railroader **0.6.3**. Dieses Paket enthält die Runenwacht-Modelle 0.2.1 für den neuen Hauptmod-Stand. Das Paket über den Modmanager ersetzen und das Spiel vollständig neu starten. Host und Clients benötigen passende Paketversionen.
 
 ## Leuchten aus der Nähe und Entfernung
 

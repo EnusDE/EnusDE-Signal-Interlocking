@@ -1,6 +1,6 @@
 # Runenwacht 0.2.1 — visibility and mounted hardware
 
-Requires the existing main mod **0.7.64** and Railroader **0.6.3**. This update changes only the optional Runenwacht pack; the main production sources and compiled main assembly are unchanged. Replace the old optional pack through the usual mod workflow and restart. Use matching optional-pack versions on host/clients. Existing signal IDs, positions, head configuration, world licenses and lamp-test operation are retained.
+Requires main mod **0.7.65** and Railroader **0.6.3**. This package contains the Runenwacht 0.2.1 models with the new main dependency. Replace it through your mod manager and restart the entire game. Host and clients need matching packages.
 
 ## Light at near and far distances
 

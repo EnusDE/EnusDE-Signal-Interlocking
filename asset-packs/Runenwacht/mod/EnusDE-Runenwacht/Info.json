@@ -11,7 +11,7 @@
   "dependencies": {
     "required": [
       "rr/game ==0.6.3",
-      "enusde/signaltechnik ==0.7.64"
+      "enusde/signaltechnik ==0.7.65"
     ]
   }
 }

@@ -112,6 +112,7 @@ namespace EnusDE.Signaltechnik {
         public readonly HashSet<string> ReleasedSections=new HashSet<string>(),ReleasedSwitches=new HashSet<string>();
         public readonly Dictionary<string,int> ReleaseChecks=new Dictionary<string,int>();
         public string[] TrainCars;
+        [JsonIgnore] public string[] ExpectedWaypointCars;
         public double? TailProgress;
         public bool HeadKnown;
         public string NumberPassageNumber;
@@ -217,10 +218,15 @@ namespace EnusDE.Signaltechnik {
                         var beyond=Read(via.Downstream,world);if(beyond==TrackOccupancy.Unknown)throw new InvalidOperationException("Belegung hinter Rangiersignal nicht verfügbar: "+via.Id);
                         if(beyond==TrackOccupancy.Occupied)run.PassedSignals.Add(via.Id);
                     }
-                    if(!run.Route.Shunting&&occupied==TrackOccupancy.Occupied) {
+                    if((!run.Route.Shunting||run.ExpectedWaypointCars!=null)&&occupied==TrackOccupancy.Occupied) {
+                        if(run.ExpectedWaypointCars!=null&&(!(world is IVehicleOccupancyWorld)||sectional==null||run.Route.Path==null))
+                            throw new InvalidOperationException(LocalText.Select("The occupied waypoint route cannot identify the train.","Der belegte Wegpunktfahrweg kann den Zug nicht identifizieren."));
                         if(sectional==null||run.Route.Path==null)run.Entered=true;
                         else if(world is IVehicleOccupancyWorld identity)foreach(var section in run.HeldSections) {
-                            if(identity.SectionWithCars(section,out var cars)!=TrackOccupancy.Occupied)continue;
+                            var observed=identity.SectionWithCars(section,out var cars);
+                            if(observed==TrackOccupancy.Unknown&&run.ExpectedWaypointCars!=null)
+                                throw new InvalidOperationException(LocalText.Select("The occupied waypoint route cannot identify the train.","Der belegte Wegpunktfahrweg kann den Zug nicht identifizieren."));
+                            if(observed!=TrackOccupancy.Occupied)continue;
                             if(run.TrainCars==null||cars==null||cars.Length==0||cars.Any(id=>!run.TrainCars.Contains(id)))throw new InvalidOperationException(LocalText.Select("Occupied route without verified passage by the assigned train: ","Fahrweg belegt ohne nachgewiesene Passage des zugeordneten Zuges: ")+DescribeSection(run.Route,section,world));
                         }
                     }

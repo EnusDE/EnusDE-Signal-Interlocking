@@ -17,7 +17,7 @@ namespace EnusDE.Signaltechnik {
         internal void CancelBackupRestore(){backupSuspended=false;nativeDirty=true;}
         internal void ReloadBackupConfiguration() {
             CheckBackupRestore();CancelRouteWork();lineDirections.Reset();lineValidationSignature=null;CloseWorkspaceMode();lastRead=-100;RemoveProxies();world.Dispose();world=new SignalWorldBridge(this,transform);
-            automaticRequests.Clear();contactPassages.Clear();contactLatches.Clear();contactObservations.Clear();directionBlocks.Blocks.Clear();blockSignature=null;blockError=null;nativeBlockTopology=null;nextBlockTopology=0;
+            ResetWaypointSession();automaticRequests.Clear();contactPassages.Clear();contactLatches.Clear();contactObservations.Clear();directionBlocks.Blocks.Clear();blockSignature=null;blockError=null;nativeBlockTopology=null;nextBlockTopology=0;
             ClearAutomaticRouteChoices();panelButtons.Clear();scope=Entry.Shared.WorldKey;store=new InterlockingStore(directory,scope,Entry.Shared.Routes,Entry.Shared.PutRoutes);
             routes=Entry.Shared.Routes();inventory=SignalCatalogue.Expand(objects.Objects).ToDictionary(m=>m.Id);LoadPanel();
             RefreshProxies();nativeDirty=true;PublishNativeAspects();backupSuspended=false;status=LocalText.Get("Anlage aus Sicherung geladen. Alle Signale Halt; Kontakt-Automatik ausgeschaltet.");
