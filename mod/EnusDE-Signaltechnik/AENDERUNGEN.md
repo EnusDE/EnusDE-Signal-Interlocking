@@ -1,3 +1,8 @@
+# 0.7.69-P0 · Blockweiterfahrt und Folgezüge
+
+- Die Wegpunkt-Automatik prüft jeden eingerichteten Blockabschnitt in Fahrtrichtung, einschließlich der Fahrt vom letzten Blocksignal zum Einfahrsignal des Nachbarstellwerks.
+- Ist ein späterer Abschnitt belegt, kann eine manuelle Anforderung an ein verknüpftes Streckenziel bis zu einem erreichbaren Blocksignal reichen. Der Fdl sieht das Ende der Fahrstraße und den belegten Abschnitt. Weitere manuelle Teilfahrstraßen separat anfordern. Richtungs-, Belegungs-, Weichen-, Flanken- und Verschlussprüfungen gelten weiterhin.
+
 # 0.7.68-P0 · Wegpunktziele und Folgefahrstraßen
 
 - Ein bereits freigegebenes mitlaufendes Rangiersignal bleibt beim Einfahren demselben Zug zugeordnet.

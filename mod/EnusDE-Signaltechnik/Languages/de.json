@@ -2374,6 +2374,10 @@
   "Signalbild: ": "Signalbild: ",
   "Die gerichtete Annäherung des Wegpunktzugs ist nicht mehr nachgewiesen.": "Die gerichtete Annäherung des Wegpunktzugs ist nicht mehr nachgewiesen.",
   "Dieser Wegpunktabschnitt benötigt eine eingerichtete Strecke zwischen den beiden Stellwerken.": "Dieser Wegpunktabschnitt benötigt eine eingerichtete Strecke zwischen den beiden Stellwerken.",
+  "Mehrere Strecken passen zu diesen Signalen und dieser Fahrtrichtung.": "Mehrere Strecken passen zu diesen Signalen und dieser Fahrtrichtung.",
+  "Keine aktive Blockstrecke verbindet diese Signale als aufeinanderfolgende Ziele in dieser Richtung.": "Keine aktive Blockstrecke verbindet diese Signale als aufeinanderfolgende Ziele in dieser Richtung.",
+  "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Zielsignal.": "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Zielsignal.",
+  "Nur bis zum letzten erreichbaren Blocksignal. Rest nicht gestellt. ": "Nur bis zum letzten erreichbaren Blocksignal. Rest nicht gestellt. ",
   "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Ankunftssignal.": "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Ankunftssignal.",
   "Wartet vor dem Richtungswechsel auf Stillstand und freie Weichen hinter dem ganzen Zug.": "Wartet vor dem Richtungswechsel auf Stillstand und freie Weichen hinter dem ganzen Zug.",
   "Kein zuständiges Signal in Reichweite vor dem Wegpunkt.": "Kein zuständiges Signal in Reichweite vor dem Wegpunkt."

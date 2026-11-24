@@ -1,6 +1,6 @@
 {
   "identifier": "enusde/signaltechnik",
-  "version": "0.7.68",
+  "version": "0.7.69",
   "name": "EnusDE Signal & Interlocking",
   "author": "EnusDE",
   "description": "Configurable railway signals, interlocking panels, routes, track occupancy and train number displays. Development preview for Railroader 0.6.3; compatibility test build.",

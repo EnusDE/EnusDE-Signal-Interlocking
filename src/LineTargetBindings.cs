@@ -27,6 +27,18 @@ namespace EnusDE.Signaltechnik {
         }
         public static string Signature(LineTargetBinding binding)=>SharedDocuments.Hash(System.Text.Encoding.UTF8.GetBytes(binding.Target+"|"+binding.Line?.Id+"|"+binding.Station+"|"+binding.Arrival+"|"+binding.Direction));
         public static void Tag(RouteChainPlan plan,LineTargetBinding binding) {plan.Routes=plan.Routes.Select(r=>r.Clone()).ToList();foreach(var route in plan.Routes){route.LineTarget=binding.Target;route.LineTargetSignature=Signature(binding);}}
+        public static RouteChainPlan ClearPrefix(RouteChainPlan plan,LineTargetBinding binding,Func<RouteDefinition,(TrackOccupancy State,string Reason)> read) {
+            var blockSignals=binding.Line.BlockUnits.Select(unit=>binding.Direction==1?unit.Forward:unit.Reverse).Where(id=>id!="").ToHashSet();
+            if(blockSignals.Count==0)return plan;
+            for(int i=0;i<plan.Routes.Count;i++) {
+                var (state,reason)=read(plan.Routes[i]);
+                if(state==TrackOccupancy.Clear)continue;
+                if(state!=TrackOccupancy.Occupied||i==0||!blockSignals.Contains(plan.Routes[i-1].Exit))return plan;
+                return new RouteChainPlan{Routes=plan.Routes.Take(i).ToList(),EndReason=LocalText.Select(
+                    "Only as far as the last clear block signal. Remainder not set. ","Nur bis zum letzten erreichbaren Blocksignal. Rest nicht gestellt. ")+reason};
+            }
+            return plan;
+        }
         public static void RequirePlan(DeskLibrary library,IReadOnlyList<RouteDefinition> plan) {
             var index=Index(library);
             foreach(string id in plan.Select(r=>r.LineTarget??(index.ContainsKey(r.Exit)?r.Exit:null)).Where(id=>id!=null).Distinct()) {

@@ -74,10 +74,13 @@ namespace EnusDE.Signaltechnik {
             if(desks==null)return null;
             if(directionBlocks.Enabled&&!Automation.AllowUnmonitoredManualRoutes&&plan.Any(r=>!r.Shunting))
                 RequireMonitoredPlan(new RouteChainPlan{Routes=plan.Where(r=>!r.Shunting).ToList()});
-            string detection=StationRouteProtection.CircuitError(plan,desks.Blocks.Values,CircuitUsable,b=>world.Block(b,out _),b=>BoundaryCaption(b.BoundaryA)+" ↔ "+BoundaryCaption(b.BoundaryB),world.Occupancy);
+            string detection=RouteCircuitError(plan,out _);
             if(detection!=null)return detection;
             return StationAutomationPolicy.Admission(desks,plan);
         }
+        string RouteCircuitError(IReadOnlyList<RouteDefinition> plan,out TrackOccupancy conflict)=>
+            StationRouteProtection.CircuitError(plan,desks.Blocks.Values,CircuitUsable,b=>world.Block(b,out _),
+                b=>BoundaryCaption(b.BoundaryA)+" ↔ "+BoundaryCaption(b.BoundaryB),world.Occupancy,out conflict);
         void RequireManualStation(string source) {
             if(desks?.Desks.Any(d=>!d.IsMaster&&d.AutomaticOnly)==true&&SignalStation(source)?.AutomaticOnly==true&&!Automation.PausedStations.Contains(SignalStation(source).Id))throw new InvalidOperationException("Dieses Stellwerk ist auf Automatikbetrieb eingestellt. Im Editor umstellen, bevor dort manuell angefordert wird.");
         }

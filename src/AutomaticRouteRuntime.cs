@@ -49,6 +49,15 @@ namespace EnusDE.Signaltechnik {
         void CommitAutomaticPlan(RouteChainPlan plan) {
             RequireDispatcher();
             if(!aiEnabled)throw new InvalidOperationException("AE-Anbindung unter Auswahlfenster → Einstellungen einschalten.");
+            if(plan.Routes.Count>1&&plan.Routes[0].LineTarget!=null) {
+                var binding=RouteLineTarget(plan.Routes[0]);
+                LineTargetBindings.RequirePlan(desks,plan.Routes);
+                world.BeginRead();
+                plan=LineTargetBindings.ClearPrefix(plan,binding,route=>{
+                    string reason=RouteCircuitError(new[]{route},out var state);
+                    return (state,reason);
+                });
+            }
             PrepareRequestedPlan(plan);
             ApplyRoutePlan(plan);ClearAutomaticRouteChoices();
         }

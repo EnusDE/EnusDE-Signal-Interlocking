@@ -1,4 +1,16 @@
-# Development status and continuation — 0.7.68
+# Development status and continuation — 0.7.69
+
+## Block continuation and following trains
+
+The host test of 0.7.68 set and used three consecutive routes from HS-007 via HS-014 and HS-017 to HS-020. The train stopped at HS-020. STR-001 was active and HS-020 was its last forward block signal. The waypoint check expected a station departure at that point and rejected the request to continue to the next interlocking. A separate dispatcher request to the linked line destination tried to set the complete chain and was rejected by a later occupied GFM section.
+
+0.7.69 matches consecutive block signals and the configured arrival in each direction. It proves only the corresponding directed line slice for each leg, including the distance from a staggered signal to its detector. A dispatcher request to a linked destination can stop at an available block signal if GFM proves occupancy in a later leg. It shows the reduced limit and the occupied section. The remaining manual legs must be requested separately. All admitted legs still use ordinary occupancy, flank, point, locking and permission checks.
+
+`Build.ps1` and its full `Test.ps1` run passed **2,142 checks, zero failures** against local Railroader 0.6.3 libraries. Tests cover both line directions, block ownership at either end, direction conflicts, missing track proof, an occupied first block, unknown detection and a following train up to a free block signal. Retest STR-001 from a world state with the line initially clear, in both directions. Put a second train behind the first after the first block becomes clear. Verify the following request stops short of the occupied block and opposing traffic remains held. In-game and host/client acceptance of 0.7.69 remain pending.
+
+## Deutsch zu 0.7.69
+
+Die Automatik prüft den letzten Blockabschnitt bis zum Einfahrsignal des Nachbarstellwerks. Bei einer manuellen Anforderung an ein verknüpftes Streckenziel kann der Fdl den freien Teil bis zu einem Blocksignal stellen. Der belegte Abschnitt wird angezeigt und bleibt gesperrt. Die Weiterfahrt danach separat anfordern. Im Testspielstand STR-001 anfangs frei lassen. Danach die Weiterfahrt von HS-020 nach HS-009 und einen zweiten Zug im freigewordenen Block prüfen.
 
 ## Waypoint follow-up corrections
 

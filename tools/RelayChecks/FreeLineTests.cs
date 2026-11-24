@@ -17,7 +17,44 @@ public static class FreeLineTests {
     static RouteDefinition Route(string segment="S",bool reverse=false)=>new(){Code="R",Entry="entry",Exit="exit",Path=new(){Part(segment,10,90,reverse)}};
     static void Reserve(LineDirectionAuthority authority,RouteDefinition route){using var ticket=authority.Reserve(new[]{route});ticket.Commit();}
     static void ClearChecks(LineDirectionAuthority authority,double start=0){for(int i=1;i<=3;i++)authority.Observe(Array.Empty<RouteRun>(),start+i);}
+
+    static void FollowingTrains() {
+        var line=Line();line.BlockUnits.Add(new BlockSignalUnit{Forward="block",Reverse="facing-back",Distance=50});
+        var binding=new LineTargetBinding{Line=line,Direction=1,Target="bound-exit",Station=stationA,Arrival="arrival"};
+        var first=new RouteDefinition{Entry="departure",Exit="block",Path=new(){Part("S",0,45)}};
+        var second=new RouteDefinition{Entry="block",Exit="arrival",Path=new(){Part("S",45,100)}};
+        var opposing=new RouteDefinition{Entry="arrival",Exit="facing-back",Path=new(){Part("S",55,100,true)}};
+        var plan=new RouteChainPlan{Routes=new(){first,second}};LineTargetBindings.Tag(plan,binding);
+        var circuits=new[]{new TrackBlock{BoundaryA="a",BoundaryB="middle",Path=new(){Part("S",0,50)}},
+            new TrackBlock{BoundaryA="middle",BoundaryB="b",Path=new(){Part("S",50,100)}}};
+        TrackSection occupied=null;bool unreadable=false;
+        TrackOccupancy Read(TrackSection section)=>occupied?.Overlaps(section)==true?(unreadable?TrackOccupancy.Unknown:TrackOccupancy.Occupied):TrackOccupancy.Clear;
+        string CheckCircuits(IReadOnlyList<RouteDefinition> routes,out TrackOccupancy state)=>StationRouteProtection.CircuitError(routes,circuits,_=>true,_=>TrackOccupancy.Unknown,
+            section=>section.BoundaryA+"/"+section.BoundaryB,Read,out state);
+        RouteChainPlan Prefix()=>LineTargetBindings.ClearPrefix(plan,binding,route=>{string reason=CheckCircuits(new[]{route},out var state);return (state,reason);});
+        var lineGate=new LineDirectionAuthority{BlockEnabled=true,Occupancy=Read};lineGate.Configure(new[]{line},_=>null);ClearChecks(lineGate);
+        var blockGate=new DirectionBlockAuthority{Enabled=true,Occupancy=Read,CheckStations=routes=>CheckCircuits(routes,out _),Blocks=new(){new DirectionBlock{Id="shared-direction",Axis=line.Axis}}};
+        var combined=new CombinedRouteAdmission(blockGate,lineGate);
+        void Admit(params RouteDefinition[] routes){using var ticket=combined.Reserve(routes);ticket.Commit();}
+
+        Check(ReferenceEquals(Prefix(),plan),"a free bound line keeps the original complete manual route request");
+        Admit(second);occupied=Part("S",68,87).Section;
+        var prefix=Prefix();
+        Check(prefix.Routes.Count==1&&prefix.Routes[0].Exit=="block"&&prefix.Routes[0].LineTarget==binding.Target&&prefix.EndReason.Contains("middle/b")&&plan.Routes.Count==2,
+            "a following manual departure keeps only the clear legs, with the real occupied GFM and the original permission binding");
+        Admit(prefix.Routes.ToArray());
+        Check(lineGate.Get(line.Id).Routes.Count==2&&blockGate.Leases.Single().Routes.Count==2,
+            "two distinct routes can share a direction while one train occupies the block ahead");
+        Check(Reject(()=>Admit(second)),"the following train cannot continue into the actually occupied block");
+        occupied=null;Check(Reject(()=>Admit(opposing)),"an otherwise clear opposing route cannot enter against the held direction");
+        occupied=Part("S",68,87).Section;
+        unreadable=true;Check(ReferenceEquals(Prefix(),plan)&&Reject(()=>Admit(first)),"unknown detection never admits a partial departure or replaces the line direction proof");
+        unreadable=false;occupied=Part("S",12,20).Section;
+        Check(ReferenceEquals(Prefix(),plan)&&Reject(()=>Admit(first)),"an occupied first block still refuses departure");
+    }
+
     public static void Run() {
+        FollowingTrains();
         var line=Line();var axis=LineTrackGeometry.Axis(new[]{Part("S",20,930)},new[]{Part("S",70,980,true)},LineTrackMode.Gleiswechselbetrieb);
         Check(axis.Single().Section.From==70&&axis.Single().Section.To==930&&!axis[0].Reverse,"reciprocal line detection keeps the shared free line while excluding different station terminal portions");
         Check(Reject(()=>LineTrackGeometry.Axis(new[]{Part("S")},new[]{Part("T",reverse:true)},LineTrackMode.Gleiswechselbetrieb)),"opposite routes on different parallel tracks cannot define one GWB track");

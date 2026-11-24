@@ -1,4 +1,4 @@
-# EnusDE Signal & Interlocking 0.7.68-P0
+# EnusDE Signal & Interlocking 0.7.69-P0
 
 Enable waypoint requests from the launcher gear, set a waypoint in Auto Engineer and read its status in the locomotive's Signalling tab. The interlocking can set up to three compatible legs ahead. Check turns and line departures in a copy of your world before using the test build for regular operation. [English operating basics](Guides/WAYPOINT-0.7.66.en.md) · [Grundbedienung auf Deutsch](Guides/WAYPOINT-0.7.66.de.md).
 

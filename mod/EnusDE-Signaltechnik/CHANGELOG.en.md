@@ -1,3 +1,8 @@
+# 0.7.69-P0 · Through block signals and following trains
+
+- Waypoint automation checks each configured block leg in the selected direction, including the last block signal to the neighbouring arrival signal.
+- A manual request to a linked line destination can set the available legs up to a block signal when a later section is occupied. The dispatcher sees where it ends and which section is occupied. Request the remaining manual legs separately. Direction, occupancy, point, flank and locking checks still apply.
+
 # 0.7.68-P0 · Waypoint destinations and following routes
 
 - A cleared intermediate shunt signal stays associated with the same train during entry detection.

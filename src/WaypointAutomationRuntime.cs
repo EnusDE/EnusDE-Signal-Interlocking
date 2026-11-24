@@ -196,7 +196,7 @@ namespace EnusDE.Signaltechnik {
                 {reason=caption+LocalText.Select("The nearest signal is for shunting. Choose Shunting for this waypoint.","Das nächste Signal gehört zur Rangierfahrt. Für diesen Wegpunkt Rangierfahrt wählen.");return false;}
             if(shuntOnly&&selection==MovementRole.Unassigned) {
                 // A declared shunt-only signal with a local destination can determine the movement type.
-                try{WaypointDestination(source.Id,MovementRole.Shunt,approach,out _,out _);movement=MovementRole.Shunt;}
+                try{WaypointDestination(source.Id,MovementRole.Shunt,approach,out _,out _,out _);movement=MovementRole.Shunt;}
                 catch(InvalidOperationException failure){reason=caption+LocalText.Get(failure.Message);return false;}
             }
             if(!SignalCatalogue.Supports(source,movement==MovementRole.Shunt,false)&&

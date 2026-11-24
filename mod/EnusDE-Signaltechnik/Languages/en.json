@@ -2374,6 +2374,10 @@
   "Signalbild: ": "Signal indication: ",
   "Die gerichtete Annäherung des Wegpunktzugs ist nicht mehr nachgewiesen.": "The directed approach of the waypoint train is no longer verified.",
   "Dieser Wegpunktabschnitt benötigt eine eingerichtete Strecke zwischen den beiden Stellwerken.": "This waypoint leg needs a configured line between the two interlockings.",
+  "Mehrere Strecken passen zu diesen Signalen und dieser Fahrtrichtung.": "Several lines match these signals and direction.",
+  "Keine aktive Blockstrecke verbindet diese Signale als aufeinanderfolgende Ziele in dieser Richtung.": "No active block line links these signals as consecutive stops in this direction.",
+  "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Zielsignal.": "The waypoint does not follow the configured line through to the target signal.",
+  "Nur bis zum letzten erreichbaren Blocksignal. Rest nicht gestellt. ": "Only as far as the last clear block signal. Remainder not set. ",
   "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Ankunftssignal.": "The waypoint does not follow the configured line through to the arrival signal.",
   "Wartet vor dem Richtungswechsel auf Stillstand und freie Weichen hinter dem ganzen Zug.": "Waiting for the whole train to stop clear of the previous points before reversing.",
   "Kein zuständiges Signal in Reichweite vor dem Wegpunkt.": "No governing signal in range before the waypoint."
