@@ -1,3 +1,8 @@
+# 0.7.68-P0 · Wegpunktziele und Folgefahrstraßen
+
+- Ein bereits freigegebenes mitlaufendes Rangiersignal bleibt beim Einfahren demselben Zug zugeordnet.
+- Liegt der Wegpunkt kurz vor einem Signal auf einem anderen Gleissegment, prüft die Zielsuche die eindeutige Gleisfortsetzung bis 300 m. An Weichen und unklaren Verbindungen endet die Suche.
+
 # 0.7.67-P0 · Wegpunkt-Vorlauf und Umrangieren
 
 - Bis zu drei geprüfte Teilfahrstraßen für denselben Zug frühzeitig stellen. Blockierte oder unklare Abschnitte halten die Folge auf.

@@ -1,4 +1,12 @@
-# Development status and continuation — 0.7.67
+# Development status and continuation — 0.7.68
+
+## Waypoint follow-up corrections
+
+In the 0.7.67 host test, a train entered its first route while the following routes at HS-043 and HS-062 were already set. The automation briefly treated RS-037 as a separate start and withdrew both routes. A permissive intermediate shunt indication now remains associated with the exact reserved consist while entry detection catches up.
+
+The route from HS-015 waited without a destination. Its fixed waypoint was on an ordinary track segment without a signal. Beyond the waypoint, destination discovery now checks up to 300 metres of uniquely connected track. It stops at a turnout, ambiguous junction or unavailable segment. The train's stop remains the native waypoint. Existing route, block and occupancy checks continue to apply.
+
+The full offline suite passed 2,127 checks, including the verified intermediate signal before entry recognition and an unambiguous continuation across two segments. Retest the same waypoint from HS-015 and the consecutive train routes via RS-037 in Railroader.
 
 ## Waypoint lookahead and turnbacks
 

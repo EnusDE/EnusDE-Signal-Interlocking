@@ -14,6 +14,23 @@ namespace EnusDE.Signaltechnik {
         public double Distance {get;}
         public int Phase {get;internal set;}
         public bool EndsAtTurnback {get;internal set;}
+        IReadOnlyList<DirectedRouteSection> continuation=Array.Empty<DirectedRouteSection>();
+
+        internal void SetContinuation(IReadOnlyList<DirectedRouteSection> beyondWaypoint)=>continuation=beyondWaypoint;
+
+        internal bool LocateContinuation(string segment,double meters,out double distance,out bool reverse) {
+            distance=Distance;reverse=false;
+            foreach(var piece in continuation) {
+                var span=piece.Section;
+                if(span.Segment==segment&&Contains(span,meters)) {
+                    reverse=piece.Reverse;
+                    distance+=reverse?span.To-meters:meters-span.From;
+                    return true;
+                }
+                distance+=span.To-span.From;
+            }
+            return false;
+        }
 
         WaypointApproach(List<DirectedRouteSection> sections) {
             Sections=sections.AsReadOnly();

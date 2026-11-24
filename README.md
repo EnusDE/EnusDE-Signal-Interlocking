@@ -2,7 +2,7 @@
 
 [Deutsche Zusammenfassung](#deutsch) · [Build from source](docs/BUILD.md) · [Development status](docs/DEVELOPMENT.md)
 
-**Current source: 0.7.67 — Early Alpha for Railroader 0.6.3.** Get an installable package from the author's distribution channel or build from `main`.
+**Current source: 0.7.68 — Early Alpha for Railroader 0.6.3.** Get an installable package from the author's distribution channel or build from `main`.
 
 Place configurable railway signals, draw an interlocking diagram, connect it to the in-game railway, and operate train and shunting routes. Track occupancy, train-number displays, line permission and configurable automation support larger installations.
 
@@ -38,7 +38,7 @@ Optional **Runenwacht 0.2.2** requires main **0.7.64 or later** with compatible 
 
 ## Compatibility and validation
 
-The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.67**.
+The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.68**.
 
 The complete offline build/check run on 24 November 2026 passed **2,097 checks** against the local Railroader 0.6.3 libraries. Actual waypoint operation, the locomotive controls and multiplayer still need in-game verification. [Development status and continuation](docs/DEVELOPMENT.md)
 
@@ -67,7 +67,7 @@ See [Third-party notices](THIRD_PARTY_NOTICES.md) and the included MIT component
 
 ## Deutsch
 
-**Aktueller Quellstand: 0.7.67, Early Alpha für Railroader 0.6.3.** Installationspakete gibt es über den Vertriebskanal des Autors. Der Quellstand zum Selbstbauen liegt auf `main`.
+**Aktueller Quellstand: 0.7.68, Early Alpha für Railroader 0.6.3.** Installationspakete gibt es über den Vertriebskanal des Autors. Der Quellstand zum Selbstbauen liegt auf `main`.
 
 Die Mod ergänzt eigene Signale, Gleisbildstellwerke, Zug-/Rangierfahrstraßen, Gleisfreimeldung, Zugnummern sowie GWB- und Blockbetrieb. Der GWB-Assistent führt schrittweise durch die Einrichtung; Blockansichten sind verschiebbar, spiegelbar und um 180 Grad drehbar. Zusätzliche Tafeln können vereinfachte Ansichten zeigen. Englisch und Deutsch sind eingebaut; im Mehrspieler brauchen alle dieselbe Modversion.
 

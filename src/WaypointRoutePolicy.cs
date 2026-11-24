@@ -5,7 +5,7 @@ using System.Linq;
 namespace EnusDE.Signaltechnik {
     public static class WaypointRoutePolicy {
         const double PositionTolerance=.02;
-        const double TerminalExtension=300;
+        internal const double TerminalExtension=300;
         const double MaximumLeg=10000;
 
         public static bool ClearApproach(WaypointApproach approach,MarkerRecord start,IVehicleOccupancyWorld world,string[] expected) {
@@ -23,15 +23,16 @@ namespace EnusDE.Signaltechnik {
         }
 
         public static bool HasViaAuthority(RouteRun run,string signal,string[] cars,LocalSignalAspect aspect) {
-            return aspect==LocalSignalAspect.Shunt&&run.Entered&&run.PermitsVia(signal)&&
-                run.TrainCars!=null&&cars.Length>0&&run.TrainCars.Length==cars.Length&&
-                new HashSet<string>(run.TrainCars,StringComparer.Ordinal).SetEquals(cars);
+            if(aspect!=LocalSignalAspect.Shunt||!run.PermitsVia(signal)||cars.Length==0)return false;
+            var authorized=run.Entered?run.TrainCars:run.Permitted?run.ExpectedWaypointCars:null;
+            return authorized!=null&&authorized.Length==cars.Length&&
+                new HashSet<string>(authorized,StringComparer.Ordinal).SetEquals(cars);
         }
 
-        // A stop inside a segment can reserve to its following signal or auxiliary endpoint.
-        // Beyond the way point, only the final segment has a proven travel direction.
+        // A fixed stop can reserve to its following signal along the verified continuation.
         static bool Project(WaypointApproach approach,string segment,double meters,out double distance,out bool reverse) {
             if(approach.TryLocate(segment,meters,out distance,out reverse))return true;
+            if(approach.LocateContinuation(segment,meters,out distance,out reverse))return true;
             var terminal=approach.Sections[approach.Sections.Count-1];
             if(terminal.Section.Segment!=segment)return false;
             double extra=terminal.Reverse?terminal.Section.From-meters:meters-terminal.Section.To;

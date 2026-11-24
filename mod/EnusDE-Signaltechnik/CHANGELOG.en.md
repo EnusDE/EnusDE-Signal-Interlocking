@@ -1,3 +1,8 @@
+# 0.7.68-P0 · Waypoint destinations and following routes
+
+- A cleared intermediate shunt signal stays associated with the same train during entry detection.
+- If a waypoint lies just before a signal on another segment, destination discovery follows up to 300 m of unambiguous track. It stops at turnouts and ambiguous connections.
+
 # 0.7.67-P0 · Advance waypoint requests and turnbacks
 
 - Set up to three verified route legs ahead for the same train. Stop extending the request at an occupied or unresolved leg.

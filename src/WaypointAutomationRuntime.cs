@@ -160,6 +160,7 @@ namespace EnusDE.Signaltechnik {
             if(!intent.Ready){reason=intent.Reason??WaitNativePath();return false;}
             if(!AutomationNative.TryWaypointApproach(car,intent,out approach,out reason,allowPausedWaypoint)){reason=reason??WaitNativePath();return false;}
             var currentApproach=approach;
+            SignalWorldBridge.ReadWaypointContinuation(currentApproach);
             if(!CheckWaypointTurnback(car,consist,intent,currentApproach)) {
                 reason=LocalText.Select("Waiting for the whole train to stop clear of the previous points before reversing.","Wartet vor dem Richtungswechsel auf Stillstand und freie Weichen hinter dem ganzen Zug.");
                 return false;

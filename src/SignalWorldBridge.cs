@@ -26,6 +26,36 @@ namespace EnusDE.Signaltechnik {
             if(segment==null||!segment.Available||!segment.GroupEnabled||segment.turntable!=null||row.Anchor.Meters>segment.GetLength())throw new InvalidOperationException("Signalgleis nicht verfügbar.");
             var loc=new Location(segment,(float)row.Anchor.Meters,TrackSegment.End.A);return row.FacingReverse?loc.Flipped():loc;
         }
+        internal static void ReadWaypointContinuation(WaypointApproach approach) {
+            var graph=Graph.Shared;
+            if(graph==null||approach.EndsAtTurnback)return;
+            var terminal=approach.Sections[approach.Sections.Count-1];
+            var segment=graph.GetSegment(terminal.Section.Segment);
+            if(segment==null)return;
+            var used=approach.Sections.Select(p=>p.Section.Segment).ToHashSet(StringComparer.Ordinal);
+            var end=terminal.Reverse?TrackSegment.End.B:TrackSegment.End.A;
+            double position=terminal.Reverse?segment.GetLength()-terminal.Section.From:terminal.Section.To;
+            double remaining=WaypointRoutePolicy.TerminalExtension;
+            var path=new List<DirectedRouteSection>();
+            while(remaining>.001&&path.Count<128) {
+                double length=segment.GetLength(),distance=Math.Min(remaining,length-position);
+                bool reverse=end==TrackSegment.End.B;
+                if(distance>.001) {
+                    path.Add(new DirectedRouteSection{Reverse=reverse,Section=new TrackSection{
+                        Segment=segment.id,From=reverse?length-position-distance:position,To=reverse?length-position:position+distance}});
+                    remaining-=distance;
+                }
+                if(remaining<=.001)break;
+                var node=segment.NodeForEnd(reverse?TrackSegment.End.A:TrackSegment.End.B);
+                if(node==null||graph.IsSwitch(node))break;
+                var connected=graph.SegmentsConnectedTo(node).Where(s=>s!=null&&s!=segment).Distinct().Take(2).ToArray();
+                if(connected.Length!=1)break;
+                var next=connected[0];
+                if(!next.Available||!next.GroupEnabled||next.turntable!=null||!used.Add(next.id))break;
+                segment=next;end=segment.EndForNode(node);position=0;
+            }
+            approach.SetContinuation(path);
+        }
         static bool ResolveTurn(Graph graph,TrackNode node,TrackSegment from,IReadOnlyList<TrackSegment> choices,out TrackSegment next) {
             next=null;TrackSegment common,normal,reverse;
             if(!graph.DecodeSwitchAt(node,out common,out normal,out reverse))return false;

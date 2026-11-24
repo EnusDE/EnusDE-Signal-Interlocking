@@ -34,6 +34,14 @@ static class WaypointRouteTests {
         running.PassedSignals.Add(shunting.Id);
         Check(!WaypointRoutePolicy.HasViaAuthority(running,shunting.Id,new[]{"engine","wagon"},LocalSignalAspect.Shunt),
             "a released via signal cannot be passed again by the waypoint automaton");
+        running.PassedSignals.Clear();running.Entered=false;running.Stage=RouteStage.Set;
+        running.TrainCars=null;running.ExpectedWaypointCars=new[]{"engine","wagon"};
+        Check(WaypointRoutePolicy.HasViaAuthority(running,shunting.Id,new[]{"wagon","engine"},LocalSignalAspect.Shunt)&&
+            !WaypointRoutePolicy.HasViaAuthority(running,shunting.Id,new[]{"foreign","wagon"},LocalSignalAspect.Shunt),
+            "an already-cleared via remains covered for its verified consist before entry detection catches up");
+        running.Stage=RouteStage.Preparing;
+        Check(!WaypointRoutePolicy.HasViaAuthority(running,shunting.Id,new[]{"engine","wagon"},LocalSignalAspect.Shunt),
+            "an unconfirmed preparation grants no permission to skip an intermediate signal");
         Check(WaypointRoutePolicy.Destination(approach,start,physical,new[]{earlyAuxiliary,stopAuxiliary},false)==first,
             "waypoint train leg ends at the first same-direction main signal before the stop and does not choose an early auxiliary");
         Check(WaypointRoutePolicy.Destination(approach,start,physical,Array.Empty<MarkerRecord>(),true)==shunting,
@@ -43,6 +51,14 @@ static class WaypointRouteTests {
         Check(WaypointRoutePolicy.Destination(approach,start,new[]{platformEnd,otherBranch},Array.Empty<MarkerRecord>(),false)==platformEnd&&
             WaypointRoutePolicy.Destination(approach,start,new[]{otherBranch},Array.Empty<MarkerRecord>(),false)==null,
             "a waypoint inside a segment can reserve to its protecting signal, but cannot select a destination on an unproven next branch");
+        typeof(WaypointApproach).GetMethod("SetContinuation",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)
+            .Invoke(approach,new object[]{new[]{Span("b",45,100),Span("next",0,30)}});
+        var afterStop=Signal("next-main","next",20);
+        var beyondStop=Leg(start,afterStop,Span("a",15,60),Span("b",0,100),Span("next",0,20));
+        Check(WaypointRoutePolicy.Destination(approach,start,new[]{afterStop,otherBranch},Array.Empty<MarkerRecord>(),false)==afterStop&&
+            WaypointRoutePolicy.Matches(approach,start,afterStop,RouteKind.Train,beyondStop)&&
+            WaypointRoutePolicy.Destination(approach,start,new[]{Signal("past-proof","next",35)},Array.Empty<MarkerRecord>(),false)==null,
+            "an exact path can reach the next signal beyond the waypoint across a proven segment boundary only");
         var tied=Signal("tied","a",40);
         bool ambiguous=false;
         try{WaypointRoutePolicy.Destination(approach,start,new[]{first,tied},Array.Empty<MarkerRecord>(),false);}
