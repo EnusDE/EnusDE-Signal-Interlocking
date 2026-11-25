@@ -123,6 +123,7 @@ namespace EnusDE.Signaltechnik {
             AddWorkspaceTool("REQUESTS",WindowText("Automatic requests","Automatische Anfragen"),()=>WorkspacePage(7),()=>panelPage==7);
             AddWorkspaceTool("MODULES",WindowText("Master modules and central takeover","ESTW-Module und zentrale Übernahme"),()=>WorkspacePage(8),()=>panelPage==8);
             AddWorkspaceTool("↔",WindowText("Open line / GWB permissions","Freie Strecke / GWB-Erlaubnisse"),OpenFreeLines,()=>panelPage==9);
+            if(StateManager.IsHost)AddWorkspaceTool("!",WindowText("Check module problems (editor)","Modulprobleme prüfen (Editor)"),()=>Act(OpenProblemsFromDispatcher),()=>false);
             AddWorkspaceTool("?",WindowText("Handbook","Handbuch"),()=>WorkspacePage(5),()=>panelPage==5);
             if(StateManager.IsHost) {
                 var stop=workspace.Button(workspace.Root,WindowText("STOP","HALT"),()=>Act(()=>{RequireDispatcher();PauseWaypointRequests();CancelRouteWork();foreach(var pending in automaticRequests.Where(r=>r.Stage==AutomaticRequestStage.Waiting||r.Stage==AutomaticRequestStage.Submitted).ToArray())WithdrawAutomaticRequest(pending,"Alle Signale Halt angefordert.");engine.HaltAll();panelButtons.Clear();status=LocalText.Get("Alle Signale Halt. Erforderliche Verschlüsse bleiben erhalten.");}),WindowText("Set all own signals to stop","Alle eigenen Signale auf Halt"));

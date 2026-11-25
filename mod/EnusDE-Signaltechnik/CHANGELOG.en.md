@@ -1,3 +1,12 @@
+## 0.7.71 — readable module problems
+
+- Host/editor problem overview groups affected items by interlocking, with functional module, cause, effect and next action; optional original technical details, diagram shortcuts and 25-result pages.
+- Typed GFM path diagnostics distinguish missing/invalid track, interrupted direction/path, point crossing, ambiguous junction and skipped detection boundary. Existing validator messages and admission decisions remain unchanged.
+- Saved configuration checks plus known route, line, game/waypoint and optional-model failures. Unknown check errors stay unverified; occupancy, waiting and intentional pauses are not faults by themselves.
+- Manual snapshot, configuration/world staleness warning, separate maintenance action. No automatic repair or protection relaxation; host/editor only. Gameplay and multiplayer acceptance remain open.
+
+- Full Test.ps1: 2,194 PASS, 0 FAIL against local original Railroader 0.6.3 libraries; main and optional pack compiled. No game/MP acceptance, installation or public release.
+
 ## 0.7.70 — distinct route colours and safe automatic movement preference
 
 - Train routes remain green; shunting routes use white across rails, active points, circuit half-rails and inline number mirrors. Red occupancy and amber unknown readings retain priority; released/retained states preserve their existing meaning.

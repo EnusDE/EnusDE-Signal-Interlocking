@@ -124,6 +124,7 @@ namespace EnusDE.Signaltechnik {
         }
 
         string ReadEditorPaneTitle() {
+            if(panelPage==14)return WindowText("Module problems and next steps","Modulprobleme und nächste Schritte");
             if(panelPage==15)return WindowText("Set up and check","Einrichten und prüfen");
             if(panelPage==13)return WindowText("World GFM setup","GFM-Welteinrichtung");
             if(panelPage==12)return WindowText("GFM inspection","GFM-Prüfung");

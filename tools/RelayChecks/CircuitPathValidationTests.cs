@@ -28,22 +28,22 @@ static class CircuitPathValidationTests {
         var inactive=a.Clone();inactive.Kind=MarkerRecord.Main;inactive.CircuitVariant=0;
         Check(CircuitPathValidation.Error(graph,split,inactive,b)!=null,"a leftover signal endpoint without an active GFM cannot masquerade as a valid physical detection boundary");
         var broken=split.Clone();broken.Path[1].Section.From+=.1;
-        Check(CircuitPathValidation.Error(graph,broken,a,b)!=null,"a real gap between saved GFM fragments remains rejected");
+        Check(CircuitPathValidation.Diagnose(graph,broken,a,b).Fault==CircuitPathFault.Interrupted,"a real gap between saved GFM fragments remains rejected");
         broken=split.Clone();broken.Path[1].Reverse=true;
         Check(CircuitPathValidation.Error(graph,broken,a,b)!=null,"a direction reversal inside a saved physical segment remains rejected");
         var moved=b.Clone();moved.Anchor.Meters+=.1;
         Check(CircuitPathValidation.Error(graph,split,a,moved)!=null,"moved GFM endpoints beyond positional tolerance invalidate the saved section");
         graph.Cuts.Add(new PlanCut{Segment="S",Meters=150,Boundary=Guid.NewGuid().ToString("N"),BoundaryKind=3,BoundaryCode="C-limit"});
-        Check(CircuitPathValidation.Error(graph,split,a,b)?.Contains("C-limit")==true,"a newly inserted C boundary is reported by identity instead of being mistaken for a turnout");
+        Check(CircuitPathValidation.Diagnose(graph,split,a,b).Fault==CircuitPathFault.SkippedBoundary&&CircuitPathValidation.Error(graph,split,a,b)?.Contains("C-limit")==true,"a newly inserted C boundary is reported by identity instead of being mistaken for a turnout");
         graph.Cuts.RemoveAt(2);graph.Edges.Clear();
-        Check(CircuitPathValidation.Error(graph,split,a,b)!=null,"unavailable native track cannot be accepted as a valid saved GFM path");
+        Check(CircuitPathValidation.Diagnose(graph,split,a,b).Fault==CircuitPathFault.InvalidInterval,"unavailable native track cannot be accepted as a valid saved GFM path");
         PointSections();LongSection();
     }
     static void PointSections() {
         var graph=new NetworkInput{Nodes=new List<PlanNode>{new PlanNode{Id="a"},new PlanNode{Id="W001",Point=true,Common="stem"},new PlanNode{Id="b"},new PlanNode{Id="c"}},Edges=new List<PlanEdge>{new PlanEdge{Id="stem",A="a",B="W001",Length=100},new PlanEdge{Id="normal",A="W001",B="b",Length=100},new PlanEdge{Id="branch",A="W001",B="c",Length=100}}};
         var a=End("stem",20);var b=End("normal",80);var block=Block(a,b,Piece("stem",20,100),Piece("normal",0,80));
         string error=CircuitPathValidation.Error(graph,block,a,b);
-        Check(error?.Contains("W001")==true,"a circuit crossing an actual point is rejected with the affected point identity");
+        Check(CircuitPathValidation.Diagnose(graph,block,a,b).Fault==CircuitPathFault.PointCrossing&&error?.Contains("W001")==true,"a circuit crossing an actual point is rejected with the affected point identity");
         var authority=new DirectionBlockAuthority{Enabled=true,Occupancy=s=>TrackOccupancy.Clear,Blocks=DirectionBlockBuilder.Build(new[]{new DirectionBlockLink{Id=block.Id,A="a",B="b",Path=block.Path,Error=error}},Array.Empty<string>())};
         Check(Reject(()=>authority.Reserve(new[]{new RouteDefinition{Path=block.Path}}))&&authority.Leases.Count==0,"actual point-crossing GFM errors still prevent block reservation and leave no direction lease");
         var stem=End("stem",75);var normal=End("normal",25);

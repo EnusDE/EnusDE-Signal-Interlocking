@@ -1,4 +1,8 @@
-# EnusDE Signal & Interlocking 0.7.70-P0
+# EnusDE Signal & Interlocking 0.7.71-P0
+
+0.7.71: readable module problems, effects and next steps grouped by interlocking. Host/editor → Set up and check → Module problems and next steps; dispatcher tool opens the same inspection. Manual read-only snapshot with optional technical details; no automatic repair. [English guide](Guides/MODULE-PROBLEMS-0.7.71.en.md).
+
+0.7.71: verständliche Modulprobleme mit Auswirkung und nächstem Schritt, nach Stellwerk geordnet. Host/Editor → Einrichten und prüfen → Modulprobleme und nächste Schritte; auch vom Fahrdienstleiter erreichbar. Lesender Schnappschuss mit zuschaltbaren technischen Details, keine automatische Reparatur. [Deutsche Anleitung](Guides/MODULE-PROBLEMS-0.7.71.de.md).
 
 0.7.70: green train routes, white shunting routes, occupied red/unknown amber retained. Automatic detection prefers train movements and permits only a proven local shunting alternative when no train destination exists. [English guide](Guides/ROUTE-TYPES-0.7.70.en.md) · [Deutsche Anleitung](Guides/ROUTE-TYPES-0.7.70.de.md). 2,170 offline checks pass; gameplay/AI/MP tests remain open. Compatible Runenwacht 0.2.2 needs no update.
 

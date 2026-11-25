@@ -1,3 +1,12 @@
+## 0.7.71 — Modulprobleme im Klartext
+
+- Host-/Editorübersicht nach Stellwerk: betroffenes Element und Funktionsmodul, Ursache, Auswirkung und nächster Schritt. Originaldetails zuschaltbar, Direktverweis zum Gleisbild und Seiten mit 25 Befunden.
+- Strukturierte GFM-Ursachen für fehlende/ungültige Gleisstücke, Lücken/Richtungswidersprüche, Weichenquerungen, mehrdeutige Knoten und übersprungene Grenzen. Bisherige Prüfentscheidungen und Originalmeldungen bleiben erhalten.
+- Gespeicherte Konfiguration und bekannte Fahrweg-, Strecken-, Spiel-/Wegpunkt- und Modellprobleme. Gescheiterte Prüfungen bleiben ungeklärt; Belegung, Warten und bewusste Pausen sind allein keine Störung.
+- Manueller Schnappschuss mit Hinweis auf veraltete Welt-/Konfigurationsdaten; Wartung gesondert. Keine automatische Reparatur oder Lockerung des Schutzes. Spiel-/Mehrspielerabnahme offen.
+
+- Vollständiges Test.ps1: 2.194 PASS, 0 FAIL gegen lokale Originalbibliotheken von Railroader 0.6.3; Hauptmod und optionales Paket kompiliert. Keine Spiel-/MP-Abnahme, Installation oder öffentliche Veröffentlichung.
+
 ## 0.7.70 — getrennte Fahrstraßenfarben und automatische Fahrartwahl
 
 - Zugfahrstraßen bleiben grün; Rangierstraßen werden weiß dargestellt, einschließlich Gleisen, aktiven Weichenarmen, GFM-Halbgleisen und integrierten Nummernspiegeln. Rot bei Belegung und Bernstein bei unbekannter Meldung behalten Vorrang; Auflösung und Restverschlüsse bleiben erkennbar.

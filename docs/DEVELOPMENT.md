@@ -1,4 +1,20 @@
-# Development status and continuation — 0.7.70
+# Development status and continuation — 0.7.71
+
+[English guide](../mod/EnusDE-Signaltechnik/Guides/MODULE-PROBLEMS-0.7.71.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/MODULE-PROBLEMS-0.7.71.de.md)
+
+Host/editor diagnostics now group findings by interlocking and functional module, with plain-language cause, effect and action, optional unchanged technical detail and direct diagram navigation. Saved GFM path validation exposes typed causes without changing its rejection/acceptance rules. Checks additionally cover saved diagram/point/route bindings, flank calculation, retained route faults, known line faults, failed game/waypoint integration and optional-model problems. Unknown check exceptions stay unverified. No automatic repairs or protection changes.
+
+25 November 2026: completed full Test.ps1 against the local original Railroader 0.6.3 libraries: **2,194 PASS / 0 FAIL** in build/checks/RESULTS.txt; main and Runenwacht compiled. New tests exercise module-failure isolation/location, native detail separation, stale world/configuration/install revisions, normal route states versus fault, bilingual distinct GFM actions and actual typed path rejection fixtures. Source/documentation diff and new package contents checked separately. Main 0.7.71; Runenwacht remains 0.2.2, minimum main 0.7.64/API v1 unchanged.
+
+This is a manual host/editor snapshot, not full health coverage: not every automation request, unconfigured GFM gap or current occupancy is inspected. Runtime line errors are the last known state; provider rendering errors can be historical. No world migration, installation, game launch, tag or public release. Existing archives retained.
+
+Still open for 0.8.0: in-game readability/navigation and UI behaviour, actual malformed/moved references, incomplete checks, intentional paused/occupied states, missing-model fallback, retained-fault protection, save/reload and host/client tests; earlier route-colour, AI/braking/turnback/block/following-train tests below; actual W157/stub-track GFM extent and rejection diagnosis. The community layout has not been changed or proven repaired.
+
+## Deutsch
+
+0.7.71 ergänzt **Modulprobleme und nächste Schritte**: betroffenes Stellwerk und Funktionsmodul, Ursache im Klartext, Auswirkung und Behebungshinweis. GFM-Ursachen werden strukturiert unterschieden. Originalkennungen/Fehlermeldungen sind zuschaltbar; unbekannte Prüfprobleme bleiben ungeklärt. **2.194 PASS / 0 FAIL** im vollständigen Test.ps1 am 25.11.2026, beide Assemblies kompiliert. Kein Laufzeitschutz verändert und keine automatische Reparatur. Manueller Host-/Editor-Schnappschuss mit begrenzter Abdeckung; Spiel-/KI-/Mehrspielerabnahme bleibt offen. Hauptmod 0.7.71, Runenwacht unverändert 0.2.2. Nachfolgend frühere Entwicklungsstände erhalten.
+
+# Previous development status — 0.7.70
 
 [English instructions](../mod/EnusDE-Signaltechnik/Guides/ROUTE-TYPES-0.7.70.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/ROUTE-TYPES-0.7.70.de.md)
 
