@@ -173,8 +173,9 @@ namespace EnusDE.Signaltechnik {
                 actionError=workspaceActionError;
                 actionErrorUntil=UnityEngine.Time.realtimeSinceStartup+5;
             }
+            c.AddLabel(LocalText.Select("Automatic detection prefers a train movement. A shunting alternative needs a proven local path and no train destination; an occupied or rejected train route never causes a fallback.","Automatische Erkennung bevorzugt die Zugfahrt. Eine Rangieralternative benötigt einen nachgewiesenen örtlichen Weg ohne Zugfahrziel; Belegung oder Ablehnung einer Zugfahrstraße lösen keinen Wechsel aus."));
             var movements=new[]{MovementRole.Unassigned,MovementRole.Train,MovementRole.Shunt};
-            var labels=new List<string>{LocalText.Select("Automatic detection","Automatisch erkennen"),LocalText.Get("Zugfahrt"),LocalText.Get("Rangierfahrt")};
+            var labels=new List<string>{LocalText.Select("Automatic · prefer train routes","Automatisch · Zugfahrt bevorzugen"),LocalText.Get("Zugfahrt"),LocalText.Get("Rangierfahrt")};
             int choice=Math.Max(0,Array.IndexOf(movements,WaypointMovementSelection(car)));
             c.AddField(LocalText.Select("Movement type","Fahrart"),c.AddDropdown(labels,choice,i=>Run(()=>SetWaypointMovement(car,movements[i]))));
             c.AddFieldToggle(LocalText.Select("Automatic route requests","Fahrstraßen automatisch anfragen"),

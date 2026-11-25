@@ -2380,5 +2380,8 @@
   "Nur bis zum letzten erreichbaren Blocksignal. Rest nicht gestellt. ": "Nur bis zum letzten erreichbaren Blocksignal. Rest nicht gestellt. ",
   "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Ankunftssignal.": "Der Wegpunkt folgt der eingerichteten Strecke nicht durchgehend bis zum Ankunftssignal.",
   "Wartet vor dem Richtungswechsel auf Stillstand und freie Weichen hinter dem ganzen Zug.": "Wartet vor dem Richtungswechsel auf Stillstand und freie Weichen hinter dem ganzen Zug.",
-  "Kein zuständiges Signal in Reichweite vor dem Wegpunkt.": "Kein zuständiges Signal in Reichweite vor dem Wegpunkt."
+  "Kein zuständiges Signal in Reichweite vor dem Wegpunkt.": "Kein zuständiges Signal in Reichweite vor dem Wegpunkt.",
+  "Fahrstraßenfarben: Grün = Zugfahrt, Weiß = Rangierfahrt; Rot = belegt, Bernstein = unbekannt/in Vorbereitung.": "Fahrstraßenfarben: Grün = Zugfahrt, Weiß = Rangierfahrt; Rot = belegt, Bernstein = unbekannt/in Vorbereitung.",
+  "Automatische Erkennung bevorzugt die Zugfahrt. Eine Rangieralternative benötigt einen nachgewiesenen örtlichen Weg ohne Zugfahrziel; Belegung oder Ablehnung einer Zugfahrstraße lösen keinen Wechsel aus.": "Automatische Erkennung bevorzugt die Zugfahrt. Eine Rangieralternative benötigt einen nachgewiesenen örtlichen Weg ohne Zugfahrziel; Belegung oder Ablehnung einer Zugfahrstraße lösen keinen Wechsel aus.",
+  "Automatisch · Zugfahrt bevorzugen": "Automatisch · Zugfahrt bevorzugen"
 }

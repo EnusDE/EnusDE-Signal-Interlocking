@@ -1,3 +1,10 @@
+## 0.7.70 — distinct route colours and safe automatic movement preference
+
+- Train routes remain green; shunting routes use white across rails, active points, circuit half-rails and inline number mirrors. Red occupancy and amber unknown readings retain priority; released/retained states preserve their existing meaning.
+- Automatic waypoint movement prefers a structural train destination. Only its absence allows a proven same-station shunting alternative; no fallback after train admission fails. Explicit movement selections remain binding, free-line/block crossings stay excluded.
+- Bilingual legend and movement explanation; no operating protection, signal aspect or shared-frame schema changes.
+- Full offline suite: 2,170 PASS, 0 FAIL. Gameplay, automatic selection and host/client display acceptance remain open.
+
 # 0.7.69-P0 · Through block signals and following trains
 
 - Waypoint automation checks each configured block leg in the selected direction, including the last block signal to the neighbouring arrival signal.

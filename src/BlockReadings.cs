@@ -45,6 +45,7 @@ namespace EnusDE.Signaltechnik {
     public sealed partial class SignalRuntime {
         readonly Dictionary<string,string[]> blockCars=new Dictionary<string,string[]>();
         readonly HashSet<string> routeBlocks=new HashSet<string>(),settingBlocks=new HashSet<string>(),routePoints=new HashSet<string>(),settingPoints=new HashSet<string>();
+        readonly Dictionary<string,PanelRouteKind> routeBlockKinds=new Dictionary<string,PanelRouteKind>(),routePointKinds=new Dictionary<string,PanelRouteKind>();
         IEnumerable<string> TileBlocks(PanelTile tile) {
             if(tile==null||tile.Section!=null)yield break;
             if(tile.Kind==PanelTileKind.Switch&&!string.IsNullOrEmpty(tile.Reference)){if(desks?.Blocks.ContainsKey("p:"+tile.Reference)==true)yield return "p:"+tile.Reference;yield break;}
@@ -73,10 +74,25 @@ namespace EnusDE.Signaltechnik {
             ElectNumberDisplays();BuildRouteCues();
         }
         void BuildRouteCues() {
-            routeBlocks.Clear();settingBlocks.Clear();routePoints.Clear();settingPoints.Clear();var runs=VisibleRuns;
-            foreach(var run in runs){bool valid=run.ChainReady&&(run.Stage==RouteStage.Set||run.Stage==RouteStage.Running),setting=IsSetting(run);if(!valid&&!setting)continue;foreach(var p in run.Route.Switches.Where(p=>p.FlankOf==null&&!run.ReleasedSwitches.Contains(p.Node)))(valid?routePoints:settingPoints).Add(p.Node);
-                var held=run.HeldSections.Where(s=>run.Route.Path==null||run.Route.Path.Any(p=>p.Section.Overlaps(s))).GroupBy(s=>s.Segment).ToDictionary(g=>g.Key,g=>g.ToArray());foreach(var block in desks.Blocks.Values){if(block.Sections.Any(s=>held.ContainsKey(s.Segment)&&held[s.Segment].Any(s.Overlaps)))(valid?routeBlocks:settingBlocks).Add(block.Id);}
+            routeBlocks.Clear();settingBlocks.Clear();routePoints.Clear();settingPoints.Clear();routeBlockKinds.Clear();routePointKinds.Clear();
+            foreach(var run in VisibleRuns) {
+                var kind=PanelRouteStyle.Kind(run);bool valid=kind!=PanelRouteKind.None,setting=IsSetting(run);if(!valid&&!setting)continue;
+                foreach(var point in run.Route.Switches.Where(p=>p.FlankOf==null&&!run.ReleasedSwitches.Contains(p.Node))) {
+                    (valid?routePoints:settingPoints).Add(point.Node);
+                    if(valid){routePointKinds.TryGetValue(point.Node,out var previous);routePointKinds[point.Node]=PanelRouteStyle.Merge(previous,kind);}
+                }
+                var held=run.HeldSections.Where(s=>run.Route.Path==null||run.Route.Path.Any(p=>p.Section.Overlaps(s))).GroupBy(s=>s.Segment).ToDictionary(g=>g.Key,g=>g.ToArray());
+                foreach(var block in desks.Blocks.Values)if(block.Sections.Any(s=>held.ContainsKey(s.Segment)&&held[s.Segment].Any(s.Overlaps))) {
+                    (valid?routeBlocks:settingBlocks).Add(block.Id);
+                    if(valid){routeBlockKinds.TryGetValue(block.Id,out var previous);routeBlockKinds[block.Id]=PanelRouteStyle.Merge(previous,kind);}
+                }
             }
+        }
+        PanelRouteKind TileRouteKind(PanelTile tile) {
+            if(tile==null)return PanelRouteKind.None;
+            if(tile.Kind==PanelTileKind.Switch&&routePointKinds.TryGetValue(tile.Reference,out var point))return point;
+            if(tile.Section!=null)return PanelRouteStyle.OnSection(tile.Section,VisibleRuns);
+            var kind=PanelRouteKind.None;foreach(var id in TileBlocks(tile))if(routeBlockKinds.TryGetValue(id,out var next))kind=PanelRouteStyle.Merge(kind,next);return kind;
         }
         bool InRoute(PanelTile tile,bool setting=false) {
             if(tile.Kind==PanelTileKind.Switch&&(setting?settingPoints:routePoints).Contains(tile.Reference))return true;

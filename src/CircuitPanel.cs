@@ -12,11 +12,13 @@ namespace EnusDE.Signaltechnik {
             panelReadings.TryGetValue(key,out var read)?read:TrackOccupancy.Unknown;
 
         bool DisplayMonitored(string id)=>CircuitDisplayPolicy.Monitored(desks,id);
+        static Color RouteRailColor(TrackOccupancy occupancy,PanelRouteKind kind) {
+            switch(PanelRouteStyle.Resolve(occupancy,kind)){case PanelRailInk.Occupied:return Color.red;case PanelRailInk.Unknown:return unknownRail;case PanelRailInk.Train:return Color.green;case PanelRailInk.Shunt:return Color.white;default:return freeRail;}
+        }
         Color RailColor(string blockId) {
             if(!DisplayMonitored(blockId))return unknownRail;
             var state=ReadPanelKey("block:"+blockId);
-            return state==TrackOccupancy.Occupied?Color.red:state==TrackOccupancy.Clear&&routeBlocks.Contains(blockId)?Color.green:
-                state==TrackOccupancy.Clear?freeRail:unknownRail;
+            routeBlockKinds.TryGetValue(blockId,out var kind);return RouteRailColor(state,kind);
         }
 
         PanelTile Neighbour(PanelTile tile,int port) {
@@ -69,8 +71,7 @@ namespace EnusDE.Signaltechnik {
                         continue;
                     }
                     if(next.Section!=null)
-                        view.PortColors[i]=ReadPanelKey(next.Section.Key)==TrackOccupancy.Occupied?Color.red:
-                            InRoute(next)?Color.green:ReadPanelKey(next.Section.Key)==TrackOccupancy.Clear?freeRail:unknownRail;
+                        view.PortColors[i]=RouteRailColor(ReadPanelKey(next.Section.Key),TileRouteKind(next));
                     else view.PortColors[i]=RailColor(next.BlockId);
                 }
             } else if(tile.Kind==PanelTileKind.Switch&&tile.Reference!="") {
@@ -99,7 +100,7 @@ namespace EnusDE.Signaltechnik {
                     var occupied=guard!=null?ReadPanelKey(guard.Key):TrackOccupancy.Unknown;
                     bool active=i==0||view.PointKnown&&(view.Thrown?i==2:i==1);
                     Color color=occupied==TrackOccupancy.Occupied?Color.red:!active?new Color(.18f,.2f,.21f):
-                        occupied==TrackOccupancy.Unknown?unknownRail:routePoints.Contains(tile.Reference)?Color.green:freeRail;
+                        occupied==TrackOccupancy.Unknown?unknownRail:RouteRailColor(occupied,TileRouteKind(tile));
                     for(int port=0;port<8;port++)if((worldPort&(1<<port))!=0) {
                     view.PortColors[port]=color;
                     }

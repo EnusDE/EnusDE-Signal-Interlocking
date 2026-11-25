@@ -1,4 +1,8 @@
-# EnusDE Signal & Interlocking 0.7.69-P0
+# EnusDE Signal & Interlocking 0.7.70-P0
+
+0.7.70: green train routes, white shunting routes, occupied red/unknown amber retained. Automatic detection prefers train movements and permits only a proven local shunting alternative when no train destination exists. [English guide](Guides/ROUTE-TYPES-0.7.70.en.md) · [Deutsche Anleitung](Guides/ROUTE-TYPES-0.7.70.de.md). 2,170 offline checks pass; gameplay/AI/MP tests remain open. Compatible Runenwacht 0.2.2 needs no update.
+
+0.7.70: Zugfahrstraßen grün, Rangierstraßen weiß; Belegung rot und unbekannte Meldungen bernsteinfarben behalten Vorrang. Automatik bevorzugt Zugfahrt, nur ohne Zugfahrziel eine nachgewiesene örtliche Rangieralternative. 2.170 Offline-Prüfungen bestanden; Spiel-/KI-/Mehrspielerprüfung offen.
 
 Enable waypoint requests from the launcher gear, set a waypoint in Auto Engineer and read its status in the locomotive's Signalling tab. The interlocking can set up to three compatible legs ahead. Check turns and line departures in a copy of your world before using the test build for regular operation. [English operating basics](Guides/WAYPOINT-0.7.66.en.md) · [Grundbedienung auf Deutsch](Guides/WAYPOINT-0.7.66.de.md).
 

@@ -1,4 +1,22 @@
-# Development status and continuation — 0.7.69
+# Development status and continuation — 0.7.70
+
+[English instructions](../mod/EnusDE-Signaltechnik/Guides/ROUTE-TYPES-0.7.70.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/ROUTE-TYPES-0.7.70.de.md)
+
+Route rendering carries the admitted route's Shunting flag into green train / white shunting track colours. Occupied remains red and unknown remains amber across base rails, independent half-rails, active switch arms and inline number mirrors. Preparing and retained fault indications stay separate. No authority, occupancy admission or native signal aspect is derived from the display colour.
+
+Automatic waypoint movement keeps explicit choices. In automatic detection, a structural train destination wins even if later admission fails. Only no train destination plus a supported same-station shunting endpoint on the proven current path permits the shunting alternative. Configured free-line intervals (also disabled) and block signals are excluded. The normal route planner and all protective checks still run afterwards. Query failures are reported, not reinterpreted as a shunting request.
+
+25 November 2026: full Test.ps1 **2,170 PASS, 0 FAIL** against the local original 0.6.3 libraries, with both assemblies compiled. New checks cover route metadata/state/occupancy priority, released intervals, display aggregation, explicit choices, lazy preference/error propagation and directed local/free-line/block exclusions. UI texts and both language packs/generated fallback updated. Main version is 0.7.70; optional Runenwacht stays 0.2.2 and API v1/minimum main 0.7.64 remain unchanged. No schema/data migration, installation, game launch, tag or public release.
+
+## Toward 0.8.0 / Richtung 0.8.0
+
+This is a development checkpoint, not a claim of full 0.8.0 acceptance. Next real-game tests: colour/occupancy at normal and mirrored panels, shunting into occupied track outside protected points, refusal at occupied/unknown protection, train preference versus local shunting-only goals, explicit roles, missing line permission, both directions, native waypoint/braking/turnback and 0.7.69 following trains/block continuation, save/reload and host/client views. The public 0.7.59 user's W157/stub-track case still needs the actual GFM extents and rejection message; this change does not guess or rewrite that installation. Direct editor palette/drag placement remains a separate usability request.
+
+**Deutsch:** 0.7.70 trennt grüne Zugfahrstraßen und weiße Rangierstraßen; Rot/Unbekannt behalten Vorrang. Automatische Fahrartwahl bevorzugt Zugfahrt und wechselt nur ohne Zugfahrziel auf eine nachgewiesene örtliche Rangieralternative. Explizite Fahrarten, Schutzprüfungen und native Signalbegriffe bleiben erhalten. **2.170 PASS, 0 FAIL** am 25.11.2026. Für 0.8.0 stehen die genannten Spiel-/KI-/Mehrspielerprüfungen und die konkrete GFM-Fallprüfung noch aus. Nachfolgend erhaltene vorherige Entwicklungsstände.
+
+---
+
+# Previous checkpoint — 0.7.69
 
 ## Block continuation and following trains
 

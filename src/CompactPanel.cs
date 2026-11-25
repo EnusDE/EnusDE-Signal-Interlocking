@@ -10,6 +10,7 @@ namespace EnusDE.Signaltechnik {
             r.Route.Flanks?.SelectMany(f=>f.Signals).Any(s=>s.Id==signal)==true);
 
         void BuildDispatcherFields(UIPanelBuilder c) {
+            c.AddLabel(LocalText.Select("Route colours: green = train, white = shunting; red = occupied, amber = unknown/preparing.","Fahrstraßenfarben: Grün = Zugfahrt, Weiß = Rangierfahrt; Rot = belegt, Bernstein = unbekannt/in Vorbereitung."));
             BuildRouteWorkControls(c);
             if(panelPage==4){BuildDeskPicker(c);return;}
             if(panelPage==9){BuildFreeLines(c);return;}

@@ -15,6 +15,18 @@ namespace EnusDE.Signaltechnik {
 
         readonly Dictionary<string,WaypointPreparation> waypointPreparations=new Dictionary<string,WaypointPreparation>();
 
+        IEnumerable<MarkerRecord> WaypointAuxiliaries(DeskDefinition station)=>station.Panel.Tiles.Where(t=>!t.ReadOnlySignal&&t.Target?.Function==AuxiliaryFunction.RouteDestination)
+            .Select(t=>t.Target.Id).Distinct().Where(id=>BoundLineTarget(id)==null).Select(AuxiliaryEndpoint).Where(s=>s!=null);
+        MovementRole AutomaticWaypointMovement(MarkerRecord source,WaypointApproach approach) {
+            var station=SignalStation(source.Id);if(station==null)return MovementRole.Train;
+            var auxiliary=WaypointAuxiliaries(station).ToArray();
+            // Include unavailable physical signals in the static train query: their failure must not trigger shunting.
+            return WaypointMovementPolicy.Choose(MovementRole.Unassigned,
+                SignalCatalogue.Supports(source,false,false)||SignalCatalogue.Supports(source,false,true),SignalCatalogue.Supports(source,true,false),
+                ()=>WaypointRoutePolicy.Destination(approach,source,SignalObjects,auxiliary,false)!=null,
+                ()=>{var target=WaypointRoutePolicy.Destination(approach,source,SignalObjects,auxiliary,true);return target!=null&&WaypointMovementPolicy.ProvenLocalAlternative(approach,source,target,
+                    auxiliary.Any(a=>a.Id==target.Id)||SignalStation(target.Id)?.Id==station.Id,desks.FreeLines);});
+        }
         MarkerRecord WaypointDestination(string signal,MovementRole role,WaypointApproach approach,out MarkerRecord source,out RouteKind kind,out List<DirectedRouteSection> requiredLine) {
             source=Object(signal);
             bool shunting=role==MovementRole.Shunt;
@@ -23,8 +35,7 @@ namespace EnusDE.Signaltechnik {
                 throw new InvalidOperationException(LocalText.Select("The next signal cannot authorize this movement.","Das nächste Signal kann diese Fahrart nicht freigeben."));
             var station=SignalStation(signal);
             if(station==null)throw new InvalidOperationException(LocalText.Select("Assign the start signal to a local interlocking first.","Zuerst das Startsignal einem örtlichen Stellwerk zuordnen."));
-            var auxiliary=station.Panel.Tiles.Where(t=>!t.ReadOnlySignal&&t.Target?.Function==AuxiliaryFunction.RouteDestination)
-                .Select(t=>t.Target.Id).Distinct().Where(id=>BoundLineTarget(id)==null).Select(AuxiliaryEndpoint).Where(s=>s!=null);
+            var auxiliary=WaypointAuxiliaries(station);
             var target=WaypointRoutePolicy.Destination(approach,source,SignalObjects,auxiliary,shunting,s=>!IgnoreOwnSignal(s.Id));
             if(target==null)throw new InvalidOperationException(LocalText.Select("No reachable signal or auxiliary destination for this waypoint leg.","Kein erreichbares Signal oder Hilfsziel für diesen Wegpunktabschnitt."));
             requiredLine=WaypointLinePolicy.RequiredPath(desks.FreeLines,station.Id,SignalStation(target.Id)?.Id,source,target,shunting);

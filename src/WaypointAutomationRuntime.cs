@@ -199,6 +199,10 @@ namespace EnusDE.Signaltechnik {
                 try{WaypointDestination(source.Id,MovementRole.Shunt,approach,out _,out _,out _);movement=MovementRole.Shunt;}
                 catch(InvalidOperationException failure){reason=caption+LocalText.Get(failure.Message);return false;}
             }
+            if(!shuntOnly&&selection==MovementRole.Unassigned) {
+                try{movement=AutomaticWaypointMovement(source,approach);}
+                catch(InvalidOperationException failure){reason=caption+LocalText.Get(failure.Message);return false;}
+            }
             if(!SignalCatalogue.Supports(source,movement==MovementRole.Shunt,false)&&
                 !(movement==MovementRole.Train&&SignalCatalogue.Supports(source,false,true)))
                 {reason=caption+LocalText.Select("The next signal does not support this movement.","Das nächste Signal unterstützt diese Fahrart nicht.");return false;}

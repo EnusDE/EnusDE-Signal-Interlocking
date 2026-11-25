@@ -46,3 +46,8 @@
 - Keep code and display name separate, and preserve the original API-v1 frame constructor alongside additive metadata. Offline geometry renders/checks do not replace actual shader, AI, UI, multiplayer or performance acceptance.
 
 - Runenwacht 0.2.1 follows owner feedback: selected active bodies may emit gently near and more strongly far away; distance gain never activates another channel or changes authority. Preserve opaque rear occlusion, fixed crystal colours, actual plaque-to-mast supports and continuous head/insulator/bus connections. Pack-only updates do not advance/repackage unchanged main code.
+
+## Route kinds and automation preference (25 November 2026)
+
+- Admitted train routes, including reduced train routes, use green track indication; admitted shunting routes use white. Derive this from RouteDefinition.Shunting, not signal lamp colour/model/code or the current UI selection. Occupied red and unknown amber always retain priority, including switches, half-rails and inline/mirrored number displays. Released/preparing/fault-retained sections must not look like admitted clear routes.
+- Automatic waypoint selection prefers a structurally reachable train destination. Only its absence can permit a supported proven local shunting alternative. Never switch because train admission fails, detection is occupied/unknown, permission is missing, a signal is unavailable or planning is ambiguous. Keep explicit train/shunting choices binding, exclude configured free-line/block crossings and retain all normal route admission checks.

@@ -1,3 +1,10 @@
+## 0.7.70 — getrennte Fahrstraßenfarben und automatische Fahrartwahl
+
+- Zugfahrstraßen bleiben grün; Rangierstraßen werden weiß dargestellt, einschließlich Gleisen, aktiven Weichenarmen, GFM-Halbgleisen und integrierten Nummernspiegeln. Rot bei Belegung und Bernstein bei unbekannter Meldung behalten Vorrang; Auflösung und Restverschlüsse bleiben erkennbar.
+- Automatische Wegpunktfahrart bevorzugt ein grundsätzlich erreichbares Zugfahrziel. Nur dessen Fehlen erlaubt eine nachgewiesene örtliche Rangieralternative; kein Wechsel nach abgewiesener Zugfahrstraßenzulassung. Ausdrückliche Auswahl bleibt bindend, freie Strecke und Blocksignal bleiben ausgeschlossen.
+- Zweisprachige Legende und Erklärung; keine Lockerung der Betriebsprüfungen, keine Änderung der Signalbegriffe oder des Live-Frame-Formats.
+- Vollständige Offline-Prüfung: 2.170 PASS, 0 FAIL. Spiel-/Automatik-/Host-Client-Abnahme noch offen.
+
 # 0.7.69-P0 · Blockweiterfahrt und Folgezüge
 
 - Die Wegpunkt-Automatik prüft jeden eingerichteten Blockabschnitt in Fahrtrichtung, einschließlich der Fahrt vom letzten Blocksignal zum Einfahrsignal des Nachbarstellwerks.

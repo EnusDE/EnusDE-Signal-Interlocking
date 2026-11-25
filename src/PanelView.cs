@@ -355,7 +355,7 @@ PlaceSignalCaption(second,item,true);
                 if(state.HasMiddleRail)start=Vector2.Lerp(center,end,.5f);
                 Line(vh,start,end,pen,color);
                 if(state.HasMiddleRail)Line(vh,center,start,pen,state.MiddleRail);
-                if(tile.Kind==PanelTileKind.TrainNumber&&(color==Color.red||color==Color.green))
+                if(tile.Kind==PanelTileKind.TrainNumber&&(color==Color.red||color==Color.green||color==Color.white))
                     Line(vh,center+Vector2.down*(8*zoom),Vector2.Lerp(center,end,.72f)+Vector2.down*(8*zoom),pen,color);
             }
         }

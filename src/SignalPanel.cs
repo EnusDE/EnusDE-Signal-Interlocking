@@ -73,7 +73,7 @@ namespace EnusDE.Signaltechnik {
             value.Caption=tile.Kind==PanelTileKind.TrainNumber?NumberCaption(tile):tile.Label;
             if(tile.Kind==PanelTileKind.LinePermission&&!tile.InlinePermission)return LinePermissionVisual(tile,value);
             if(tile.Kind==PanelTileKind.Label)return value;
-            if(NumberMirrors.IsMirror(tile)){var source=NumberMirrorBindings().Source(tile);var read=source==null||!StateManager.IsHost&&Entry.Shared?.LiveFresh!=true?TrackOccupancy.Unknown:PanelOccupancy(source.Tile);value.Unknown=source==null||read==TrackOccupancy.Unknown;value.Occupied=read==TrackOccupancy.Occupied;value.Blink=source!=null&&InRoute(source.Tile,true);value.Rail=value.Occupied?Color.red:value.Unknown?new Color(.65f,.5f,.18f):tile.InlineNumberMirror?(source!=null&&InRoute(source.Tile)?Color.green:new Color(.5f,.55f,.55f)):new Color(.25f,.7f,.8f);return value;}
+            if(NumberMirrors.IsMirror(tile)){var source=NumberMirrorBindings().Source(tile);var read=source==null||!StateManager.IsHost&&Entry.Shared?.LiveFresh!=true?TrackOccupancy.Unknown:PanelOccupancy(source.Tile);value.Unknown=source==null||read==TrackOccupancy.Unknown;value.Occupied=read==TrackOccupancy.Occupied;value.Blink=!value.Occupied&&!value.Unknown&&source!=null&&InRoute(source.Tile,true);value.Rail=value.Occupied?Color.red:value.Unknown?new Color(.65f,.5f,.18f):tile.InlineNumberMirror?(source!=null?RouteRailColor(read,TileRouteKind(source.Tile)):freeRail):new Color(.25f,.7f,.8f);return value;}
             value.Retained=RetainedRouteDisplay.OnTile(tile,desks,VisibleRuns);
             if(tile.Kind==PanelTileKind.AuxiliaryTarget) {
                 value.Caption=tile.Target?.Caption??"Hilfsziel";
@@ -86,7 +86,7 @@ namespace EnusDE.Signaltechnik {
                 }
             }
             var occupied=PanelOccupancy(tile);var cue=PanelTrackPolicy.Resolve(occupied,InRoute(tile),InRoute(tile,true));value.Occupied=cue==PanelTrackCue.Occupied;value.Unknown=cue==PanelTrackCue.Unknown;value.Blink=cue==PanelTrackCue.Setting;
-            value.Rail=cue==PanelTrackCue.Occupied?Color.red:cue==PanelTrackCue.Route?Color.green:cue==PanelTrackCue.Unknown?new Color(.65f,.5f,.18f):new Color(.5f,.55f,.55f);
+            value.Rail=RouteRailColor(occupied,cue==PanelTrackCue.Route?TileRouteKind(tile):PanelRouteKind.None);
             if(tile.Kind==PanelTileKind.Signal) {
                 var signal=Object(tile.Reference);bool missing=signal?.IsSignal!=true;value.Distant=signal?.Kind==MarkerRecord.Distant;value.Caption=signal!=null&&(!string.IsNullOrWhiteSpace(signal.DisplayName)||!string.IsNullOrWhiteSpace(signal.MastName)&&signal.MastName!=signal.Name)?signal.DisplayTitle:string.IsNullOrWhiteSpace(tile.Label)?signal?.DisplayTitle??"Signal":tile.Label;
                 value.ShuntOnly=Object(tile.Reference)?.Kind==MarkerRecord.Shunt;value.HasShunt=Object(tile.Reference)?.Kind==MarkerRecord.Main&&Object(tile.Reference).AllowSh1;var aspect=Aspect(tile.Reference);value.Lamp=missing?new Color(.9f,.6f,.1f):aspect==LocalSignalAspect.Clear?Color.green:aspect==LocalSignalAspect.Slow?Color.yellow:aspect==LocalSignalAspect.Shunt?Color.white:value.Distant?Color.yellow:Color.red;
