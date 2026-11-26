@@ -1,4 +1,18 @@
-# Development status and continuation — 0.7.72
+# Development status and continuation — 0.7.73
+
+The GFM world overlay prepares a copy of the saved sections and their identity colours on a worker. Colours are cached for the loaded section catalogue. The indexed colour calculation produced identical results to 0.7.72 on 908 sections in an offline comparison. It took about 1.3–2.1 ms with about 0.49 MiB allocated per run. These figures measure only colour preparation.
+
+The camera and native track are read on the Unity thread. The overlay queues geometry and object work across frames with a 1 ms time target per slice. The selected section and the nearest pieces have priority within the visible range. Existing pieces remain during refresh and are reused. The overlay can draw up to 3,000 visible pieces, including end posts. Closing Build, hiding the overlay, unloading and losing build permission cancel pending work.
+
+The full build and offline suite passed **2,208 checks, zero failures** against local Railroader 0.6.3 libraries. Regression checks cover colour parity, cancellation, deferred geometry work, empty views and draw priority.
+
+With signal diagnostics enabled, `gfm_overlay_state` records enable and disable times. `gfm_overlay_refresh` records reused and newly allocated pieces, wall-clock duration and the slowest main-thread slice. The next in-game comparison uses the same camera movement with the overlay off and on. Verify selection, curve and point alignment, end posts, floating-origin movement, repeated toggles and frame times. Operational track detection and route protection continue independently of the overlay.
+
+## Deutsch
+
+0.7.73 bereitet die Abschnittsfarben im Hintergrund vor. Im Baumodus entstehen Linien und Klickflächen schrittweise. Bereits vorhandene Abschnitte bleiben beim Kameraschwenk sichtbar. Die betriebliche Freimeldung läuft unabhängig weiter. Im Spiel steht der Vergleich derselben Kamerafahrt mit und ohne Anzeige noch aus.
+
+# Previous development status — 0.7.72
 
 [English guide](../mod/EnusDE-Signaltechnik/Guides/GFM-WORLD-0.7.72.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/GFM-WORLD-0.7.72.de.md)
 

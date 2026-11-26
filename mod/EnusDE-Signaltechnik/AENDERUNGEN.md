@@ -1,3 +1,9 @@
+## 0.7.73 — GFM-Weltanzeige schrittweise aufbauen
+
+- Abschnittsfarben im Hintergrund vorbereiten und bei Kamerabewegungen beibehalten.
+- Ausgewählte und nahe Streckenstücke in kleinen Portionen anzeigen. Vorhandene Linien und Klickflächen bleiben nutzbar und werden wiederverwendet.
+- Beim Ausblenden oder Verlassen des Baumodus endet der Aufbau. Die betriebliche Gleisfreimeldung läuft weiter.
+
 ## 0.7.72 — farbige GFM-Abschnitte in der Welt
 
 - Lokale Host-Bauhilfe mit automatisch vergebenen, wiederverwendbaren Abschnittsfarben, Endpfosten und breiterer Auswahl. Benachbarte Grenzen/Intervalle werden bei der Farbwahl berücksichtigt; Farben haben keine Betriebsbedeutung.

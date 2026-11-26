@@ -125,6 +125,13 @@ namespace EnusDE.Signaltechnik {
         public MarkerDocument Objects()=>installation==null?null:JsonConvert.DeserializeObject<MarkerDocument>(JsonConvert.SerializeObject(installation.Objects));
         public InstallationDocument Snapshot()=>installation?.Clone();
         public DeskLibrary Desks()=>sharedDesks?.Clone();
+        internal object GfmWorldDataVersion=>sharedDesks;
+        internal TrackBlock[] GfmWorldBlocks()=>sharedDesks?.Blocks.Values.Select(block=>block.Clone()).ToArray();
+        internal (string Id,string Code,string Name)[] GfmWorldDesks(string block,out (string Id,string Code,string Name)[] all) {
+            var ids=new HashSet<string>{block};
+            all=sharedDesks.Desks.Select(d=>(d.Id,d.Code,d.Name)).ToArray();
+            return sharedDesks.Desks.Where(d=>d.Panel.Tiles.Any(tile=>GfmCoverage.Ports(tile,ids)!=0)).Select(d=>(d.Id,d.Code,d.Name)).ToArray();
+        }
         public List<RouteDefinition> Routes()=>sharedRoutes?.Select(r=>r.Clone()).ToList();
         public IReadOnlyDictionary<string,string> NumberRegistry()=>installation?.TrainNumbers;
         public IReadOnlyDictionary<string,string> NumberFields()=>installation?.SignalNumberFields;

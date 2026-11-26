@@ -1,4 +1,8 @@
-# EnusDE Signal & Interlocking 0.7.72-P0
+# EnusDE Signal & Interlocking 0.7.73-P0
+
+0.7.73 builds the GFM world overlay progressively. Selected and nearby pieces appear first. Existing visual elements are reused when panning.
+
+0.7.73 baut die GFM-Weltanzeige schrittweise auf. Ausgewählte und nahe Gleisstücke erscheinen zuerst. Beim Verschieben bleiben vorhandene Anzeigeelemente erhalten.
 
 0.7.72: Host Build → Show GFM sections and boundaries. Select saved paths in the world, inspect and edit via existing GFM/diagram tools. [English](Guides/GFM-WORLD-0.7.72.en.md).
 

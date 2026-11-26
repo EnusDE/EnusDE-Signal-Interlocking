@@ -1,3 +1,9 @@
+## 0.7.73 — progressive world GFM overlay
+
+- Prepare section colours in the background and retain them as the camera moves.
+- Draw selected and nearby track pieces in short batches. Existing lines and click targets remain usable and are reused.
+- Hiding the overlay or leaving Build cancels pending work. Operational track detection continues.
+
 ## 0.7.72 — coloured world GFM sections
 
 - Local host Build overlay of saved sections with automatically assigned repeating identity colours, endpoint posts and wider selection. Neighbouring boundaries/intervals guide colour separation; colours carry no operating meaning.

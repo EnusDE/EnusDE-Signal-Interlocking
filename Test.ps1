@@ -43,7 +43,7 @@ foreach($mode in @('native','bridge')){
 }
 $mod=Join-Path $PSScriptRoot 'mod\EnusDE-Signaltechnik'
 $manifest=Get-Content -LiteralPath (Join-Path $mod 'Info.json') -Raw | ConvertFrom-Json
-if($manifest.identifier -ne 'enusde/signaltechnik' -or $manifest.version -ne '0.7.72'){throw 'Unerwartete Paketkennung/Version.'}
+if($manifest.identifier -ne 'enusde/signaltechnik' -or $manifest.version -ne '0.7.73'){throw 'Unerwartete Paketkennung/Version.'}
 if($manifest.dependencies.required.Count -ne 1 -or $manifest.dependencies.required[0] -ne 'rr/game ==0.6.3'){throw 'Unerwartete Spiel-/Mod-Abhängigkeit.'}
 if($manifest.scope -ne 'unscoped' -or $manifest.assemblies.Count -ne 1 -or $manifest.assemblies[0] -ne 'EnusDE.Signaltechnik.dll'){throw 'Gemeinsame Anlage muss dieselbe Pflichtversion und nur die eigene Assembly deklarieren.'}
 if(Get-ChildItem -LiteralPath $mod -Recurse -File | Where-Object {$_.Extension -in @('.dll','.exe','.ps1')}){throw 'Testwerkzeug im spielbaren Paket gefunden.'}

@@ -2492,6 +2492,8 @@
   "Baumodus erforderlich.": "Build mode required.",
   "Farben unterscheiden gespeicherte Abschnitte, keine Belegung oder Erlaubnis. Farbiges Gleis anklicken. Endpfosten markieren gespeicherte Weggrenzen; sie zeigen keine C-Wirkrichtung. Unmarkiertes Gleis ist nicht als frei bestätigt. Anzeigebereich: 400 m; aus Leistungsgründen begrenzt.": "Colours distinguish saved sections, not occupancy or permission. Click a coloured track. End posts mark saved path limits; they do not show C direction. Uncoloured track is not confirmed clear. Display range: 400 m; capped for performance.",
   "Sichtbare Abschnitte: ": "Visible sections: ",
+  "Gleisanzeige": "Track display",
+  " · Ansicht wird aufgebaut …": " · Building view…",
   " · Nicht verfügbare oder begrenzte Teilstücke: ": " · Unavailable or limited pieces: ",
   "Abschnittsanzeige nicht verfügbar: ": "Overlay unavailable: ",
   "Keine gespeicherten Abschnitte. Zuerst mit der GFM-Einrichtung erkennen und zuordnen.": "No saved sections. Use GFM setup to detect and assign them first.",
