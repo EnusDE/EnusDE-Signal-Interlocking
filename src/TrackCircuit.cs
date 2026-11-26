@@ -47,7 +47,8 @@ namespace EnusDE.Signaltechnik {
                 });
                 if(atTarget) {
                     if(current.Sections.Count>0&&current.Length>=.01&&
-                        current.Sections[0].Section.Segment==from.Segment&&current.Sections.Last().Section.Segment==to.Segment) {
+                        EndDirection(graph,current.Sections[0],from.Segment,from.Meters,true,out _)&&
+                        EndDirection(graph,current.Sections.Last(),to.Segment,to.Meters,false,out _)) {
                         var candidate=new CircuitPath();
                         candidate.Sections.AddRange(current.Sections);
                         candidate.Points.AddRange(current.Points);
@@ -78,25 +79,56 @@ namespace EnusDE.Signaltechnik {
 
         public static List<CircuitPath> Find(NetworkInput graph,MarkerRecord from,MarkerRecord to,out bool limited) {
             var paths=Find(graph,from?.Anchor,to?.Anchor,out limited);
-            bool Same(PlanCut c,MarkerAnchor a)=>a!=null&&c.Segment==a.Segment&&Math.Abs(c.Meters-a.Meters)<.005;
-            return paths.Where(p=>CircuitIdentity.Accepts(from,p.Sections[0].Reverse,true)&&CircuitIdentity.Accepts(to,p.Sections.Last().Reverse,false)&&
-                !graph.Cuts.Any(c=>c.Boundary!=null&&!Same(c,from.Anchor)&&!Same(c,to.Anchor)&&p.Sections.Any(s=>s.Section.Segment==c.Segment&&c.Meters>=s.Section.From-.005&&c.Meters<=s.Section.To+.005))).ToList();
+            return paths.Where(p=>MatchesBoundary(graph,p.Sections[0],from,true)&&MatchesBoundary(graph,p.Sections.Last(),to,false)&&
+                !graph.Cuts.Any(c=>c.Boundary!=null&&p.Sections.Any(s=>Contains(s.Section,c.Segment,c.Meters))&&
+                    !SameLocation(graph,c.Segment,c.Meters,from.Anchor)&&!SameLocation(graph,c.Segment,c.Meters,to.Anchor))).ToList();
         }
-        public static bool InteriorClear(TrackBlock block,MarkerRecord from,MarkerRecord to,IEnumerable<MarkerRecord> boundaries) {
-            bool Same(MarkerAnchor a,MarkerAnchor b)=>a!=null&&b!=null&&a.Segment==b.Segment&&Math.Abs(a.Meters-b.Meters)<.005;
-            return !boundaries.Where(CircuitIdentity.Enabled).Any(c=>!Same(c.Anchor,from?.Anchor)&&!Same(c.Anchor,to?.Anchor)&&
-                block.Path.Any(s=>s.Section.Segment==c.Anchor.Segment&&c.Anchor.Meters>=s.Section.From-.005&&c.Anchor.Meters<=s.Section.To+.005));
+        public static bool InteriorClear(TrackBlock block,MarkerRecord from,MarkerRecord to,IEnumerable<MarkerRecord> boundaries)=>
+            InteriorClear(block,from,to,boundaries,null);
+        public static bool InteriorClear(TrackBlock block,MarkerRecord from,MarkerRecord to,IEnumerable<MarkerRecord> boundaries,NetworkInput network) {
+            return !boundaries.Where(CircuitIdentity.Enabled).Any(c=>block.Path.Any(p=>Contains(p.Section,c.Anchor.Segment,c.Anchor.Meters))&&
+                !SameLocation(network,c.Anchor.Segment,c.Anchor.Meters,from?.Anchor)&&!SameLocation(network,c.Anchor.Segment,c.Anchor.Meters,to?.Anchor));
         }
 
-        public static bool EndsMatch(TrackBlock block,MarkerRecord a,MarkerRecord b) {
-            if(!IsBoundary(a)||!IsBoundary(b)||block.Path.Count==0)return false;
-            var first=block.Path[0];
-            var last=block.Path[block.Path.Count-1];
-            if(!CircuitIdentity.Accepts(a,first.Reverse,true)||!CircuitIdentity.Accepts(b,last.Reverse,false))return false;
-            return a.Anchor!=null&&b.Anchor!=null&&first.Section.Segment==a.Anchor.Segment&&
-                last.Section.Segment==b.Anchor.Segment&&
-                Math.Abs((first.Reverse?first.Section.To:first.Section.From)-a.Anchor.Meters)<.005&&
-                Math.Abs((last.Reverse?last.Section.From:last.Section.To)-b.Anchor.Meters)<.005;
+        public static bool EndsMatch(TrackBlock block,MarkerRecord a,MarkerRecord b)=>EndsMatch(block,a,b,null);
+        public static bool EndsMatch(TrackBlock block,MarkerRecord a,MarkerRecord b,NetworkInput network) =>
+            IsBoundary(a)&&IsBoundary(b)&&block.Path.Count>0&&MatchesBoundary(network,block.Path[0],a,true)&&MatchesBoundary(network,block.Path.Last(),b,false);
+
+        static bool MatchesBoundary(NetworkInput network,DirectedRouteSection piece,MarkerRecord marker,bool departing)=>
+            marker?.Anchor is MarkerAnchor anchor&&EndDirection(network,piece,anchor.Segment,anchor.Meters,departing,out bool reverse)&&
+                CircuitIdentity.Accepts(marker,reverse,departing);
+
+        internal static bool EndDirection(NetworkInput network,DirectedRouteSection piece,string segment,double meters,bool departing,out bool reverse) {
+            var span=piece.Section;
+            double at=piece.Reverse==departing?span.To:span.From;
+            reverse=piece.Reverse;
+            if(span.Segment==segment)return Math.Abs(at-meters)<.005;
+            if(!AtPlainJoin(network,span.Segment,at,segment,meters,out bool detectorAtB))return false;
+            // A detector on the adjacent rail uses that rail's coordinates and direction.
+            reverse=detectorAtB!=departing;
+            return true;
         }
+
+        internal static bool SameLocation(NetworkInput network,string segment,double meters,MarkerAnchor other)=>
+            other!=null&&(segment==other.Segment?Math.Abs(meters-other.Meters)<.005:
+                AtPlainJoin(network,segment,meters,other.Segment,other.Meters,out _));
+
+        internal static bool Contains(TrackSection span,string segment,double meters)=>
+            span.Segment==segment&&meters>=span.From-.005&&meters<=span.To+.005;
+
+        static bool AtPlainJoin(NetworkInput network,string segment,double meters,string other,double otherMeters,out bool otherAtB) {
+            otherAtB=false;
+            if(network==null)return false;
+            var edge=network.Edges.FirstOrDefault(e=>e.Id==segment);
+            var next=network.Edges.FirstOrDefault(e=>e.Id==other);
+            if(edge==null||next==null)return false;
+            string node=Endpoint(edge,meters);
+            if(node==null||node!=Endpoint(next,otherMeters)||!network.Nodes.Any(n=>n.Id==node&&!n.Point)||
+                network.Edges.Count(e=>e.A==node||e.B==node)!=2)return false;
+            otherAtB=node==next.B;
+            return true;
+        }
+
+        static string Endpoint(PlanEdge edge,double meters)=>Math.Abs(meters)<.005?edge.A:Math.Abs(meters-edge.Length)<.005?edge.B:null;
     }
 }

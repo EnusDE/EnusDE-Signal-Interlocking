@@ -19,7 +19,7 @@ namespace EnusDE.Signaltechnik {
                 RequirePanelEdit();
                 if(deskId!=desk)throw new InvalidOperationException("Gleisfeld erneut auswählen.");
                 if(!desks.Blocks.TryGetValue(diagramCircuitId,out var block)||!block.IsCircuit||
-                    !TrackCircuit.EndsMatch(block,CircuitEndpoint(block.BoundaryA),CircuitEndpoint(block.BoundaryB)))
+                    !CircuitEndsMatch(block,CircuitEndpoint(block.BoundaryA),CircuitEndpoint(block.BoundaryB)))
                     throw new InvalidOperationException("Abschnittsgrenzen geändert oder nicht verfügbar. Gleisverlauf neu suchen.");
                 int count=0;
                 EditPanel(doc=>count=CircuitDiagramAssignment.Assign(doc,x,y,block,DiagramBoundary,CanonicalBoundaryId));

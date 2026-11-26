@@ -31,12 +31,14 @@ namespace EnusDE.Signaltechnik {
             foreach(string start in boundary.OrderBy(id=>id,StringComparer.Ordinal))foreach(var first in adjacency[start]){if(used.Contains(first))continue;string current=start;var p=first;var path=new List<DirectedRouteSection>();while(true){if(!used.Add(p))throw new InvalidOperationException("Mehrdeutige Gleiskette.");bool reverse=p.B==current;path.Add(new DirectedRouteSection{Section=p.S,Reverse=reverse});current=reverse?p.A:p.B;if(boundary.Contains(current))break;p=adjacency[current].First(next=>!ReferenceEquals(next,p));}
                 string forward=string.Join("|",path.Select(s=>s.Section.Key+":"+s.Reverse)),backward=string.Join("|",path.AsEnumerable().Reverse().Select(s=>s.Section.Key+":"+!s.Reverse));string hash=SharedDocuments.Hash(Encoding.UTF8.GetBytes(string.CompareOrdinal(forward,backward)<0?forward:backward));var block=new TrackBlock{Id="b:"+hash.Substring(0,24),Name="Abschnitt "+(chains.Count+1),Path=path};
                 if(detectorNodes.TryGetValue(start,out var da)&&detectorNodes.TryGetValue(current,out var db)&&da.Boundary!=db.Boundary&&
-                    (da.BoundaryKind!=3||da.BoundaryReverse==path[0].Reverse)&&(db.BoundaryKind!=3||db.BoundaryReverse!=path.Last().Reverse)) {
+                    DetectorFaces(da,path[0],true)&&DetectorFaces(db,path.Last(),false)) {
                     block.Id="c:auto-"+hash.Substring(0,24);block.BoundaryA=da.Boundary;block.BoundaryB=db.Boundary;
                     block.Name=(da.BoundaryCode??da.Boundary)+" ↔ "+(db.BoundaryCode??db.Boundary);if(block.Name.Length>80)block.Name=block.Name.Substring(0,80);
                 }
                 block.Validate();result.Blocks.Add(block.Id,block);chains.Add(new Chain{A=start,B=current,Block=block});}
             if(used.Count!=pieces.Count)throw new InvalidOperationException("Nicht alle Gleissegmente wurden erfasst.");result.Chains=chains.Count;
+            bool DetectorFaces(PlanCut cut,DirectedRouteSection piece,bool departing)=>cut.BoundaryKind!=3||
+                TrackCircuit.EndDirection(input,piece,cut.Segment,cut.Meters,departing,out bool reverse)&&cut.BoundaryReverse==(departing?reverse:!reverse);
             var physicalDetectors=input.Cuts.Where(c=>c.Boundary!=null&&c.BoundaryKind>0&&!TrackCircuit.TryPointId(c.Boundary,out _,out _)).Select(c=>new MarkerAnchor{Segment=c.Segment,Meters=c.Meters}).ToArray();
             foreach(var n in input.Nodes.Where(n=>n.Point&&adjacency[n.Id].Count>0)){var block=PointGuardGeometry.Build(n.Id,"Weiche "+n.Id,input.Edges,physicalDetectors);result.Blocks.Add(block.Id,block);}
             if(!draw||pieces.Count==0)return result;

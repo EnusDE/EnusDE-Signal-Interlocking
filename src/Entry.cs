@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 
 namespace EnusDE.Signaltechnik {
     public sealed class Entry : IModEntryPoint,IWorldLifecycle {
-        public const string Version="0.7.73";
+        public const string Version="0.7.74";
         static Recorder current;
         static DiagnosticWindow diagnostic;
         static MarkerRuntime markers;

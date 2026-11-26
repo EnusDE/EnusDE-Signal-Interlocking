@@ -1,4 +1,14 @@
-# Development status and continuation — 0.7.73
+# Development status and continuation — 0.7.74
+
+The GFM path validator now accepts a detector anchored on the adjoining rail at the same ordinary two-way node where a saved path ends. The diagram bindings already identify the full circuit in this case. The live reader, inspection, manual search and automatic catalogue apply the same endpoint rule. The endpoint must match a shared native node. Switch nodes, three-way joins, detached rails and displaced boundaries remain invalid. One-sided C limits use the direction on the detector's rail.
+
+The full build and offline suite passed **2,218 checks, zero failures** against local Railroader 0.6.3 libraries. Regression checks cover a turnout guard ending at a segment boundary, both travel directions, automatic and manual detection, and the rejection conditions. The existing section ID and path remain usable. Game acceptance remains open. Check the existing W198–W212 connection in Ela when clear and when a vehicle enters that section.
+
+## Deutsch
+
+0.7.74 behebt eine falsche GFM-Ablehnung am Übergang zweier durchgehend verbundener Gleissegmente. Der vorhandene Abschnitt bleibt mit seiner Kennung und Gleisbildzuordnung erhalten. In Ela steht der Spieltest am Knick zwischen W198 und W212 noch aus.
+
+# Previous development status — 0.7.73
 
 The GFM world overlay prepares a copy of the saved sections and their identity colours on a worker. Colours are cached for the loaded section catalogue. The indexed colour calculation produced identical results to 0.7.72 on 908 sections in an offline comparison. It took about 1.3–2.1 ms with about 0.49 MiB allocated per run. These figures measure only colour preparation.
 

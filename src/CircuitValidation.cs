@@ -15,7 +15,13 @@ namespace EnusDE.Signaltechnik {
                 circuitValidationNetwork=CaptureNetwork();nextCircuitValidation=UnityEngine.Time.realtimeSinceStartup+2;
             }
             var a=CircuitEndpoint(block.BoundaryA);var b=CircuitEndpoint(block.BoundaryB);
-            return TrackCircuit.EndsMatch(block,a,b)&&TrackCircuit.InteriorClear(block,a,b,circuitValidationBoundaries)&&CircuitPathValidation.Error(circuitValidationNetwork,block,a,b)==null;
+            return CircuitPathValidation.Error(circuitValidationNetwork,block,a,b)==null&&
+                TrackCircuit.InteriorClear(block,a,b,circuitValidationBoundaries,circuitValidationNetwork);
+        }
+        bool CircuitEndsMatch(TrackBlock block,MarkerRecord a,MarkerRecord b) {
+            if(a?.Anchor==null||b?.Anchor==null||block.Path.Count==0)return false;
+            bool adjacent=a.Anchor.Segment!=block.Path[0].Section.Segment||b.Anchor.Segment!=block.Path.Last().Section.Segment;
+            return TrackCircuit.EndsMatch(block,a,b,adjacent?CaptureNetwork():null);
         }
     }
 }

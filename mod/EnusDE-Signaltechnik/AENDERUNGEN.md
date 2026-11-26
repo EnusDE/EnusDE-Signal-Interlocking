@@ -1,3 +1,8 @@
+## 0.7.74 — GFM-Grenzen an Gleissegmentwechseln
+
+- Ein gespeicherter Meldeweg darf genau am gemeinsamen Knoten zweier eindeutig verbundener Gleissegmente enden. Dort können Meldeweg und Grenze unterschiedliche Segmentkennungen haben.
+- Versetzte Grenzen, unterbrochene Gleise und mehrdeutige Knoten bleiben ungültig. Einseitige C-Grenzen werden weiterhin in ihrer tatsächlichen Richtung geprüft.
+
 ## 0.7.73 — GFM-Weltanzeige schrittweise aufbauen
 
 - Abschnittsfarben im Hintergrund vorbereiten und bei Kamerabewegungen beibehalten.

@@ -1,4 +1,4 @@
-# EnusDE Signal & Interlocking 0.7.73-P0
+# EnusDE Signal & Interlocking 0.7.74-P0
 
 0.7.73 builds the GFM world overlay progressively. Selected and nearby pieces appear first. Existing visual elements are reused when panning.
 

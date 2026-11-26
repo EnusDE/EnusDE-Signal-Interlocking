@@ -17,7 +17,7 @@ namespace EnusDE.Signaltechnik {
             return Diagnose(network,block,from,to,pointCaption).Message;
         }
         public static CircuitPathDiagnosis Diagnose(NetworkInput network,TrackBlock block,MarkerRecord from,MarkerRecord to,Func<string,string> pointCaption=null) {
-            if(!TrackCircuit.EndsMatch(block,from,to))return new CircuitPathDiagnosis(CircuitPathFault.Boundary,LocalText.Select("GFM boundary missing, disabled or moved.","GFM-Grenze fehlt, ist deaktiviert oder wurde versetzt."));
+            if(!TrackCircuit.EndsMatch(block,from,to,network))return new CircuitPathDiagnosis(CircuitPathFault.Boundary,LocalText.Select("GFM boundary missing, disabled or moved.","GFM-Grenze fehlt, ist deaktiviert oder wurde versetzt."));
             if(!CircuitIdentity.Enabled(from)||!CircuitIdentity.Enabled(to))return new CircuitPathDiagnosis(CircuitPathFault.Boundary,LocalText.Select("Stored section ends at a signal without an active detector. Enable its GFM or select an actual detection boundary.","Gespeicherter Abschnitt endet an einem Signal ohne aktiven Melder. Dessen GFM aktivieren oder eine tatsächliche Meldegrenze wählen."));
             var edges=network.Edges.ToDictionary(e=>e.Id,StringComparer.Ordinal);
             var nodes=network.Nodes.ToDictionary(n=>n.Id,StringComparer.Ordinal);
@@ -46,9 +46,8 @@ namespace EnusDE.Signaltechnik {
                 }
                 visited.Add(edge.Id);previous=edge;previousEnd=end;previousReverse=piece.Reverse;
             }
-            bool AtEnd(PlanCut cut,MarkerAnchor end)=>end!=null&&cut.Segment==end.Segment&&Near(cut.Meters,end.Meters);
-            var interior=network.Cuts.FirstOrDefault(c=>c.Boundary!=null&&!AtEnd(c,from.Anchor)&&!AtEnd(c,to.Anchor)&&
-                block.Path.Any(p=>p.Section.Segment==c.Segment&&c.Meters>=p.Section.From-tolerance&&c.Meters<=p.Section.To+tolerance));
+            var interior=network.Cuts.FirstOrDefault(c=>c.Boundary!=null&&block.Path.Any(p=>TrackCircuit.Contains(p.Section,c.Segment,c.Meters))&&
+                !TrackCircuit.SameLocation(network,c.Segment,c.Meters,from.Anchor)&&!TrackCircuit.SameLocation(network,c.Segment,c.Meters,to.Anchor));
             if(interior!=null)return new CircuitPathDiagnosis(CircuitPathFault.SkippedBoundary,LocalText.Select("GFM section skips boundary ","GFM-Abschnitt überspringt Grenze ")+(interior.BoundaryCode??interior.Boundary)+
                 LocalText.Select(". Detect the sections again.",". Abschnitte erneut erkennen."));
             return new CircuitPathDiagnosis(CircuitPathFault.None,null);

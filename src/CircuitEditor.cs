@@ -204,7 +204,7 @@ namespace EnusDE.Signaltechnik {
             }
             if(linked!=null&&desks.Blocks.TryGetValue(linked,out var bound)&&bound.IsCircuit) {
                 c.AddLabel(LocalText.Get("Zugeordnet · ")+bound.Name);
-                if(!TrackCircuit.EndsMatch(bound,CircuitEndpoint(bound.BoundaryA),CircuitEndpoint(bound.BoundaryB)))
+                if(!CircuitEndsMatch(bound,CircuitEndpoint(bound.BoundaryA),CircuitEndpoint(bound.BoundaryB)))
                     c.AddLabel(LocalText.Get("Eine Grenze fehlt oder wurde verschoben. Abschnitt neu zuordnen."));
             }
             var firstChoices=TerminalField(field)?BoundaryChoices(true).ToArray():choices;
@@ -285,7 +285,7 @@ namespace EnusDE.Signaltechnik {
             var block=new TrackBlock{Id="c:"+Guid.NewGuid().ToString("N"),Name=
                 BoundaryCaption(circuitA)+" → "+BoundaryCaption(circuitB),BoundaryA=circuitA,BoundaryB=circuitB,Path=path.Sections};
             if(block.Name.Length>80)block.Name=block.Name.Substring(0,80);
-            if(!TrackCircuit.EndsMatch(block,a,b))throw new InvalidOperationException("Die Grenzen wurden geändert. Abschnitt erneut suchen.");
+            if(!CircuitEndsMatch(block,a,b))throw new InvalidOperationException("Die Grenzen wurden geändert. Abschnitt erneut suchen.");
             var fields=panel.Tiles.Where(t=>selected.Contains(t.X,t.Y)&&CircuitField(t)).ToArray();
             var field=selected.Width==1&&selected.Height==1?panel.At(selected.X,selected.Y):null;
             var diagram=complete?CircuitDiagramAssignment.Find(panel,selected.X,selected.Y,circuitA,circuitB,DiagramBoundary):null;

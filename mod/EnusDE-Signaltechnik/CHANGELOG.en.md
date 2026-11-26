@@ -1,3 +1,8 @@
+## 0.7.74 — GFM boundaries at track joins
+
+- Accept the existing physical boundary at the exact shared node of two unambiguous track segments. Valid saved sections remain usable when the rail span and the detector use different segment IDs at that point.
+- Detached, displaced and ambiguous boundaries remain invalid. One-sided detection still respects the direction on the detector's rail.
+
 ## 0.7.73 — progressive world GFM overlay
 
 - Prepare section colours in the background and retain them as the camera moves.

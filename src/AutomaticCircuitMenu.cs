@@ -58,7 +58,7 @@ namespace EnusDE.Signaltechnik {
                 RequirePanelEdit();if(deskId!=desk)throw new InvalidOperationException("Feld erneut auswählen.");
                 var block=new TrackBlock{Id="c:"+Guid.NewGuid().ToString("N"),Name=BoundaryCaption(chosen.A)+" → "+BoundaryCaption(chosen.B),BoundaryA=chosen.A,BoundaryB=chosen.B,Path=chosen.Path.Sections};
                 if(block.Name.Length>80)block.Name=block.Name.Substring(0,80);
-                if(!TrackCircuit.EndsMatch(block,CircuitEndpoint(chosen.A),CircuitEndpoint(chosen.B)))throw new InvalidOperationException("Grenzen inzwischen geändert. Erneut erkennen.");
+                if(!CircuitEndsMatch(block,CircuitEndpoint(chosen.A),CircuitEndpoint(chosen.B)))throw new InvalidOperationException("Grenzen inzwischen geändert. Erneut erkennen.");
                 var existing=desks.Blocks.Values.FirstOrDefault(b=>b.IsCircuit&&TrackCircuit.Pair(b.BoundaryA,b.BoundaryB)==TrackCircuit.Pair(block.BoundaryA,block.BoundaryB)&&
                     b.Path.Select(p=>p.Section.Key).OrderBy(k=>k).SequenceEqual(block.Path.Select(p=>p.Section.Key).OrderBy(k=>k)));
                 if(existing!=null)block=existing;

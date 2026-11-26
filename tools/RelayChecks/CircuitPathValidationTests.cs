@@ -37,7 +37,45 @@ static class CircuitPathValidationTests {
         Check(CircuitPathValidation.Diagnose(graph,split,a,b).Fault==CircuitPathFault.SkippedBoundary&&CircuitPathValidation.Error(graph,split,a,b)?.Contains("C-limit")==true,"a newly inserted C boundary is reported by identity instead of being mistaken for a turnout");
         graph.Cuts.RemoveAt(2);graph.Edges.Clear();
         Check(CircuitPathValidation.Diagnose(graph,split,a,b).Fault==CircuitPathFault.InvalidInterval,"unavailable native track cannot be accepted as a valid saved GFM path");
-        PointSections();LongSection();
+        PointSections();LongSection();BoundariesAtPlainJoin();
+    }
+    static void BoundariesAtPlainJoin() {
+        var graph=new NetworkInput{World="plain-join",Nodes=new(){new PlanNode{Id="left"},new PlanNode{Id="join"},new PlanNode{Id="right"}},
+            Edges=new(){new PlanEdge{Id="curve",A="left",B="join",Length=57.285682678222656},new PlanEdge{Id="approach",A="join",B="right",Length=22}}};
+        var a=End("curve",25);var b=End("approach",0);
+        graph.Cuts.AddRange(new[]{new PlanCut{Segment="curve",Meters=a.Anchor.Meters,Boundary=a.Id,BoundaryKind=2},
+            new PlanCut{Segment="approach",Meters=b.Anchor.Meters,Boundary=b.Id,BoundaryKind=2}});
+        var span=Piece("curve",25,graph.Edges[0].Length);
+        var saved=Block(a,b,span);
+        Check(!TrackCircuit.EndsMatch(saved,a,b)&&CircuitPathValidation.Error(graph,saved,a,b)==null,
+            "a detected circuit ending on one rail reaches the registered boundary at the start of the adjoining rail");
+        var backwards=Block(b,a,Piece("curve",25,graph.Edges[0].Length,true));
+        Check(CircuitPathValidation.Error(graph,backwards,b,a)==null&&TrackCircuit.Find(graph,b,a,out _).Single().Sections.Count==1&&
+            TrackCircuit.Find(graph,a,b,out _).Single().Sections.Count==1,"the inspector and manual search prove the same zero-length join in both directions");
+        var automatic=DetectionNetwork.Build(graph).Blocks.Values.Single(p=>p.IsCircuit);
+        Check(automatic.Path.Count==1&&CircuitPathValidation.Error(graph,automatic,automatic.BoundaryA==a.Id?a:b,automatic.BoundaryB==b.Id?b:a)==null,
+            "the automatically registered section validates without adding an empty rail span or migrating its ID");
+        var counterpart=End("curve",graph.Edges[0].Length);
+        graph.Cuts.Add(new PlanCut{Segment=counterpart.Anchor.Segment,Meters=counterpart.Anchor.Meters,Boundary=counterpart.Id,BoundaryKind=2});
+        Check(TrackCircuit.InteriorClear(saved,a,b,new[]{a,b,counterpart},graph)&&CircuitPathValidation.Error(graph,saved,a,b)==null,
+            "a detector recorded on either side of the exact common node is an endpoint, not an interior cut");
+        graph.Cuts.RemoveAt(2);
+        var c=b.Clone();c.Kind=MarkerRecord.CircuitC;c.CircuitReverse=true;
+        graph.Cuts[1].BoundaryKind=3;graph.Cuts[1].BoundaryReverse=true;
+        Check(CircuitPathValidation.Error(graph,saved,a,c)==null&&TrackCircuit.Find(graph,a,c,out _).Count==1&&DetectionNetwork.Build(graph).Blocks.Values.Any(p=>p.IsCircuit),
+            "a one-sided limit facing onto the junction accepts the detected section on its monitored side");
+        c.CircuitReverse=false;graph.Cuts[1].BoundaryReverse=false;
+        Check(CircuitPathValidation.Error(graph,saved,a,c)!=null&&TrackCircuit.Find(graph,a,c,out _).Count==0&&DetectionNetwork.Build(graph).Blocks.Values.All(p=>!p.IsCircuit),
+            "the back of a one-sided limit cannot be used to approve the adjoining region");
+        var moved=b.Clone();moved.Anchor.Meters=.1;
+        Check(CircuitPathValidation.Error(graph,saved,a,moved)!=null,"a displaced boundary cannot borrow the adjacent node to conceal a gap");
+        graph.Nodes[1].Point=true;
+        Check(CircuitPathValidation.Error(graph,saved,a,b)!=null,"an endpoint cannot be matched across a switch node");
+        graph.Nodes[1].Point=false;
+        graph.Edges.Add(new PlanEdge{Id="other",A="join",B="right",Length=30});
+        Check(CircuitPathValidation.Error(graph,saved,a,b)!=null,"an ambiguous join cannot be used even if its native switch classification is unavailable");
+        graph.Edges.RemoveAt(2);graph.Edges[1].A="left";
+        Check(CircuitPathValidation.Error(graph,saved,a,b)!=null,"equal endpoint metres on tracks without a common node do not match");
     }
     static void PointSections() {
         var graph=new NetworkInput{Nodes=new List<PlanNode>{new PlanNode{Id="a"},new PlanNode{Id="W001",Point=true,Common="stem"},new PlanNode{Id="b"},new PlanNode{Id="c"}},Edges=new List<PlanEdge>{new PlanEdge{Id="stem",A="a",B="W001",Length=100},new PlanEdge{Id="normal",A="W001",B="b",Length=100},new PlanEdge{Id="branch",A="W001",B="c",Length=100}}};
