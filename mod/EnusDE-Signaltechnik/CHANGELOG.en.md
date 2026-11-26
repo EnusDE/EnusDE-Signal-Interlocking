@@ -1,3 +1,14 @@
+## 0.7.72 — coloured world GFM sections
+
+- Local host Build overlay of saved sections with automatically assigned repeating identity colours, endpoint posts and wider selection. Neighbouring boundaries/intervals guide colour separation; colours carry no operating meaning.
+- Click lines/posts or search a section, inspect boundary names/length and diagram owners, open checked GFM/assignment tools; reverse navigation from inspection. Editing remains in the existing editor.
+- 400-m camera range, 3,000-piece budget, omission report and cleanup on exit/world/authority/unload. Pick colliders are triggers, not physical obstacles.
+- No arbitrary world cuts, automatic merge/split or protection exceptions. Gameplay/rendering/MP acceptance open; optional pack unchanged.
+
+[Instructions and limitations](Guides/GFM-WORLD-0.7.72.en.md)
+
+Full Test.ps1: **2,202 PASS / 0 FAIL**, both assemblies compiled. Game/MP acceptance open.
+
 ## 0.7.71 — readable module problems
 
 - Host/editor problem overview groups affected items by interlocking, with functional module, cause, effect and next action; optional original technical details, diagram shortcuts and 25-result pages.

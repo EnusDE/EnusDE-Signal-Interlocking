@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 
 namespace EnusDE.Signaltechnik {
     public sealed class Entry : IModEntryPoint,IWorldLifecycle {
-        public const string Version="0.7.71";
+        public const string Version="0.7.72";
         static Recorder current;
         static DiagnosticWindow diagnostic;
         static MarkerRuntime markers;
@@ -217,6 +217,8 @@ namespace EnusDE.Signaltechnik {
         internal static void BuildSignalOperatingEditor(UI.Builder.UIPanelBuilder b,string id,Action verify=null)=>signals?.BuildSignalOperatingEditor(b,id,verify);
         internal static bool IgnoresOwnSignal(string id)=>signals?.IgnoreOwnSignal(id)==true;
         internal static void PlaceAutomationContact(Track.Location at)=>signals?.PlaceAutomationContact(at);
+        internal static void ShowWorldGfm(string id)=>markers?.ShowWorldGfm(id);
+        internal static void OpenWorldGfm(string id,string desk)=>signals?.OpenWorldGfm(id,desk);
         public static void OpenInterlocking(){markers?.EndBuildMode();signals?.Open();}
         public static void OpenSettings()=>settingsWindow?.Open();
         internal static void OpenAutomationSettings() {

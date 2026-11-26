@@ -1,4 +1,18 @@
-# Development status and continuation — 0.7.71
+# Development status and continuation — 0.7.72
+
+[English guide](../mod/EnusDE-Signaltechnik/Guides/GFM-WORLD-0.7.72.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/GFM-WORLD-0.7.72.de.md)
+
+26 November 2026: host-local Build overlay displays saved GFM intervals as automatically coloured identity lines with main-path endpoint posts and clickable trigger targets. Neighbouring sections prefer different colours; colours can repeat and never grant authority. Selection reports length, circuit boundaries and diagram owners, opens existing checked GFM/assignment tools, and inspection can reopen the same section in world Build mode. An unassigned selected section remains visible in inspection. Camera range 400 m / 3,000 pieces; hidden/unavailable intervals are not clear-track reports. Overlay cleanup covers exit, world/data/authority changes and unloading. No saved paths are changed by rendering.
+
+Completed full Test.ps1 against local original Railroader 0.6.3 libraries: **2,202 PASS / 0 FAIL**; both main and Runenwacht compiled. Added tests cover deterministic identity colours, shared/physical adjacency, overlaps, parallel tracks, long chains with repeated palette, no mutation and empty installations. Existing UI/localization/lifecycle/route protection tests passed. Documentation diff and package contents checked separately. Main 0.7.72; optional Runenwacht stays 0.2.2/minimum main 0.7.64/API v1.
+
+Not included: arbitrary new world-click cuts, automatic merging/splitting or signal-placement detection, C-direction arrows or flank-protection exceptions, shared client selection, camera teleport and automatic repairs. Actual Unity picking/rendering, near-signal interaction, floating-origin alignment, wide/curved/invalid intervals, day/night shader visibility, performance, navigation, save/reload and MP acceptance remain open. No runtime installation, game launch, tag or public release. Existing archives remain unchanged. Earlier 0.8.0 acceptance items below remain open.
+
+## Deutsch
+
+0.7.72: Im Host-Baumodus gespeicherte GFM-Abschnitte farbig anzeigen und in der Welt auswählen; Grenzen des Hauptpfads markieren; zur bestehenden geprüften GFM-/Gleisbildbearbeitung und zurück wechseln. Farben sind automatische Abschnittskennzeichnungen, keine Belegungs-/Erlaubnisfarben. **2.202 PASS / 0 FAIL**, beide Assemblies kompiliert. Bearbeitung weiter im vorhandenen Editor, kein freies Welt-Zeichnen neuer Grenzen und keine Schutz-Ausnahme. Spiel-/Darstellungs-/KI-/Mehrspielerabnahme noch offen; kein Spielstart oder Installation. Vorhandene ZIPs und Runenwacht bleiben unverändert.
+
+# Previous development status — 0.7.71
 
 [English guide](../mod/EnusDE-Signaltechnik/Guides/MODULE-PROBLEMS-0.7.71.en.md) · [Deutsche Anleitung](../mod/EnusDE-Signaltechnik/Guides/MODULE-PROBLEMS-0.7.71.de.md)
 

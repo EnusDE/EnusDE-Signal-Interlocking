@@ -1,3 +1,14 @@
+## 0.7.72 — farbige GFM-Abschnitte in der Welt
+
+- Lokale Host-Bauhilfe mit automatisch vergebenen, wiederverwendbaren Abschnittsfarben, Endpfosten und breiterer Auswahl. Benachbarte Grenzen/Intervalle werden bei der Farbwahl berücksichtigt; Farben haben keine Betriebsbedeutung.
+- Linien/Endpfosten anklicken oder Abschnitt suchen, Grenzbezeichnungen/Länge und Stellwerksverknüpfung ansehen. GFM-Prüfung/Gleisbild-Zuordnung öffnen; Rückverweis aus der Prüfung zur Weltanzeige. Bearbeitung bleibt im bestehenden Editor.
+- 400-m-Bereich, 3.000-Teilstück-Grenze, sichtbarer Auslassungshinweis, lokale Bereinigung beim Verlassen/Entladen/Berechtigungswechsel. Trigger statt physischer Auswahlhindernisse.
+- Kein freies Zeichnen neuer Weltgrenzen, keine automatische Teilung/Vereinigung, keine Schutz-Ausnahmen. Spiel-/Darstellungs-/Mehrspielerabnahme offen. Runenwacht unverändert.
+
+[Bedienung und Testgrenzen](Guides/GFM-WORLD-0.7.72.de.md)
+
+Vollständiges Test.ps1: **2.202 PASS / 0 FAIL**, beide Assemblies kompiliert. Spiel-/MP-Abnahme offen.
+
 ## 0.7.71 — Modulprobleme im Klartext
 
 - Host-/Editorübersicht nach Stellwerk: betroffenes Element und Funktionsmodul, Ursache, Auswirkung und nächster Schritt. Originaldetails zuschaltbar, Direktverweis zum Gleisbild und Seiten mit 25 Befunden.

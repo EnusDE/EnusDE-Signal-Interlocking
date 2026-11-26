@@ -2,7 +2,9 @@
 
 [Deutsche Zusammenfassung](#deutsch) · [Build from source](docs/BUILD.md) · [Development status](docs/DEVELOPMENT.md)
 
-**Current source: 0.7.71 — Early Alpha for Railroader 0.6.3.** Get an installable package from the author's distribution channel or build from `main`.
+**Current source: 0.7.72 — Early Alpha for Railroader 0.6.3.** Get an installable package from the author's distribution channel or build from `main`.
+
+0.7.72 adds selectable coloured saved GFM sections and endpoint posts in host Build mode, plus links to/from the checked GFM editor. Automatic colours identify sections; they are not occupancy/permission indications. [English](mod/EnusDE-Signaltechnik/Guides/GFM-WORLD-0.7.72.en.md) · [Deutsch](mod/EnusDE-Signaltechnik/Guides/GFM-WORLD-0.7.72.de.md). Gameplay/rendering/MP acceptance remains open.
 
 0.7.71 adds a host/editor module-problem overview grouped by interlocking: plain-language cause, operating effect and next step, with optional technical details and direct diagram links. It distinguishes recognized GFM faults and reports incomplete checks honestly. [English guide](mod/EnusDE-Signaltechnik/Guides/MODULE-PROBLEMS-0.7.71.en.md) · [Deutsche Anleitung](mod/EnusDE-Signaltechnik/Guides/MODULE-PROBLEMS-0.7.71.de.md). Full Test.ps1: 2,194 PASS / 0 FAIL. This is a manual snapshot, not automatic repair or full gameplay acceptance. Runenwacht 0.2.2 remains unchanged.
 
@@ -42,7 +44,7 @@ Optional **Runenwacht 0.2.2** requires main **0.7.64 or later** with compatible 
 
 ## Compatibility and validation
 
-The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.71**.
+The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.72**.
 
 The complete offline build/check run on 24 November 2026 passed **2,097 checks** against the local Railroader 0.6.3 libraries. Actual waypoint operation, the locomotive controls and multiplayer still need in-game verification. [Development status and continuation](docs/DEVELOPMENT.md)
 
@@ -71,7 +73,7 @@ See [Third-party notices](THIRD_PARTY_NOTICES.md) and the included MIT component
 
 ## Deutsch
 
-**Aktueller Quellstand: 0.7.71, Early Alpha für Railroader 0.6.3.** Installationspakete gibt es über den Vertriebskanal des Autors. Der Quellstand zum Selbstbauen liegt auf `main`.
+**Aktueller Quellstand: 0.7.72, Early Alpha für Railroader 0.6.3.** Installationspakete gibt es über den Vertriebskanal des Autors. Der Quellstand zum Selbstbauen liegt auf `main`.
 
 0.7.71 ergänzt eine nach Stellwerk geordnete Host-/Editorübersicht: betroffenes Modul, Problem im Klartext, Auswirkung und nächster Schritt. Technische Einzelheiten sind zuschaltbar; gescheiterte Prüfungen bleiben als ungeklärt gekennzeichnet. [Bedienung und Grenzen](mod/EnusDE-Signaltechnik/Guides/MODULE-PROBLEMS-0.7.71.de.md).
 

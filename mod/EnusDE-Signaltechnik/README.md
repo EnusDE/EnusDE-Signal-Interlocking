@@ -1,4 +1,8 @@
-# EnusDE Signal & Interlocking 0.7.71-P0
+# EnusDE Signal & Interlocking 0.7.72-P0
+
+0.7.72: Host Build → Show GFM sections and boundaries. Select saved paths in the world, inspect and edit via existing GFM/diagram tools. [English](Guides/GFM-WORLD-0.7.72.en.md).
+
+0.7.72: Host-Baumodus → GFM-Abschnitte und Grenzen anzeigen. Gespeicherte Abschnitte in der Welt auswählen und über bestehende GFM-/Gleisbildwerkzeuge prüfen/bearbeiten. [Deutsch](Guides/GFM-WORLD-0.7.72.de.md). Noch keine Spielabnahme.
 
 0.7.71: readable module problems, effects and next steps grouped by interlocking. Host/editor → Set up and check → Module problems and next steps; dispatcher tool opens the same inspection. Manual read-only snapshot with optional technical details; no automatic repair. [English guide](Guides/MODULE-PROBLEMS-0.7.71.en.md).
 

@@ -16,6 +16,13 @@ namespace EnusDE.Signaltechnik {
         int gfmTestChoice;
         List<TrackSection> gfmTestMissing;
         RouteKind gfmTestKind;
+        string gfmWorldOpenedId;
+        internal void OpenWorldGfm(string id,string owner) {
+            if(!WorkspaceEditable||!Game.State.StateManager.IsHost)return;
+            Entry.OpenInterlocking();ShowWorkspace(true,4,false);EnterEditorDesk(owner);OpenGfmInspection();
+            if(!desks.Blocks.ContainsKey(id))throw new InvalidOperationException(WindowText("Section no longer exists.","Abschnitt ist nicht mehr vorhanden."));
+            gfmWorldOpenedId=id;gfmInspectionChoice=id;HighlightGfm(new[]{id});RefreshWorkspaceFields();
+        }
         void OpenGfmInspection() {RequirePanelEdit();ReadGfmInspection();WorkspacePage(12);}
         void OpenGfmIssue(GfmDetectionIssue issue) {
             RequirePanelEdit();if(!desks.Desks.Any(d=>d.Id==issue.Desk))return;
@@ -29,7 +36,7 @@ namespace EnusDE.Signaltechnik {
             RequirePanelEdit();ReadSignalInventory();IndexGfmObjects(Entry.Shared.Objects().Markers);ResetGfmRepair();gfmInspectionInput=CaptureNetwork();gfmInspectionScope=scope;gfmInspectionDesk=deskId;
             gfmInspectionVersion=Entry.Shared.ConfigurationVersion;gfmInspectionNetwork=NetworkRecognition.Signature(gfmInspectionInput);
             gfmInspectionInstallation=Entry.Shared.InstallationVersion;
-            gfmInspectionErrors.Clear();gfmTestPlans=null;gfmTestMissing=null;ClearGfmHighlight();
+            gfmWorldOpenedId=null;gfmInspectionErrors.Clear();gfmTestPlans=null;gfmTestMissing=null;ClearGfmHighlight();
             gfmInspectionCatalogue.Clear();
             var detected=NetworkRecognition.PreserveCircuitIds(desks,DetectionNetwork.Build(gfmInspectionInput),CanonicalBoundaryId);
             foreach(var block in detected.Blocks.Values.Where(b=>b.IsCircuit))gfmInspectionCatalogue[block.Id]=block;
@@ -43,8 +50,9 @@ namespace EnusDE.Signaltechnik {
         bool GfmInspectionCurrent=>gfmInspectionInput!=null&&scope==gfmInspectionScope&&deskId==gfmInspectionDesk&&Entry.Shared.ConfigurationVersion==gfmInspectionVersion&&Entry.Shared.InstallationVersion==gfmInspectionInstallation;
         bool GfmInspectionVisible=>editingWorkspace&&panelPage==12&&GfmInspectionCurrent;
         void RequireFreshGfmInspection(){RequirePanelEdit();if(!GfmInspectionCurrent||NetworkRecognition.Signature(CaptureNetwork())!=gfmInspectionNetwork)throw new InvalidOperationException(WindowText("Network changed. Refresh the inspection.","Gleisnetz geändert. Prüfung aktualisieren."));}
-        TrackBlock[] GfmInspectionBlocks()=>GfmInspectionOrder.Sort(gfmInspectionCatalogue.Values.Where(b=>b.Point!=null?panel.Tiles.Any(t=>t.Kind==PanelTileKind.Switch&&t.Reference==b.Point):
-            b.IsCircuit&&(gfmShowAllFaults&&desks.Blocks.ContainsKey(b.Id)&&gfmInspectionErrors.ContainsKey(b.Id)||panel.Tiles.Any(t=>DiagramBoundary(t,b.BoundaryA)||DiagramBoundary(t,b.BoundaryB)||GfmDetectionRefresh.References(t).Contains(b.Id)))),panel,panel.At(selectedX,selectedY),DiagramBoundary).OrderByDescending(b=>gfmInspectionErrors.ContainsKey(b.Id)).ToArray();
+        TrackBlock[] GfmInspectionBlocks()=>GfmInspectionOrder.Sort(gfmInspectionCatalogue.Values.Where(b=>b.Id==gfmWorldOpenedId||LocalGfmInspectionBlock(b)),panel,panel.At(selectedX,selectedY),DiagramBoundary).OrderByDescending(b=>gfmInspectionErrors.ContainsKey(b.Id)).ToArray();
+        bool LocalGfmInspectionBlock(TrackBlock b)=>b.Point!=null?panel.Tiles.Any(t=>t.Kind==PanelTileKind.Switch&&t.Reference==b.Point):
+            b.IsCircuit&&(gfmShowAllFaults&&desks.Blocks.ContainsKey(b.Id)&&gfmInspectionErrors.ContainsKey(b.Id)||panel.Tiles.Any(t=>DiagramBoundary(t,b.BoundaryA)||DiagramBoundary(t,b.BoundaryB)||GfmDetectionRefresh.References(t).Contains(b.Id)));
         IEnumerable<TrackSection> GfmInspectionCoverage()=>desks.Blocks.Values.Where(b=>b.IsCircuit&&!gfmInspectionErrors.ContainsKey(b.Id)).SelectMany(b=>b.Path.Select(p=>p.Section))
             .Concat(desks.Blocks.Values.Where(b=>b.Point!=null&&PointCircuitVisibility.Enabled(desks,b.Point)).SelectMany(UsablePointGuards));
         string GfmPair(TrackBlock block)=>block.Point!=null?PointAssignments.Caption(desks,block.Point):BoundaryCaption(block.BoundaryA)+" ↔ "+BoundaryCaption(block.BoundaryB);
@@ -82,6 +90,7 @@ namespace EnusDE.Signaltechnik {
                 int fields=panel.Tiles.Count(t=>GfmCoverage.Ports(t,new HashSet<string>{block.Id})!=0);
                 c.AddLabel(WindowText("Linked diagram fields: ","Verknüpfte Gleisbildfelder: ")+fields);
                 if(fields==0)c.AddLabel(WindowText("This section is not linked to the rails in this diagram. The highlight can therefore show only its drawn endpoint(s).","Dieser Abschnitt ist nicht mit den Gleisfeldern dieser Tafel verknüpft. Die Hervorhebung kann deshalb nur seine eingezeichneten Endpunkte zeigen."));
+                if(desks.Blocks.ContainsKey(block.Id))c.AddButton(WindowText("Show saved section in the world (Build mode)","Gespeicherten Abschnitt in der Welt anzeigen (Baumodus)"),()=>Act(()=>{RequireFreshGfmInspection();Entry.ShowWorldGfm(block.Id);}));
                 c.AddButton(WindowText("Show section and boundaries","Abschnitt und Grenzen hervorheben"),()=>Act(()=>{RequireFreshGfmInspection();HighlightGfm(new[]{block.Id});}));
                 var editable=panel.Tiles.Where(t=>GfmCoverage.Ports(t,new HashSet<string>{block.Id})!=0).OrderBy(t=>t.Kind==PanelTileKind.Switch||t.Kind==PanelTileKind.Signal?1:0).FirstOrDefault();
                 if(editable!=null)c.AddButton(WindowText("Edit section assignment at field…","Abschnittszuordnung am Feld bearbeiten …"),()=>Act(()=>{RequireFreshGfmInspection();ClearGfmHighlight();OpenEditorField(editable.X,editable.Y,EditorFieldCategory.Detection);}));

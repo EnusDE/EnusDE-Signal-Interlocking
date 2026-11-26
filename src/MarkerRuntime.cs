@@ -115,7 +115,8 @@ namespace EnusDE.Signaltechnik {
             return true;
         }
         void Update() {
-            if(stopped||StateManager.IsUnloading)return;
+            if(stopped||StateManager.IsUnloading){ClearWorldGfm();return;}
+            TickWorldGfm();
             if(Entry.LampTestOwner!=null&&(!buildMode.Active||Entry.LampTestOwner!=selectedId))Entry.EndLampTest();
             if(buildMode.Active&&buildWindowShown&&CustomWindowHandle.Create(WindowId)?.IsOpen()!=true)EndBuildMode();
             if(quickCircuitActive&&(scope!=quickCircuitWorld||Keyboard.current?.escapeKey.wasPressedThisFrame==true)){quickCircuitActive=false;status=LocalText.Select("Detection tool stopped.","GFM-Werkzeug beendet.");RebuildTool();}
@@ -403,6 +404,7 @@ namespace EnusDE.Signaltechnik {
         void HideTool(){if(page==Page.PointBox)scene.HidePreview();if(manager!=null&&!StateManager.IsUnloading)manager.CloseWindow(WindowId);}
         void CloseTool(){if(buildMode.Active)RebuildTool();else HideTool();}
         public void EndBuildMode() {
+            ClearWorldGfm();
             Entry.EndLampTest();
             if(!buildMode.End())return;
             buildWindowShown=false;setupPlacementAccepted=null;quickCircuitActive=false;
@@ -423,6 +425,7 @@ namespace EnusDE.Signaltechnik {
         void Build(UIPanelBuilder b) {
             b.VScrollView(c=>{
                 if(buildMode.Active) {
+                    BuildWorldGfm(c);
                     c.AddTitle(LocalText.Select("Build mode active","Baumodus aktiv"),"");
                     c.AddButton(LocalText.Select("End build mode","Baumodus beenden"),EndBuildMode);
                 }
@@ -728,7 +731,7 @@ namespace EnusDE.Signaltechnik {
         }
         public void Shutdown() {
             Cleanup(DisposeCrosses);
-            if(stopped)return;stopped=true;buildMode.End();edit.Cancel();Cleanup(DisposeBuildIcons);Cleanup(()=>modePicker?.Dispose());Cleanup(()=>existingSigns.Dispose());Cleanup(()=>scene?.Dispose());records=new MarkerRecord[0];repository=null;Cleanup(RemoveWindow);manager=null;definition=null;
+            if(stopped)return;stopped=true;ClearWorldGfm();buildMode.End();edit.Cancel();Cleanup(DisposeBuildIcons);Cleanup(()=>modePicker?.Dispose());Cleanup(()=>existingSigns.Dispose());Cleanup(()=>scene?.Dispose());records=new MarkerRecord[0];repository=null;Cleanup(RemoveWindow);manager=null;definition=null;
         }
         void Cleanup(Action action){try{action();}catch(Exception e){log?.Warning("Baumenü-Bereinigung: "+e.Message);}}
         void RemoveWindow() {
