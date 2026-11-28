@@ -8,6 +8,7 @@ namespace EnusDE.Signaltechnik {
         readonly UIState<bool> markerExpanded=new UIState<bool>(false);
         readonly UIState<bool> materialExpanded=new UIState<bool>(false),controlsExpanded=new UIState<bool>(false),diagnosticsExpanded=new UIState<bool>(false);
         readonly UIState<bool> placementExpanded=new UIState<bool>(false),automationExpanded=new UIState<bool>(true),advancedOperationExpanded=new UIState<bool>(false),backupExpanded=new UIState<bool>(false);
+        readonly UIState<bool> webExpanded=new UIState<bool>(false);
         readonly Dictionary<string,UIState<bool>> sections=new Dictionary<string,UIState<bool>>();
         readonly Func<DiagnosticSettings> read;
         readonly Action<DiagnosticSettings> save;
@@ -31,6 +32,7 @@ namespace EnusDE.Signaltechnik {
             if(!dirty)draft=read();
             b.AddField(LocalText.Select("Interface language","Oberflächensprache"),b.AddDropdown(new List<string>{LocalText.Get("Automatic / Automatisch"),LocalText.Get("English"),LocalText.Get("Deutsch")},draft.Language=="de"?2:draft.Language=="en"?1:0,i=>{draft.Language=i==2?"de":i==1?"en":"auto";dirty=true;}));
             b.AddLabel(LocalText.Get("Signaltechnik · v")+Entry.Version);
+            b.AddExpandable(LocalText.Select("Browser interlocking","Stellwerk im Browser"),webExpanded,Entry.BuildWebSettings,ExpandableStyle.SectionHeader);
             b.AddExpandable(LocalText.Select("Operation and automation","Betrieb und Automatik"),automationExpanded,operation=>{
                 Entry.BuildWaypointSetup(operation,()=>draft.Markers.EnableAiSignals=read().Markers.EnableAiSignals);
                 operation.AddExpandable(LocalText.Select("Advanced operating settings","Erweiterte Betriebseinstellungen"),advancedOperationExpanded,advanced=>{

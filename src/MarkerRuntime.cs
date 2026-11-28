@@ -75,6 +75,7 @@ namespace EnusDE.Signaltechnik {
                 active&&Entry.WorkspaceEditable,
                 Entry.Shared?.Ready==true&&!Entry.Shared.ConstructionUnlocked);
         }
+        internal void OpenBuildFromWeb()=>OpenFromPicker(WorkspaceMode.Build);
         void OpenFromPicker(WorkspaceMode mode) {
             if(mode==WorkspaceMode.Build) {
                 Entry.CloseWorkspaceMode();

@@ -1,4 +1,10 @@
-# Development status and continuation — 0.7.74
+# Development status and continuation — 0.7.75
+
+The optional browser interlocking reads the host's diagram and stages route previews in the existing frame-budgeted planning queue. Requests use the same admission and cancellation paths as the game dispatcher. The web editor hands off to the native field, world picker or build tools. The listener defaults to off per session. The source package includes the original HTML embedded into the mod assembly at build time. See [browser setup and game acceptance](BROWSER.md).
+
+The build passed 2,222 offline checks with the local Railroader 0.6.3 libraries. The browser flow passed 16 checks with a simulated game API, and the loopback connection passed nine checks when run in the installed game's Mono runtime as a standalone harness. In-game operation, visual parity and second-PC access still need acceptance.
+
+# Previous development status — 0.7.74
 
 The GFM path validator now accepts a detector anchored on the adjoining rail at the same ordinary two-way node where a saved path ends. The diagram bindings already identify the full circuit in this case. The live reader, inspection, manual search and automatic catalogue apply the same endpoint rule. The endpoint must match a shared native node. Switch nodes, three-way joins, detached rails and displaced boundaries remain invalid. One-sided C limits use the direction on the detector's rail.
 

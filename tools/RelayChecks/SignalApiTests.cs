@@ -160,13 +160,31 @@ public static class SignalApiTests {
             Calls(settingsWindow.GetMethod("Open",local,null,new[]{typeof(bool)},null)).Contains("WindowManager.RegisterCustomWindow"),
             "launcher settings use their own native window without patching Company or preferences pages or gating access on workspace permissions");
         var automatic=Calls(runtime.GetMethod("CommitAutomaticPlan",local));
+        var sharedAdmission=Calls(runtime.GetMethod("AdmitAutomaticPlan",local));
+        var centralRequest=Calls(runtime.GetMethod("AdmitRoutePlan",local));
         var prepare=Calls(runtime.GetMethod("PrepareRequestedPlan",local));
-        Check(automatic.Contains("SignalRuntime.RequireDispatcher")&&automatic.Contains("SignalRuntime.PrepareRequestedPlan")&&
+        Check(automatic.Contains("SignalRuntime.RequireDispatcher")&&automatic.Contains("SignalRuntime.AdmitAutomaticPlan")&&
+            sharedAdmission.Contains("SignalRuntime.PrepareRequestedPlan")&&sharedAdmission.Contains("SignalRuntime.AdmitRoutePlan")&&
             prepare.Contains("SignalWorldBridge.PathValid")&&prepare.Contains("SharedRuntime.ConnectRoutePoints")&&
-            automatic.Contains("SignalRuntime.ApplyRoutePlan")&&
-            Calls(runtime.GetMethod("ApplyRoutePlan",local)).Contains("InterlockingEngine.RequestChain")&&
+            Calls(runtime.GetMethod("ApplyRoutePlan",local)).Contains("SignalRuntime.RequireDispatcher")&&
+            centralRequest.Contains("StationAutomationPolicy.RequireControl")&&centralRequest.Contains("InterlockingEngine.RequestChain")&&
             Calls(runtime.GetMethod("SetRoutePlan",local)).Contains("SignalRuntime.QueueSavedPlan"),
             "calculated dispatcher routes revalidate topology and material connections before entering the guarded engine without mandatory catalogue persistence");
+        var webSet=Calls(runtime.GetMethod("SetWebRoute",local));
+        var webPreview=Calls(runtime.GetMethod("QueueWebPreview",local));
+        var webField=Calls(runtime.GetMethod("OpenWebField",local));
+        Check(webSet.Contains("SignalRuntime.RequireEdit")&&webSet.Contains("SignalRuntime.get_WebMayDispatch")&&
+            webSet.Contains("SignalRuntime.AdmitAutomaticPlan")&&webPreview.Contains("FrameWorkQueue.Enqueue")&&
+            !webPreview.Contains("SignalRuntime.AdmitAutomaticPlan"),"browser preview queues planning and only explicit confirmation enters shared route admission");
+        Check(webField.Contains("SignalRuntime.RequireEdit")&&webField.Contains("SignalRuntime.BeginPanelSignalPick")&&
+            webField.Contains("SignalRuntime.OpenEditorField")&&Calls(runtime.GetMethod("Shutdown")).Contains("SignalRuntime.Cleanup"),
+            "browser opens native editor and world assignment after game authorization");
+        var server=runtime.Assembly.GetType("EnusDE.Signaltechnik.InterlockingWebServer",true);
+        bool Private(string address)=>(bool)server.GetMethod("PrivateAddress",local).Invoke(null,new object[]{System.Net.IPAddress.Parse(address)});
+        Check(Private("192.168.1.20")&&Private("10.0.0.4")&&Private("172.31.8.8")&&!Private("172.32.0.1")&&!Private("8.8.8.8")&&!Private("0.0.0.0"),
+            "home network binding accepts private addresses only");
+        using(var html=runtime.Assembly.GetManifestResourceStream("EnusDE.Interlocking.html"))
+            Check(html!=null&&html.Length>1000,"mod assembly contains the browser UI and needs no separate web asset installation");
         Check(Calls(runtime.GetMethod("TickAutomation",local)).Contains("SignalRuntime.PrepareRequestedPlan")&&
             Calls(runtime.GetMethod("TickAutomation",local)).Contains("InterlockingEngine.RequestChain")&&
             Calls(runtime.GetMethod("TickAutomation",local)).Contains("SignalRuntime.TryPreparedAutomaticRoutes")&&

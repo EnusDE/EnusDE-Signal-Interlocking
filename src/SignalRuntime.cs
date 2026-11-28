@@ -90,6 +90,7 @@ namespace EnusDE.Signaltechnik {
             return NativeSignalAuthority.For(Aspect(id),engine.ForViaSignal(id),id);
         }
         void Update() {
+            try{TickWeb();}catch(Exception error){Cleanup(StopWeb);log?.Warning("Interlocking browser: "+error.Message);}
             if(lampTest.Active&&(lampTest.Expired(Time.realtimeSinceStartup)||stopped||backupSuspended||loadFailed||StateManager.IsUnloading||Entry.Shared?.WorldKey!=scope||!Entry.BuildModeActive||Entry.SelectedBuildSignal!=lampTest.PhysicalId||!StateManager.IsHost))EndLampTest();
             if(stopped||backupSuspended||StateManager.IsUnloading){CancelRouteWork();return;}
             ReadSetupFieldFocus();
@@ -223,7 +224,10 @@ namespace EnusDE.Signaltechnik {
             SetRoutePlan(new RouteChainPlan{Routes=new List<RouteDefinition>{route}});
         }
         void CancelRoute() {
-            RequireDispatcher();world.BeginRead();engine.CancelChain(routeId,world);status=LocalText.Get("Fahrstraße / Folge sicher aufgelöst.");Entry.RecordSignalEvent("route_cancel",new{id=routeId});
+            RequireDispatcher();CancelAdmittedRoute(routeId);
+        }
+        void CancelAdmittedRoute(string id) {
+            world.BeginRead();engine.CancelChain(id,world);status=LocalText.Get("Fahrstraße / Folge sicher aufgelöst.");Entry.RecordSignalEvent("route_cancel",new{id});
         }
         void DeleteRoute() {
             RequirePanelEdit();if(engine.Active.Any(r=>r.Route.Id==routeId))throw new InvalidOperationException("Aktive Fahrstraße zuerst sicher auflösen.");
@@ -247,6 +251,7 @@ namespace EnusDE.Signaltechnik {
         void Rebuild(bool rememberScroll=true){if(rememberScroll)RememberPanelScroll();if(manager!=null&&!StateManager.IsUnloading){CustomWindowHandle.Create(ActiveWindowId)?.SetNeedsRebuild();RebuildEditorToolsWindow();}}
         public void Open(bool choose=true)=>ShowWorkspace(false,choose?4:0,choose);
         public void Shutdown() {
+            Cleanup(StopWeb);
             lampTest.Clear();
             stockHooks?.Dispose();Cleanup(()=>automationHooks?.Dispose());Cleanup(()=>contactScene?.Dispose());Cleanup(RestoreSwitchModels);
             StopNetwork();

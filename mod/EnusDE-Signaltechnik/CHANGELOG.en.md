@@ -1,3 +1,10 @@
+## 0.7.75 — Optional browser interlocking (preview)
+
+- Open the browser from the clock launcher gear. Access is off at the start of every session.
+- Select start and destination on your live diagram, preview the path and request it through the game's existing interlocking. Preparing a preview does not set the route.
+- Open a selected field in the game editor, pick a signal in the world or enter native build mode from the browser.
+- The host can share a private session link over a trusted home network. Live game and second-PC acceptance are pending.
+
 ## 0.7.74 — GFM boundaries at track joins
 
 - Accept the existing physical boundary at the exact shared node of two unambiguous track segments. Valid saved sections remain usable when the rail span and the detector use different segment IDs at that point.

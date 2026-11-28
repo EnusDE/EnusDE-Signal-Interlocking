@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EnusDE · Signal &amp; Interlocking</title>
+<style>
+  :root { color-scheme:dark; font:15px system-ui,sans-serif; background:#12191a; color:#ecf5ef;
+    --panel:#1b2627; --line:#354747; --text:#ecf5ef; --muted:#aabdb8; --accent:#95dbb9; --focus:#f3df9a; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-width:300px; }
+  header, footer, .controls, .actions, .legend { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  header { padding:12px 18px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header strong { margin-right:auto; letter-spacing:.01em; }
+  button,select { font:inherit; color:var(--text); background:#233334; border:1px solid #49625e; border-radius:7px; min-height:37px; padding:6px 11px; cursor:pointer; }
+  button:hover:not(:disabled) { background:#305048; }
+  button:focus-visible,select:focus-visible,main:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+  button[aria-pressed="true"] { border-color:var(--accent); background:#285344; }
+  button.primary { background:#a7e0bf; color:#11231b; border-color:#a7e0bf; font-weight:650; }
+  button.primary:hover:not(:disabled) { background:#c4edd2; }
+  button:disabled { opacity:.54; cursor:default; }
+  button.danger { border-color:#b77470; color:#ffb5a8; }
+  [hidden] { display:none!important; }
+  .connection { color:var(--muted); font-size:.87rem; padding:4px 6px; }
+  .connection.bad { color:#ffac9b; }
+  .controls { padding:9px 18px; border-bottom:1px solid var(--line); }
+  .controls button { min-height:33px; }
+  .legend { margin-left:auto; color:var(--muted); font-size:.82rem; gap:8px 12px; }
+  .legend span { display:flex; align-items:center; gap:5px; }
+  .legend i { width:14px; border-top:3px solid var(--mark); }
+  main { position:relative; height:clamp(245px,60dvh,780px); overflow:auto; background:#141e20; }
+  #plane { position:relative; min-width:100%; min-height:100%; }
+  canvas { position:absolute; pointer-events:none; }
+  #keys { position:absolute; inset:0; pointer-events:none; }
+  .key, .caption { position:absolute; transform:translate(-50%,-50%); white-space:nowrap; }
+  .key { min-height:30px; min-width:26px; padding:2px 5px; pointer-events:auto; font-weight:600; font-size:.83rem; overflow:hidden; text-overflow:ellipsis; }
+  .key .lamp { display:inline-block; color:var(--lamp); margin-right:4px; }
+  .key[data-selected="true"] { outline:2px solid var(--accent); }
+  .key[aria-disabled="true"] { opacity:.65; }
+  .caption { color:var(--muted); font-size:.82rem; }
+  .number { color:#ffc592; background:#101718; padding:0 4px; border-radius:3px; font-variant-numeric:tabular-nums; }
+  footer { padding:14px 18px; justify-content:space-between; background:var(--panel); border-top:1px solid var(--line); }
+  #description { flex:1 1 250px; }
+  #summary { font-size:1.06rem; display:block; margin-bottom:3px; }
+  #message { color:var(--muted); margin:0; }
+  #message.error { color:#ffac9b; }
+  .actions { flex:0 1 auto; }
+  @media(max-width:580px) {
+    header,footer,.controls { padding-inline:10px; }
+    header strong { flex:1 0 100%; }
+    .legend { margin-left:0; }
+    main { height:52dvh; }
+  }
+</style>
+<header>
+  <strong>EnusDE · Signal &amp; Interlocking</strong>
+  <select id="desk" aria-label="Interlocking"></select>
+  <button id="operate" type="button" aria-pressed="true">Dispatcher</button>
+  <button id="edit" type="button" aria-pressed="false">Editor</button>
+  <span id="connection" class="connection" role="status">Connecting…</span>
+</header>
+<div class="controls">
+  <button id="minus" type="button" aria-label="Zoom out">−</button>
+  <button id="plus" type="button" aria-label="Zoom in">+</button>
+  <button id="fit" type="button">Fit</button>
+  <div class="legend" aria-label="Track indications">
+    <span><i style="--mark:#f67d78"></i><span id="occupied">Occupied</span></span>
+    <span><i style="--mark:#cfac60"></i><span id="unknown">Unknown</span></span>
+    <span><i style="--mark:#88dce6"></i><span id="preview">Path preview</span></span>
+    <span><i style="--mark:#63db9c"></i><span id="train">Train route</span></span>
+    <span><i style="--mark:#e2eef0"></i><span id="shunt">Shunting route</span></span>
+  </div>
+</div>
+<main id="view" tabindex="0" aria-label="Track diagram">
+  <div id="plane"><canvas aria-hidden="true"></canvas><div id="keys"></div></div>
+</main>
+<footer>
+  <div id="description"><strong id="summary"></strong><p id="message" role="status"></p></div>
+  <div id="actions" class="actions"></div>
+</footer>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const view = $('view'), keys = $('keys'), canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
+  const colors = ['#718888','#cfac60','#f67d78','#63db9c','#e2eef0'];
+  const lamps = {Stop:'#f67d78', Clear:'#63db9c', Slow:'#e6c071', Shunt:'#e2eef0', Kennlicht:'#e2eef0', Dark:'#81918e', Invalid:'#81918e'};
+  const angles = ['→','↑','←','↓'];
+  const dx = [1,1,0,-1,-1,-1,0,1], dy = [0,-1,-1,-1,0,1,1,1];
+  const keyName = 'enusde-access:' + location.host;
+  const fragment = location.hash.slice(1);
+  let access = fragment;
+  try {
+    if (fragment) sessionStorage.setItem(keyName,fragment);
+    else access = sessionStorage.getItem(keyName) || '';
+  } catch {}
+  if (fragment) history.replaceState(null,'',location.pathname);
+  let data, installedGeometry, layout, bins, bounds, frame, desk = '', german = false;
+  let fields = new Map(), elements = new Map(), scale = 1, autoFit = true, mode = 'operate';
+  let selected, entry, target, movement, ticket, releasing, notice = '', isError = false, online = false, busy = false;
+  let actionStamp = 0, pollStamp = 0;
+
+  function text(en,de) { return german ? de : en; }
+  function write(id,label) { if ($(id).textContent !== label) $(id).textContent = label; }
+  function labels() {
+    document.documentElement.lang = german ? 'de' : 'en';
+    for (const [id,en,de] of [
+      ['operate','Dispatcher','Fahrdienst'],['edit','Editor','Editor'],['fit','Fit','Einpassen'],
+      ['occupied','Occupied','Besetzt'],['unknown','Unknown','Unbekannt'],['preview','Path preview','Fahrwegvorschau'],
+      ['train','Train route','Zugfahrstraße'],['shunt','Shunting route','Rangierfahrstraße']
+    ]) write(id,text(en,de));
+    $('desk').setAttribute('aria-label',text('Interlocking','Stellwerk'));
+    view.setAttribute('aria-label',text('Track diagram','Gleisbild'));
+    $('minus').setAttribute('aria-label',text('Zoom out','Verkleinern'));
+    $('plus').setAttribute('aria-label',text('Zoom in','Vergrößern'));
+  }
+
+  async function call(path,body) {
+    const headers = {'X-EnusDE-Key':access};
+    if (body) headers['Content-Type'] = 'application/json';
+    const response = await fetch(path,{cache:'no-store',headers,method:body?'POST':'GET',body:body?JSON.stringify(body):undefined,
+      signal:AbortSignal.timeout(9000)});
+    if (response.status === 403) throw new Error(text('Open a fresh access link from the game.','Öffne einen neuen Zugangslink aus dem Spiel.'));
+    if (response.status === 202) throw new Error(text('The game received the request. Check the track display before trying again.','Das Spiel hat den Auftrag erhalten. Prüfe das Gleisbild, bevor du es erneut versuchst.'));
+    if (!response.ok) throw new Error(text('Waiting for Railroader.','Warte auf Railroader.'));
+    const result = await response.json();
+    if (result.error) throw new Error(result.error);
+    return result;
+  }
+  function resetSelection() {
+    selected = entry = target = movement = ticket = releasing = null;
+    notice = ''; isError = false;
+    actionStamp++;
+  }
+  function displayConnection(message) {
+    write('connection',message);
+    $('connection').classList.toggle('bad',!online);
+  }
+  async function poll() {
+    const requestDesk = desk;
+    const generation = ++pollStamp;
+    const actionAtRequest = actionStamp;
+    try {
+      if (!access) throw new Error(text('Open the access link from Railroader.','Öffne den Zugangslink aus Railroader.'));
+      const request = new URLSearchParams({desk:requestDesk});
+      if (installedGeometry && bounds) {
+        request.set('layout',installedGeometry);
+        const range = viewport(view.scrollLeft,view.scrollTop,72*scale,48*scale);
+        request.set('view',[range.x0,range.y0,range.x1-range.x0+1,range.y1-range.y0+1].join(','));
+      }
+      const next = await call('/state?' + request);
+      if (generation !== pollStamp || desk !== requestDesk) return;
+      if (data && (next.revision !== data.revision || next.installation !== data.installation)) {
+        // A submitted route can legitimately change the installation (e.g. point wiring).
+        const submitted = ticket && next.preview?.id === ticket && next.preview.stage === 'submitted';
+        if (!submitted) resetSelection();
+      }
+      if (ticket && !busy && actionAtRequest === actionStamp && data?.preview?.id === ticket && next.preview?.id !== ticket) ticket = null;
+      data = next; desk = next.desk; german = next.language === 'de'; online = true;
+      fields = new Map(next.fields.map(field => [field.cell,field]));
+      labels();
+      displayConnection(text('Connected to Railroader','Mit Railroader verbunden'));
+      const signature = JSON.stringify(next.desks);
+      if ($('desk').dataset.signature !== signature) {
+        $('desk').replaceChildren(...next.desks.map(d => new Option(d.code + ' · ' + d.name,d.id)));
+        $('desk').dataset.signature = signature;
+      }
+      $('desk').value = desk;
+      if (next.geometry) {
+        installedGeometry = next.layout;
+        layout = next.geometry;
+        indexLayout();
+        if (autoFit) fit();
+      }
+      renderActions(); redraw();
+    } catch (error) {
+      if (generation !== pollStamp || desk !== requestDesk) return;
+      online = false;
+      displayConnection(error.message);
+      renderActions(); redraw();
+    } finally {
+      if (generation === pollStamp) setTimeout(poll,1400);
+    }
+  }
+
+  function indexLayout() {
+    bins = new Map();
+    bounds = {left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
+    for (const tile of layout) {
+      bounds.left = Math.min(bounds.left,tile.x);
+      bounds.right = Math.max(bounds.right,tile.x);
+      bounds.top = Math.min(bounds.top,tile.y);
+      bounds.bottom = Math.max(bounds.bottom,tile.y);
+      const bucket = (tile.x >> 4) + '/' + (tile.y >> 4);
+      if (!bins.has(bucket)) bins.set(bucket,[]);
+      bins.get(bucket).push(tile);
+    }
+    if (!layout.length) bounds = {left:0,top:0,right:7,bottom:4};
+    keys.replaceChildren();
+    elements.clear();
+  }
+  function fit() {
+    autoFit = true;
+    if (!bounds) return;
+    scale = Math.max(.68,Math.min(1.32,(view.clientWidth-20)/((bounds.right-bounds.left+3)*72),
+      (view.clientHeight-16)/((bounds.bottom-bounds.top+3)*48)));
+    view.scrollLeft = 0;
+    view.scrollTop = 0;
+    redraw();
+  }
+  function zoom(delta) {
+    autoFit = false;
+    scale = Math.max(.68,Math.min(2.4,scale*delta));
+    redraw();
+  }
+  function viewport(left,top,w,h) {
+    const x0 = Math.max(bounds.left,bounds.left + Math.floor(left/w)-2),
+      y0 = Math.max(bounds.top,bounds.top + Math.floor(top/h)-2),
+      x1 = Math.min(bounds.right,bounds.left + Math.ceil((left+view.clientWidth)/w)+1),
+      y1 = Math.min(bounds.bottom,bounds.top + Math.ceil((top+view.clientHeight)/h)+1);
+    return {x0,y0,x1,y1};
+  }
+  function visibleTiles(left,top,w,h) {
+    const {x0,y0,x1,y1}=viewport(left,top,w,h);
+    const result = [];
+    for (let i=x0>>4;i<=x1>>4;i++) for (let j=y0>>4;j<=y1>>4;j++) {
+      for (const row of bins.get(i+'/'+j) || []) if(row.x>=x0&&row.x<=x1&&row.y>=y0&&row.y<=y1) result.push(row);
+    }
+    return result;
+  }
+  function line(x,y,px,py,color,dash=false) {
+    ctx.strokeStyle = color; ctx.lineWidth = Math.max(2,3*scale); ctx.setLineDash(dash?[5,4]:[]);
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(px,py); ctx.stroke();
+  }
+  function placeKey(tile,face,x,y,label,marker,aspect,available,half=false) {
+    const id = tile.cell + '/' + face;
+    let node = elements.get(id);
+    if (!node) {
+      node = document.createElement('button'); node.type = 'button'; node.className = 'key';
+      const lamp = document.createElement('span'); lamp.className = 'lamp'; lamp.setAttribute('aria-hidden','true');
+      node.append(lamp,document.createElement('span'));
+      node.addEventListener('click',() => {if (node.getAttribute('aria-disabled') !== 'true') choose(tile,face);});
+      keys.append(node); elements.set(id,node);
+    }
+    node.style.left = x+'px'; node.style.top = y+'px';
+    node.style.maxWidth = Math.floor((half?32:68)*scale)+'px';
+    node.firstElementChild.textContent = marker;
+    node.firstElementChild.style.setProperty('--lamp',lamps[aspect] || '#98a8a5');
+    node.firstElementChild.style.marginRight = half?'0':'4px';
+    node.lastElementChild.textContent = half?'':label;
+    node.title = label;
+    node.setAttribute('aria-label',label);
+    node.setAttribute('aria-disabled',String(!online||!available));
+    const selection = mode === 'edit' ? selected?.tile.cell === tile.cell : [entry,target].some(s => s?.tile.cell === tile.cell && s.face === face);
+    node.dataset.selected = String(selection);
+    return id;
+  }
+  function caption(tile,x,y,label,isNumber=false) {
+    const id = tile.cell+'/caption';
+    let node = elements.get(id);
+    if (!node) {
+      node = document.createElement('span'); node.className = 'caption'; if(isNumber) node.classList.add('number');
+      keys.append(node); elements.set(id,node);
+    }
+    node.textContent = label; node.style.left = x+'px'; node.style.top = y+'px';
+    return id;
+  }
+  function redraw() {
+    if (frame) return;
+    frame = requestAnimationFrame(draw);
+  }
+  function draw() {
+    frame = null;
+    if (!bounds) return;
+    const w=72*scale,h=48*scale;
+    $('plane').style.width = Math.ceil((bounds.right-bounds.left+3)*w)+'px';
+    $('plane').style.height = Math.ceil((bounds.bottom-bounds.top+3)*h)+'px';
+    const left = view.scrollLeft, top = view.scrollTop, width=view.clientWidth, height=view.clientHeight;
+    const ratio=Math.min(2,devicePixelRatio || 1);
+    if (canvas.width!==Math.round(width*ratio)||canvas.height!==Math.round(height*ratio)) {
+      canvas.width=Math.round(width*ratio); canvas.height=Math.round(height*ratio);
+    }
+    canvas.style.left=left+'px'; canvas.style.top=top+'px'; canvas.style.width=width+'px'; canvas.style.height=height+'px';
+    ctx.setTransform(ratio,0,0,ratio,0,0); ctx.clearRect(0,0,width,height);
+    ctx.lineCap='round';
+    const planned = new Set(data.preview?.stage==='ready' && data.preview.id===ticket ? data.preview.highlight : []);
+    const kept = new Set();
+    for (const tile of visibleTiles(left,top,w,h)) {
+      const field = fields.get(tile.cell);
+      const x=(tile.x-bounds.left+1.5)*w, y=(tile.y-bounds.top+1.5)*h;
+      for(let i=0;i<8;i++) if ((tile.ports & (1<<i))!==0) {
+        const ink=online ? field?.portInk?.[i] ?? field?.ink ?? 1 : 1;
+        const fromX=x-left, fromY=y-top, toX=fromX+dx[i]*w/2, toY=fromY+dy[i]*h/2;
+        line(fromX,fromY,toX,toY,colors[ink]);
+        if (online&&planned.has(tile.cell)) line(fromX,fromY-5,toX,toY-5,'#88dce6',true);
+      }
+      if (tile.kind===5&&field?.main) {
+        const half=!!field.shunt||!!field.target;
+        const offset=half?w*.25:0;
+        const reverse=field.target?tile.targetFirst:tile.swap;
+        kept.add(placeKey(tile,'main',x+(reverse?offset:-offset),y,field.main.name,angles[tile.mainDirection],field.main.aspect,
+          mode==='edit'?tile.editable:field.main.arrival,half));
+        if (field.shunt) kept.add(placeKey(tile,'shunt',x+(reverse?-offset:offset),y,
+          text('Shunt · ','Rangieren · ')+field.shunt.name,angles[tile.shuntDirection],field.shunt.aspect,
+          mode==='edit'?tile.editable:field.shunt.arrival,true));
+        if (field.target) kept.add(placeKey(tile,'target',x+(reverse?-offset:offset),y,field.target.name,angles[tile.targetDirection],null,mode==='operate',true));
+        if (half) kept.add(caption(tile,x,y+Math.max(20,19*scale),field.main.name));
+      } else if(field?.target&&mode==='operate') {
+        kept.add(placeKey(tile,'target',x,y,field.target.name,angles[tile.targetDirection],null,true));
+      } else if(mode==='edit'&&tile.editable) {
+        const names = [text('Track','Gleis'),text('Track','Gleis'),text('Curve','Bogen'),text('Point','Weiche'),
+          text('Crossing','Kreuz'),text('Signal','Signal'),text('Label','Text'),text('Number','Nummer'),
+          text('Destination','Ziel'),text('Line','Strecke')];
+        kept.add(placeKey(tile,'field',x,y,tile.label||names[tile.kind],'',null,data.canEdit));
+      } else if(field?.number||tile.label) kept.add(caption(tile,x,y,field?.number||tile.label,!!field?.number));
+    }
+    for (const [id,node] of elements) if(!kept.has(id)){node.remove();elements.delete(id);}
+  }
+  function choose(tile,face) {
+    if (busy) return;
+    selected={tile,face};
+    notice=''; isError=false; ticket=releasing=null; actionStamp++;
+    if(mode==='edit') {renderActions();redraw();return;}
+    const picked=fields.get(tile.cell)?.[face];
+    if(!picked||!data.canDispatch) {renderActions();redraw();return;}
+    const types=['train','slow','shunt'].filter(kind=>picked[kind]&&face!=='target');
+    if(!entry||picked.id===entry.data.id) {
+      entry=types.length ? {tile,face,data:picked,types} : null; target=null;
+      movement=entry?.types[0];
+    } else target={tile,face,data:picked};
+    renderActions(); redraw();
+  }
+  function option(label,action,primary=false,enabled=true,pressed=null) {
+    const button=document.createElement('button'); button.type='button'; button.textContent=label;
+    button.disabled=!enabled||busy; if(primary)button.className='primary';
+    if(pressed!==null)button.setAttribute('aria-pressed',String(pressed));
+    button.addEventListener('click',action);
+    return button;
+  }
+  function renderActions() {
+    $('operate').setAttribute('aria-pressed',String(mode==='operate'));
+    $('edit').setAttribute('aria-pressed',String(mode==='edit'));
+    $('edit').disabled=!online||!data?.canEdit;
+    $('desk').disabled=!online||busy;
+    let summary=text('Select a start signal','Startsignal wählen'), message=notice;
+    const buttons=[];
+    const movementLabels={train:text('Train','Zugfahrt'),slow:text('Reduced speed','Langsamfahrt'),shunt:text('Shunt','Rangieren')};
+    if(!online) { summary=text('Browser interlocking','Stellwerk im Browser'); message=''; }
+    else if(mode==='edit') {
+      summary=selected ? text('Field','Feld')+' '+(selected.tile.x+1)+' / '+(selected.tile.y+1) : text('Select a field','Feld wählen');
+      if(selected) {
+        const coordinates={X:selected.tile.x,Y:selected.tile.y};
+        buttons.push(option(text('Edit in game','Im Spiel bearbeiten'),()=>send('edit',coordinates),true,data.canEdit));
+        if(selected.tile.kind===5) buttons.push(option(text('Assign from world','In der Welt zuordnen'),()=>send('pick',coordinates),false,data.canEdit));
+      } else buttons.push(option(text('Build in game','Im Spiel bauen'),()=>send('build'),false,data.canEdit));
+    } else if(releasing) {
+      summary=text('Cancel route · ','Fahrstraße auflösen · ')+releasing.code;
+      message ||= text('The game holds any protection still required.','Das Spiel hält weiterhin benötigte Verschlüsse fest.');
+      const cancel=option(text('Set stop and release safely','Halt und sicher auflösen'),()=>send('release',{Target:releasing.id}));
+      cancel.classList.add('danger');
+      buttons.push(cancel,option(text('Back','Zurück'),()=>{releasing=null;renderActions();}));
+    } else if(!data.canDispatch) {
+      message ||= data.reason || '';
+    } else if(entry) {
+      summary=entry.data.name+(target?' → '+target.data.name:'');
+      if(!target) message ||= text('Select a destination.','Ziel wählen.');
+      for (const type of entry.types) if(entry.types.length>1) {
+        buttons.push(option(movementLabels[type],()=>{movement=type;ticket=null;notice='';renderActions();redraw();},false,true,movement===type));
+      }
+      const result = data.preview?.id===ticket ? data.preview : null;
+      if (result?.stage==='ready') {
+        message ||= result.message;
+        buttons.push(option(text('Set route','Fahrstraße stellen'),()=>send('set',{Target:ticket}),true));
+      } else if (result?.stage==='submitted') message ||= result.message;
+      else if (result?.stage==='working'||(ticket&&!result)) message ||= result?.message || text('Calculating route…','Fahrweg wird berechnet …');
+      else if (target) {
+        const fits=target.face==='target'?(movement==='shunt'?target.data.shunt:target.data.train):
+          movement==='shunt'?target.face==='shunt'||(target.data.shunt&&!fields.get(target.tile.cell)?.shunt):target.face!=='shunt';
+        message ||= result?.message || (!fits ? text('Choose the appropriate signal or destination for this movement.',
+          'Wähle für diese Fahrart das passende Signal oder Ziel.') : '');
+        buttons.push(option(text('Preview path','Fahrweg prüfen'),()=>send('preview',{Start:entry.data.id,Target:target.data.id,Movement:movement}),true,fits));
+      }
+      buttons.push(option(text('Clear selection','Auswahl lösen'),()=>{resetSelection();renderActions();redraw();}));
+    } else if (!layout?.length) message ||= text('This interlocking has no diagram yet.','Dieses Stellwerk hat noch kein Gleisbild.');
+    const active=mode==='operate'&&!releasing&&selected&&data?.active?.find(route=>route.start===fields.get(selected.tile.cell)?.[selected.face]?.id);
+    if(active) buttons.push(option(text('Release · ','Auflösen · ')+active.code,()=>{releasing=active;renderActions();}));
+    write('summary',summary); write('message',message||'');
+    $('message').classList.toggle('error',isError||!!(ticket&&data?.preview?.stage==='failed'));
+    const actions=$('actions');
+    const signature=JSON.stringify([mode,desk,selected?.tile.cell,entry?.data.id,target?.data.id,ticket,releasing?.id,active?.id,
+      buttons.map(b=>[b.textContent,b.disabled,b.getAttribute('aria-pressed')])]);
+    if (actions.dataset.signature!==signature) {actions.replaceChildren(...buttons);actions.dataset.signature=signature;}
+  }
+  async function send(action,extra) {
+    if(!online||busy)return;
+    const stamp=++actionStamp;
+    busy=true;isError=false;notice=''; renderActions();
+    try {
+      const result=await call('/action',{Action:action,Desk:desk,Revision:data.revision,Installation:data.installation,...extra});
+      if(stamp!==actionStamp)return;
+      if(action==='preview')ticket=result.ticket;
+      else if(action==='pick')notice=text('Select the signal on the track in Railroader. Escape cancels the selection.','Klicke das Signal am Gleis in Railroader an. Escape bricht die Auswahl ab.');
+      else if(action==='edit')notice=text('Continue in the Railroader editor.','Im Railroader-Editor weiterbearbeiten.');
+      else if(action==='build')notice=text('Continue in Railroader build mode.','Im Railroader-Baumodus weiterbauen.');
+      else if(action==='release'){releasing=null;notice=text('Release requested. Watch the track indications.','Auflösung angefordert. Beachte die Gleisanzeige.');}
+      else notice=text('Route requested. Watch the indications in the track diagram.','Fahrstraße angefordert. Die Anzeige im Gleisbild zeigt den weiteren Verlauf.');
+    } catch(error) {
+      if(stamp===actionStamp){isError=true;notice=error.message;}
+    } finally {
+      busy=false;renderActions();redraw();
+    }
+  }
+  $('desk').addEventListener('change',() => {desk=$('desk').value; resetSelection(); renderActions(); redraw();});
+  for(const tab of ['operate','edit']) $(tab).addEventListener('click',() => { if(busy)return; mode=tab; resetSelection();renderActions();redraw(); });
+  $('fit').addEventListener('click',fit);
+  $('minus').addEventListener('click',()=>zoom(1/1.17));
+  $('plus').addEventListener('click',()=>zoom(1.17));
+  view.addEventListener('scroll',redraw,{passive:true});
+  new ResizeObserver(()=>autoFit?fit():redraw()).observe(view);
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!busy){resetSelection();renderActions();redraw();}});
+  if(access) poll();
+  else { online=false;displayConnection(text('Open the access link from Railroader.','Öffne den Zugangslink aus Railroader.'));renderActions(); }
+})();
+</script>
+</html>

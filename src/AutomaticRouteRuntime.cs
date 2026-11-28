@@ -48,6 +48,10 @@ namespace EnusDE.Signaltechnik {
         }
         void CommitAutomaticPlan(RouteChainPlan plan) {
             RequireDispatcher();
+            AdmitAutomaticPlan(plan,deskId);
+            ClearAutomaticRouteChoices();
+        }
+        void AdmitAutomaticPlan(RouteChainPlan plan,string operatingDesk) {
             if(!aiEnabled)throw new InvalidOperationException("AE-Anbindung unter Auswahlfenster → Einstellungen einschalten.");
             if(plan.Routes.Count>1&&plan.Routes[0].LineTarget!=null) {
                 var binding=RouteLineTarget(plan.Routes[0]);
@@ -59,7 +63,7 @@ namespace EnusDE.Signaltechnik {
                 });
             }
             PrepareRequestedPlan(plan);
-            ApplyRoutePlan(plan);ClearAutomaticRouteChoices();
+            AdmitRoutePlan(plan,operatingDesk);
         }
         bool BuildAutomaticRouteChoices(UIPanelBuilder c) {
             if(automaticChoices.Count==0)return false;

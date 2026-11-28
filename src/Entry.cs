@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 
 namespace EnusDE.Signaltechnik {
     public sealed class Entry : IModEntryPoint,IWorldLifecycle {
-        public const string Version="0.7.74";
+        public const string Version="0.7.75";
         static Recorder current;
         static DiagnosticWindow diagnostic;
         static MarkerRuntime markers;
@@ -165,6 +165,11 @@ namespace EnusDE.Signaltechnik {
         public static LocalSignalAspect SignalAspect(string id)=>signals?.Aspect(id)??LocalSignalAspect.Stop;
         internal static void CheckLineConfigurationChange(string[] affected=null,IEnumerable<LineTrackDefinition> proposed=null,string[] targets=null)=>signals?.CheckLineConfigurationChange(affected,proposed,targets);
         internal static bool BuildModeActive=>markers?.BuildModeActive==true;
+        internal static void BuildWebSettings(UI.Builder.UIPanelBuilder builder) {
+            if(signals!=null)signals.DrawWebSettings(builder);
+            else builder.AddLabel(LocalText.Select("Load a game before opening the browser interlocking.","Lade einen Spielstand, um das Stellwerk im Browser zu öffnen."));
+        }
+        internal static void OpenBuildFromWeb()=>markers?.OpenBuildFromWeb();
         internal static string SelectedBuildSignal=>markers?.SelectedBuildSignal;
         internal static string LampTestOwner=>signals?.LampTestOwner;
         internal static void EndLampTest()=>signals?.EndLampTest();

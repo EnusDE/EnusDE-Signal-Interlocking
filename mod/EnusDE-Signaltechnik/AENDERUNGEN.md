@@ -1,3 +1,10 @@
+## 0.7.75 — Optionales Stellwerk im Browser (Vorschau)
+
+- Der Zugang liegt im Zahnradmenü neben der Spieluhr und startet jede Spielsitzung ausgeschaltet.
+- Start und Ziel im geladenen Gleisbild wählen, Fahrweg prüfen und mit der vorhandenen Stellwerkslogik anfordern. Die Vorschau stellt noch keine Fahrstraße.
+- Ein Feld im Spiele-Editor öffnen, ein Signal in der Welt zuordnen oder den Baumodus im Spiel starten.
+- Der Host kann einen privaten Sitzungslink im vertrauten Heimnetz teilen. Die Abnahme im Spiel und am zweiten Rechner steht aus.
+
 ## 0.7.74 — GFM-Grenzen an Gleissegmentwechseln
 
 - Ein gespeicherter Meldeweg darf genau am gemeinsamen Knoten zweier eindeutig verbundener Gleissegmente enden. Dort können Meldeweg und Grenze unterschiedliche Segmentkennungen haben.
