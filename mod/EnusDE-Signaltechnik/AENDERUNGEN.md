@@ -1,3 +1,9 @@
+## 0.7.76 — Symbolisches Gleisbild im Browser
+
+- Signale, Weichen, Gleise und Hilfsziele erscheinen in beiden Modi als Gleisbildsymbole. Namen sind beim Überfahren oder Auswählen sichtbar.
+- Im Fahrdienst sind Signalhälften einzeln anklickbar. Im Editor wird das ganze Feld ausgewählt.
+- Einpassen zeigt mehr vom geladenen Gleisbild. Die Bedienleiste bleibt darunter sichtbar.
+
 ## 0.7.75 — Optionales Stellwerk im Browser (Vorschau)
 
 - Der Zugang liegt im Zahnradmenü neben der Spieluhr und startet jede Spielsitzung ausgeschaltet.

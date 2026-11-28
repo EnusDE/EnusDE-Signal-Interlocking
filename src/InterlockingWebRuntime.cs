@@ -131,7 +131,9 @@ namespace EnusDE.Signaltechnik {
             result.Sensors=sensors.ToArray();
             result.Geometry=diagram.Tiles.Select(t=>new {
                 cell=WebCell(t.X,t.Y),x=t.X,y=t.Y,kind=(int)t.Kind,label=t.Label,ports=RailPorts(t),
-                swap=t.SwapSignalHalves,
+                swap=t.SwapSignalHalves,mirror=t.Mirror,rotation=t.Rotation,
+                alternate=t.Kind==PanelTileKind.Signal&&t.AlternateSignal!=null,
+                auxiliary=t.Target!=null,
                 mainDirection=t.Kind==PanelTileKind.Signal?SignalCellLayout.MainDirection(t):0,
                 shuntDirection=t.Kind==PanelTileKind.Signal?SignalCellLayout.ShuntDirection(t):0,
                 targetDirection=t.Kind==PanelTileKind.Signal?SignalCellLayout.AuxiliaryDirection(t):SignalCellLayout.TargetDirection(t),
@@ -166,6 +168,7 @@ namespace EnusDE.Signaltechnik {
             bool present=ButtonSignal(id);
             bool enabled=!readOnly&&present;
             return new {id,name=SignalCaption(id),aspect=Aspect(id).ToString(),
+                type=signal.Kind==MarkerRecord.Shunt?"shunt":signal.Kind==MarkerRecord.Distant?"distant":"main",
                 train=enabled&&!shuntHalf&&SignalCatalogue.Supports(signal,false,false),
                 slow=enabled&&!shuntHalf&&SignalCatalogue.Supports(signal,false,true),
                 shunt=enabled&&SignalCatalogue.Supports(signal,true,false),
@@ -197,9 +200,23 @@ namespace EnusDE.Signaltechnik {
                     }
                 }
             }
+            int? pointPorts=null;
+            string pointName=null;
+            if(t.Kind==PanelTileKind.Switch&&!string.IsNullOrEmpty(t.Reference)) {
+                if(desks.Points.TryGetValue(t.Reference,out var point))pointName=point.Code;
+                if(world.SwitchPosition(t.Reference,out bool thrown)) {
+                    int stem,normal,branch;
+                    if(t.Ports==0){stem=16;normal=1;branch=2;}
+                    else PanelConnections.Arms(t,out stem,out normal,out branch);
+                    pointPorts=PanelConnections.Transform(stem|(thrown?branch:normal),t.Rotation,t.Mirror);
+                }
+            }
+            var line=t.Kind==PanelTileKind.LinePermission?desks.FreeLines.FirstOrDefault(l=>l.Id==t.Reference):null;
+            var permission=line==null?null:LineLive(line.Id);
             var target=t.Target;
             return new {
-                cell=WebCell(t.X,t.Y),ink=(int)ink,portInk,
+                cell=WebCell(t.X,t.Y),ink=(int)ink,portInk,pointPorts,pointName,
+                permission=permission!=null&&permission.State!="fault"&&permission.State!="disabled"?permission.Direction:0,
                 main=t.Kind==PanelTileKind.Signal?WebSignal(t.Reference,t.ReadOnlySignal):null,
                 shunt=t.Kind==PanelTileKind.Signal?WebSignal(t.AlternateSignal,t.ReadOnlySignal,true):null,
                 number=t.Kind==PanelTileKind.TrainNumber?NumberCaption(t):null,

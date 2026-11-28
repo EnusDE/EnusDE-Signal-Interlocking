@@ -7,7 +7,7 @@
   :root { color-scheme:dark; font:15px system-ui,sans-serif; background:#12191a; color:#ecf5ef;
     --panel:#1b2627; --line:#354747; --text:#ecf5ef; --muted:#aabdb8; --accent:#95dbb9; --focus:#f3df9a; }
   * { box-sizing:border-box; }
-  body { margin:0; min-width:300px; }
+  body { margin:0; min-width:300px; height:100dvh; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; overflow:hidden; }
   header, footer, .controls, .actions, .legend { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   header { padding:12px 18px; border-bottom:1px solid var(--line); background:var(--panel); }
   header strong { margin-right:auto; letter-spacing:.01em; }
@@ -27,17 +27,17 @@
   .legend { margin-left:auto; color:var(--muted); font-size:.82rem; gap:8px 12px; }
   .legend span { display:flex; align-items:center; gap:5px; }
   .legend i { width:14px; border-top:3px solid var(--mark); }
-  main { position:relative; height:clamp(245px,60dvh,780px); overflow:auto; background:#141e20; }
+  main { position:relative; min-height:0; overflow:auto; background:#111a1c; }
   #plane { position:relative; min-width:100%; min-height:100%; }
   canvas { position:absolute; pointer-events:none; }
   #keys { position:absolute; inset:0; pointer-events:none; }
-  .key, .caption { position:absolute; transform:translate(-50%,-50%); white-space:nowrap; }
-  .key { min-height:30px; min-width:26px; padding:2px 5px; pointer-events:auto; font-weight:600; font-size:.83rem; overflow:hidden; text-overflow:ellipsis; }
-  .key .lamp { display:inline-block; color:var(--lamp); margin-right:4px; }
-  .key[data-selected="true"] { outline:2px solid var(--accent); }
-  .key[aria-disabled="true"] { opacity:.65; }
-  .caption { color:var(--muted); font-size:.82rem; }
-  .number { color:#ffc592; background:#101718; padding:0 4px; border-radius:3px; font-variant-numeric:tabular-nums; }
+  #keys .key {
+    position:absolute; transform:translate(-50%,-50%); pointer-events:auto; min-height:0; min-width:0;
+    padding:0; background:transparent; border:1px solid transparent; border-radius:3px;
+  }
+  #keys .key:hover, #keys .key:focus-visible { border-color:#b5cbca; background:#d2eeef14; }
+  #keys .key[aria-pressed="true"] { border-color:#7ddcf4; background:#438ca630; }
+  #keys .key[aria-disabled="true"] { cursor:default; }
   footer { padding:14px 18px; justify-content:space-between; background:var(--panel); border-top:1px solid var(--line); }
   #description { flex:1 1 250px; }
   #summary { font-size:1.06rem; display:block; margin-bottom:3px; }
@@ -48,7 +48,7 @@
     header,footer,.controls { padding-inline:10px; }
     header strong { flex:1 0 100%; }
     .legend { margin-left:0; }
-    main { height:52dvh; }
+    footer { gap:6px; padding-block:8px; }
   }
 </style>
 <header>
@@ -82,10 +82,10 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const view = $('view'), keys = $('keys'), canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
-  const colors = ['#718888','#cfac60','#f67d78','#63db9c','#e2eef0'];
-  const lamps = {Stop:'#f67d78', Clear:'#63db9c', Slow:'#e6c071', Shunt:'#e2eef0', Kennlicht:'#e2eef0', Dark:'#81918e', Invalid:'#81918e'};
-  const angles = ['→','↑','←','↓'];
+  const colors = ['#829694','#d5ad61','#ff776e','#6cdda1','#e2eef0'];
+  const lamps = {Stop:'#ff7169', Clear:'#63db9c', Slow:'#ffd178', Shunt:'#e2eef0', Kennlicht:'#e2eef0'};
   const dx = [1,1,0,-1,-1,-1,0,1], dy = [0,-1,-1,-1,0,1,1,1];
+  const sizes = {width:72,height:48,padding:14};
   const keyName = 'enusde-access:' + location.host;
   const fragment = location.hash.slice(1);
   let access = fragment;
@@ -144,7 +144,7 @@
       const request = new URLSearchParams({desk:requestDesk});
       if (installedGeometry && bounds) {
         request.set('layout',installedGeometry);
-        const range = viewport(view.scrollLeft,view.scrollTop,72*scale,48*scale);
+        const range = viewport(boardSpace());
         request.set('view',[range.x0,range.y0,range.x1-range.x0+1,range.y1-range.y0+1].join(','));
       }
       const next = await call('/state?' + request);
@@ -201,26 +201,44 @@
   function fit() {
     autoFit = true;
     if (!bounds) return;
-    scale = Math.max(.68,Math.min(1.32,(view.clientWidth-20)/((bounds.right-bounds.left+3)*72),
-      (view.clientHeight-16)/((bounds.bottom-bounds.top+3)*48)));
+    const padding = sizes.padding*2+4;
+    scale = Math.max(.3,Math.min(1.5,(view.clientWidth-padding)/((bounds.right-bounds.left+1)*sizes.width),
+      (view.clientHeight-padding)/((bounds.bottom-bounds.top+1)*sizes.height)));
     view.scrollLeft = 0;
     view.scrollTop = 0;
     redraw();
   }
   function zoom(delta) {
+    if (!bounds) return;
+    const before = boardSpace();
     autoFit = false;
-    scale = Math.max(.68,Math.min(2.4,scale*delta));
+    scale = Math.max(.3,Math.min(2.5,scale*delta));
+    const after = boardSpace();
+    sizePlane(after);
+    view.scrollLeft = after.x0 + (before.left+before.width/2-before.x0)*after.w/before.w-after.width/2;
+    view.scrollTop = after.y0 + (before.top+before.height/2-before.y0)*after.h/before.h-after.height/2;
     redraw();
   }
-  function viewport(left,top,w,h) {
-    const x0 = Math.max(bounds.left,bounds.left + Math.floor(left/w)-2),
-      y0 = Math.max(bounds.top,bounds.top + Math.floor(top/h)-2),
-      x1 = Math.min(bounds.right,bounds.left + Math.ceil((left+view.clientWidth)/w)+1),
-      y1 = Math.min(bounds.bottom,bounds.top + Math.ceil((top+view.clientHeight)/h)+1);
+  function boardSpace() {
+    const width=view.clientWidth,height=view.clientHeight,w=sizes.width*scale,h=sizes.height*scale;
+    const railWidth=(bounds.right-bounds.left+1)*w,railHeight=(bounds.bottom-bounds.top+1)*h;
+    const x0=Math.max(sizes.padding,(width-railWidth)/2),y0=Math.max(sizes.padding,(height-railHeight)/2);
+    return {w,h,x0,y0,width,height,left:view.scrollLeft,top:view.scrollTop,railWidth,railHeight};
+  }
+  function sizePlane(space) {
+    $('plane').style.width = Math.ceil(space.railWidth+2*sizes.padding)+'px';
+    $('plane').style.height = Math.ceil(space.railHeight+2*sizes.padding)+'px';
+  }
+  function viewport(space) {
+    const {left,top,w,h,width,height,x0:originX,y0:originY}=space;
+    const x0 = Math.max(bounds.left,bounds.left + Math.floor((left-originX)/w)-1),
+      y0 = Math.max(bounds.top,bounds.top + Math.floor((top-originY)/h)-1),
+      x1 = Math.min(bounds.right,bounds.left + Math.ceil((left+width-originX)/w)+1),
+      y1 = Math.min(bounds.bottom,bounds.top + Math.ceil((top+height-originY)/h)+1);
     return {x0,y0,x1,y1};
   }
-  function visibleTiles(left,top,w,h) {
-    const {x0,y0,x1,y1}=viewport(left,top,w,h);
+  function visibleTiles(space) {
+    const {x0,y0,x1,y1}=viewport(space);
     const result = [];
     for (let i=x0>>4;i<=x1>>4;i++) for (let j=y0>>4;j<=y1>>4;j++) {
       for (const row of bins.get(i+'/'+j) || []) if(row.x>=x0&&row.x<=x1&&row.y>=y0&&row.y<=y1) result.push(row);
@@ -228,41 +246,114 @@
     return result;
   }
   function line(x,y,px,py,color,dash=false) {
-    ctx.strokeStyle = color; ctx.lineWidth = Math.max(2,3*scale); ctx.setLineDash(dash?[5,4]:[]);
+    ctx.strokeStyle = color; ctx.lineWidth = dash?Math.max(1.6,2*scale):Math.max(1.65,3*scale); ctx.setLineDash(dash?[4,4]:[]);
     ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(px,py); ctx.stroke();
   }
-  function placeKey(tile,face,x,y,label,marker,aspect,available,half=false) {
+  function placeKey(tile,face,x,y,w,h,label,available) {
     const id = tile.cell + '/' + face;
     let node = elements.get(id);
     if (!node) {
       node = document.createElement('button'); node.type = 'button'; node.className = 'key';
-      const lamp = document.createElement('span'); lamp.className = 'lamp'; lamp.setAttribute('aria-hidden','true');
-      node.append(lamp,document.createElement('span'));
+      node.dataset.face=face;
       node.addEventListener('click',() => {if (node.getAttribute('aria-disabled') !== 'true') choose(tile,face);});
       keys.append(node); elements.set(id,node);
     }
     node.style.left = x+'px'; node.style.top = y+'px';
-    node.style.maxWidth = Math.floor((half?32:68)*scale)+'px';
-    node.firstElementChild.textContent = marker;
-    node.firstElementChild.style.setProperty('--lamp',lamps[aspect] || '#98a8a5');
-    node.firstElementChild.style.marginRight = half?'0':'4px';
-    node.lastElementChild.textContent = half?'':label;
+    node.style.width = Math.max(1,w)+'px'; node.style.height = Math.max(1,h)+'px';
     node.title = label;
     node.setAttribute('aria-label',label);
     node.setAttribute('aria-disabled',String(!online||!available));
-    const selection = mode === 'edit' ? selected?.tile.cell === tile.cell : [entry,target].some(s => s?.tile.cell === tile.cell && s.face === face);
-    node.dataset.selected = String(selection);
+    const marked = mode === 'edit' ? selected?.tile.cell === tile.cell :
+      [entry,target,selected].some(s => s?.tile.cell === tile.cell && s.face === face);
+    node.setAttribute('aria-pressed',String(marked));
     return id;
   }
-  function caption(tile,x,y,label,isNumber=false) {
-    const id = tile.cell+'/caption';
-    let node = elements.get(id);
-    if (!node) {
-      node = document.createElement('span'); node.className = 'caption'; if(isNumber) node.classList.add('number');
-      keys.append(node); elements.set(id,node);
+  function fieldName(tile) {
+    const field=fields.get(tile.cell);
+    if(tile.label)return tile.label;
+    if(tile.kind===5&&field?.main)return field.main.name;
+    if(tile.kind===3&&field?.pointName)return field.pointName;
+    if(tile.kind===8&&field?.target)return field.target.name;
+    const names = [text('Track','Gleis'),text('Diagonal','Diagonale'),text('Curve','Bogen'),text('Point','Weiche'),
+      text('Crossing','Kreuzung'),text('Signal','Signal'),text('Text','Text'),text('Train number','Zugnummer'),
+      text('Auxiliary destination','Hilfsziel'),text('Line permission','Streckenerlaubnis')];
+    return names[tile.kind];
+  }
+  function polygon(points,fill,stroke) {
+    ctx.beginPath();
+    points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+    ctx.closePath();
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.stroke();}
+  }
+  function dot(x,y,r,color) {
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+  }
+  function aim(x,y,direction,color) {
+    ctx.save();ctx.translate(x,y);ctx.rotate(-direction*Math.PI/2);
+    polygon([[-2.7,-2.2],[2.6,0],[-2.7,2.2]],color);
+    ctx.restore();
+  }
+  function drawSignal(x,y,face,symbolScale) {
+    let aspect=online?face.aspect:null;
+    if(face.type==='main'&&face.split&&aspect==='Shunt'||face.type==='shunt'&&(aspect==='Clear'||aspect==='Slow'))aspect='Stop';
+    const s=symbolScale, color=face.type==='distant'&&aspect==='Stop'?lamps.Slow:lamps[aspect]||'#708487';
+    ctx.save();ctx.translate(x,y);ctx.scale(s,s);ctx.rotate(-face.side*Math.PI/2);
+    if(face.mirror)ctx.scale(1,-1);
+    ctx.lineWidth=1.35;ctx.setLineDash([]);
+    ctx.strokeStyle='#8badaa';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,8.5);ctx.stroke();
+    ctx.translate(0,10.5);
+    if(face.type==='shunt'||face.type==='distant') {
+      polygon([[-6,-3.7],[6,-3.7],[6,3.7],[-6,3.7]],'#172126','#aac5c4');
+      const diagonal=face.type==='distant'||aspect==='Shunt';
+      dot(-2.65,diagonal?1.05:0,1.35,color);
+      dot(2.65,diagonal?-1.05:0,1.35,face.type==='distant'&&aspect==='Slow'?lamps.Clear:color);
+    } else {
+      polygon([[-3.7,4.8],[-3.7,-3.1],[-2.2,-5.1],[2.2,-5.1],[3.7,-3.1],[3.7,4.8]],'#172126','#aac5c4');
+      dot(0,.2,1.78,color);
     }
-    node.textContent = label; node.style.left = x+'px'; node.style.top = y+'px';
-    return id;
+    if(aspect==='Invalid') {
+      ctx.strokeStyle='#d1dddb';ctx.beginPath();
+      ctx.moveTo(-3,-2.7);ctx.lineTo(3,2.7);
+      ctx.moveTo(3,-2.7);ctx.lineTo(-3,2.7);ctx.stroke();
+    }
+    ctx.restore();
+    ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+    ctx.rotate(-face.side*Math.PI/2);ctx.translate(8,face.mirror?-10.5:10.5);ctx.rotate(face.side*Math.PI/2);
+    aim(0,0,face.direction,'#bfd6d2');
+    ctx.restore();
+  }
+  function boardFaces(tile,field) {
+    if(tile.kind===8)return [{key:'target',type:'target',direction:tile.targetDirection,model:field?.target}];
+    if(tile.kind!==5)return [];
+    const main={key:'main',type:field?.main?.type||'main',direction:tile.mainDirection,model:field?.main};
+    const other=tile.alternate||field?.shunt?{key:'shunt',type:'shunt',direction:tile.shuntDirection,model:field?.shunt}:
+      tile.auxiliary||field?.target?{key:'target',type:'target',direction:tile.targetDirection,model:field?.target}:null;
+    return !other?[main]:(other.key==='target'?tile.targetFirst:tile.swap)?[other,main]:[main,other];
+  }
+  function drawPlate(tile,field,x,y,w) {
+    const s=Math.min(1.5,Math.max(.64,scale*1.14));
+    const font=Math.max(10,Math.min(15,12*scale));
+    ctx.setLineDash([]);
+    if(tile.kind===6&&tile.label&&scale>=.43) {
+      ctx.font='600 '+font+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#d3e4e0';
+      ctx.fillText(tile.label,x,y,w*1.65);
+    } else if(tile.kind===7) {
+      const value=online?field?.number||'·····':'·····';
+      ctx.font='600 '+Math.min(font,14*s)+'px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+      const halfWidth=Math.min(w*.46,Math.max(11*s,ctx.measureText(value).width/2+3*s));
+      const center=tile.ports?y-9*s:y,halfHeight=6*s;
+      ctx.fillStyle='#182428';ctx.fillRect(x-halfWidth,center-halfHeight,halfWidth*2,halfHeight*2);
+      ctx.strokeStyle='#698886';ctx.lineWidth=1;ctx.strokeRect(x-halfWidth,center-halfHeight,halfWidth*2,halfHeight*2);
+      if(scale>=.44){ctx.fillStyle='#ffcb94';ctx.fillText(value,x,center+.5,halfWidth*2-3);}
+    } else if(tile.kind===9) {
+      ctx.lineWidth=1;
+      const r=6*s;
+      polygon([[x-r,y-r],[x+r,y-r],[x+r,y+r],[x-r,y+r]],'#172126','#8db5c8');
+      const direction=online?field?.permission||0:0;
+      if(direction){ctx.save();ctx.translate(x,y);ctx.scale(s,s);aim(0,0,(tile.rotation+(direction<0?2:0))%4,'#8db5c8');ctx.restore();}
+      else dot(x,y,1.25*s,'#8db5c8');
+    }
   }
   function redraw() {
     if (frame) return;
@@ -271,10 +362,9 @@
   function draw() {
     frame = null;
     if (!bounds) return;
-    const w=72*scale,h=48*scale;
-    $('plane').style.width = Math.ceil((bounds.right-bounds.left+3)*w)+'px';
-    $('plane').style.height = Math.ceil((bounds.bottom-bounds.top+3)*h)+'px';
-    const left = view.scrollLeft, top = view.scrollTop, width=view.clientWidth, height=view.clientHeight;
+    const space=boardSpace();
+    sizePlane(space);
+    const {w,h,x0,y0,left,top,width,height}=space;
     const ratio=Math.min(2,devicePixelRatio || 1);
     if (canvas.width!==Math.round(width*ratio)||canvas.height!==Math.round(height*ratio)) {
       canvas.width=Math.round(width*ratio); canvas.height=Math.round(height*ratio);
@@ -284,34 +374,51 @@
     ctx.lineCap='round';
     const planned = new Set(data.preview?.stage==='ready' && data.preview.id===ticket ? data.preview.highlight : []);
     const kept = new Set();
-    for (const tile of visibleTiles(left,top,w,h)) {
+    const tiles=visibleTiles(space);
+    function position(tile){return [x0+(tile.x-bounds.left+.5)*w,y0+(tile.y-bounds.top+.5)*h];}
+    for (const tile of tiles) {
       const field = fields.get(tile.cell);
-      const x=(tile.x-bounds.left+1.5)*w, y=(tile.y-bounds.top+1.5)*h;
+      const [x,y]=position(tile);
+      const cx=x-left,cy=y-top;
       for(let i=0;i<8;i++) if ((tile.ports & (1<<i))!==0) {
         const ink=online ? field?.portInk?.[i] ?? field?.ink ?? 1 : 1;
-        const fromX=x-left, fromY=y-top, toX=fromX+dx[i]*w/2, toY=fromY+dy[i]*h/2;
-        line(fromX,fromY,toX,toY,colors[ink]);
-        if (online&&planned.has(tile.cell)) line(fromX,fromY-5,toX,toY-5,'#88dce6',true);
+        const inactive=online&&tile.kind===3&&field?.pointPorts!=null&&!(field.pointPorts&(1<<i))&&ink!==2;
+        const fromX=inactive?cx+dx[i]*Math.min(6,w*.15):cx, fromY=inactive?cy+dy[i]*Math.min(6,h*.15):cy;
+        const toX=cx+dx[i]*w/2, toY=cy+dy[i]*h/2;
+        line(fromX,fromY,toX,toY,inactive&&ink!==1?'#465559':colors[ink]);
+        if (online&&planned.has(tile.cell)) {
+          const side=dx[i]<0||dx[i]===0&&dy[i]<0?-1:1;
+          const offset=side*Math.max(3,4*scale);
+          line(cx+dy[i]*offset,cy-dx[i]*offset,toX+dy[i]*offset,toY-dx[i]*offset,'#88dce6',true);
+        }
       }
-      if (tile.kind===5&&field?.main) {
-        const half=!!field.shunt||!!field.target;
-        const offset=half?w*.25:0;
-        const reverse=field.target?tile.targetFirst:tile.swap;
-        kept.add(placeKey(tile,'main',x+(reverse?offset:-offset),y,field.main.name,angles[tile.mainDirection],field.main.aspect,
-          mode==='edit'?tile.editable:field.main.arrival,half));
-        if (field.shunt) kept.add(placeKey(tile,'shunt',x+(reverse?-offset:offset),y,
-          text('Shunt · ','Rangieren · ')+field.shunt.name,angles[tile.shuntDirection],field.shunt.aspect,
-          mode==='edit'?tile.editable:field.shunt.arrival,true));
-        if (field.target) kept.add(placeKey(tile,'target',x+(reverse?-offset:offset),y,field.target.name,angles[tile.targetDirection],null,mode==='operate',true));
-        if (half) kept.add(caption(tile,x,y+Math.max(20,19*scale),field.main.name));
-      } else if(field?.target&&mode==='operate') {
-        kept.add(placeKey(tile,'target',x,y,field.target.name,angles[tile.targetDirection],null,true));
-      } else if(mode==='edit'&&tile.editable) {
-        const names = [text('Track','Gleis'),text('Track','Gleis'),text('Curve','Bogen'),text('Point','Weiche'),
-          text('Crossing','Kreuz'),text('Signal','Signal'),text('Label','Text'),text('Number','Nummer'),
-          text('Destination','Ziel'),text('Line','Strecke')];
-        kept.add(placeKey(tile,'field',x,y,tile.label||names[tile.kind],'',null,data.canEdit));
-      } else if(field?.number||tile.label) kept.add(caption(tile,x,y,field?.number||tile.label,!!field?.number));
+      if(tile.kind===3)dot(cx,cy,Math.max(1.4,2.45*scale),colors[online?field?.ink??1:1]);
+    }
+    for(const tile of tiles) {
+      const field=fields.get(tile.cell);
+      const [x,y]=position(tile);
+      const faces=boardFaces(tile,field);
+      const vertical=tile.mainDirection%2===1;
+      const split=faces.length===2;
+      const along=vertical?h:w,across=vertical?w:h;
+      const symbolScale=Math.min(1.7,along/(split?43:24),across/30,Math.max(.57,scale*1.48));
+      faces.forEach((face,index)=>{
+        const part=split?(index===0?-.25:.25):0;
+        const ax=x+(vertical?0:part*w),ay=y+(vertical?part*h:0);
+        if(face.type==='target') {
+          const radius=6.6*symbolScale,rx=ax-left,ry=ay-top;
+          ctx.lineWidth=1.15;ctx.setLineDash([]);
+          polygon([[rx-radius,ry],[rx,ry-radius],[rx+radius,ry],[rx,ry+radius]],'#1b2528','#f4bb77');
+          ctx.save();ctx.translate(rx,ry);ctx.scale(symbolScale,symbolScale);aim(0,0,face.direction||0,'#f4bb77');ctx.restore();
+        } else drawSignal(ax-left,ay-top,{...face,split,side:tile.mainDirection||0,mirror:tile.mirror,aspect:face.model?.aspect},symbolScale);
+        if(mode==='operate'&&face.model) {
+          const name=face.key==='shunt'||face.type==='shunt'?text('Shunting signal · ','Rangiersignal · ')+face.model.name:face.model.name;
+          const hitWidth=split&&!vertical?w*.5-2:w*.82,hitHeight=split&&vertical?h*.5-2:h*.9;
+          kept.add(placeKey(tile,face.key,ax,ay,hitWidth,hitHeight,name,face.key==='target'||face.model.arrival));
+        }
+      });
+      drawPlate(tile,field,x-left,y-top,w);
+      if(mode==='edit'&&tile.editable)kept.add(placeKey(tile,'field',x,y,w-2,h-2,fieldName(tile),data.canEdit));
     }
     for (const [id,node] of elements) if(!kept.has(id)){node.remove();elements.delete(id);}
   }
@@ -346,7 +453,7 @@
     const movementLabels={train:text('Train','Zugfahrt'),slow:text('Reduced speed','Langsamfahrt'),shunt:text('Shunt','Rangieren')};
     if(!online) { summary=text('Browser interlocking','Stellwerk im Browser'); message=''; }
     else if(mode==='edit') {
-      summary=selected ? text('Field','Feld')+' '+(selected.tile.x+1)+' / '+(selected.tile.y+1) : text('Select a field','Feld wählen');
+      summary=selected ? fieldName(selected.tile)+' · '+text('Field','Feld')+' '+(selected.tile.x+1)+' / '+(selected.tile.y+1) : text('Select a field','Feld wählen');
       if(selected) {
         const coordinates={X:selected.tile.x,Y:selected.tile.y};
         buttons.push(option(text('Edit in game','Im Spiel bearbeiten'),()=>send('edit',coordinates),true,data.canEdit));
@@ -409,13 +516,19 @@
       busy=false;renderActions();redraw();
     }
   }
-  $('desk').addEventListener('change',() => {desk=$('desk').value; resetSelection(); renderActions(); redraw();});
+  $('desk').addEventListener('change',() => {
+    desk=$('desk').value;
+    installedGeometry=layout=bounds=null;
+    keys.replaceChildren();elements.clear();fields.clear();canvas.width=0;
+    resetSelection();renderActions();
+  });
   for(const tab of ['operate','edit']) $(tab).addEventListener('click',() => { if(busy)return; mode=tab; resetSelection();renderActions();redraw(); });
   $('fit').addEventListener('click',fit);
   $('minus').addEventListener('click',()=>zoom(1/1.17));
   $('plus').addEventListener('click',()=>zoom(1.17));
   view.addEventListener('scroll',redraw,{passive:true});
-  new ResizeObserver(()=>autoFit?fit():redraw()).observe(view);
+  new ResizeObserver(redraw).observe(view);
+  window.addEventListener('resize',()=>autoFit?fit():redraw());
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!busy){resetSelection();renderActions();redraw();}});
   if(access) poll();
   else { online=false;displayConnection(text('Open the access link from Railroader.','Öffne den Zugangslink aus Railroader.'));renderActions(); }

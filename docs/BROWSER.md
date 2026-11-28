@@ -6,6 +6,8 @@ In **Dispatcher**, select a start signal and destination, then choose **Preview 
 
 In **Editor**, select a field to open that field in Railroader. **Assign from world** starts the game's signal picker for a signal field. **Build in game** opens the existing native build tools when no field is selected. Save or cancel changes in Railroader. At a master diagram, open the owning interlocking to edit a projected field.
 
+Hover a signal or editable field to see its name. In Dispatcher, click the relevant half of a split field. In Editor, either half selects the same field. Text fields and train numbers are drawn on the diagram. **Fit** shows an overview. Zoom in on large diagrams to see smaller symbols and numbers.
+
 This preview needs acceptance in Railroader 0.6.3. Start with loopback, then test an explicit home network link and verify that the old link stops working after access is turned off. Try a train route, a shunting route, an occupied destination, a protected cancellation, a world assignment and a world change. Check signal halves, point indications and scrolling on a large diagram. Browser occupancy draws at diagram field or mapped half-rail granularity.
 
 ## Deutsch
@@ -15,5 +17,7 @@ Das Zahnrad neben der Spieluhr öffnet **Stellwerk im Browser**. **Auf diesem PC
 Im **Fahrdienst** zuerst Start und Ziel anklicken, dann **Fahrweg prüfen**. Die gestrichelte Vorschau markiert zugeordnete Abschnitte des Fahrwegs. Bei **Fahrstraße stellen** prüft Railroader Belegung, Schutz und Bedienrechte. Unbekannte Abschnitte bleiben gelb. Über das Startsignal einer aktiven Fahrstraße lässt sich die sichere Auflösung anfordern. Bei mehreren möglichen Wegen wähle ein näheres Ziel oder den gewünschten Weg im Spiel.
 
 Im **Editor** öffnet ein gewähltes Feld die passenden Eigenschaften in Railroader. **In der Welt zuordnen** startet bei Signalfeldern die Signalauswahl im Spiel. Ohne Feldauswahl öffnet **Im Spiel bauen** den nativen Baumodus. Speichern und Abbrechen erfolgen im Spiel. Projizierte Felder im ESTW lassen sich auf ihrer Ursprungstafel bearbeiten.
+
+Beim Überfahren eines Signals oder bearbeitbaren Feldes erscheint dessen Name. Im Fahrdienst lässt sich jede Signalhälfte einzeln anklicken. Im Editor wählen beide Hälften dasselbe Feld aus. Textfelder und Zugnummern stehen auf dem Gleisbild. **Einpassen** zeigt die Übersicht. Für kleine Symbole und Nummern auf großen Tafeln kannst du hineinzoomen.
 
 Für den Praxistest zuerst am Spielrechner starten, dann den zweiten Rechner testen. Prüfe eine Zugfahrt, eine Rangierfahrt, ein befahrenes Zielgleis, die sichere Auflösung, die Signalzuordnung und einen Weltwechsel. Prüfe auch, wie Signalhälften, Weichen und Besetztmeldungen bei dir im Gleisbild erscheinen. Die Browseranzeige nutzt Felder und zugeordnete Halbschienen.

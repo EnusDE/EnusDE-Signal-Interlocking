@@ -1,3 +1,9 @@
+## 0.7.76 — Symbol-based browser diagram
+
+- Signals, points, track and auxiliary destinations use diagram symbols in both modes. Names are available on hover or selection.
+- Signal halves are independently clickable in Dispatcher. Editor selects the entire field.
+- Fit shows more of the loaded diagram, while commands stay visible below it.
+
 ## 0.7.75 — Optional browser interlocking (preview)
 
 - Open the browser from the clock launcher gear. Access is off at the start of every session.
