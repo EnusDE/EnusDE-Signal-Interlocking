@@ -20,6 +20,11 @@ namespace EnusDE.Signaltechnik {
         }
     }
     public static class TrainNumbers {
+        public static string TimetableNumber(string symbol) {
+            symbol=symbol?.Trim();
+            if(string.IsNullOrEmpty(symbol)||symbol.Length>32||symbol.Any(char.IsControl))return null;
+            return symbol.Length<5&&symbol.All(c=>c>='0'&&c<='9')?symbol.PadLeft(5,'0'):symbol;
+        }
         public static string Format(string prefix,string number){prefix=(prefix??"").Trim();number=(number??"").Trim();if(number==""&&prefix=="")return "";if(number.Length!=5||prefix.Length>1||number.Any(c=>c<'0'||c>'9')||prefix.Any(c=>c<'0'||c>'9'))throw new InvalidOperationException("Zugnummer fünfstellig, Kennziffer optional einstellig (nur 0–9).");return prefix+number;}
         public static bool TryDisplaySlots(string value,out string slots) {
             slots=value;
@@ -53,6 +58,19 @@ namespace EnusDE.Signaltechnik {
             RemoveNumber(numbers,number,new HashSet<string>{start,end});
             numbers[end]=number;
             numbers.Remove(start);
+            return true;
+        }
+        public static bool MoveFieldNumberToTrain(IDictionary<string,string> fields,IDictionary<string,string> registry,
+            string field,RouteRun movement) {
+            if(string.IsNullOrEmpty(field)||!IsNumberPassage(movement)||!fields.TryGetValue(field,out string number))return false;
+            if(movement.NumberPassageNumber!=null&&!SameNumber(movement.NumberPassageNumber,number))return false;
+            var confirmedCars=new HashSet<string>(movement.TrainCars.Where(id=>!string.IsNullOrWhiteSpace(id)),StringComparer.Ordinal);
+            if(confirmedCars.Count==0||confirmedCars.Count!=movement.TrainCars.Length)return false;
+            if(confirmedCars.Any(id=>registry.TryGetValue(id,out string current)&&!SameNumber(current,number)))return false;
+            // A verified movement claims the field number atomically. Occupancy now determines where it is shown.
+            RemoveNumber(registry,number,confirmedCars);
+            RemoveNumber(fields,number,new HashSet<string>());
+            foreach(string id in confirmedCars)registry[id]=number;
             return true;
         }
 

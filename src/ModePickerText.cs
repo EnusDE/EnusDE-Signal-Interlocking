@@ -40,7 +40,7 @@ namespace EnusDE.Signaltechnik {
 
         public static string Caption(WorkspaceMode mode,bool german) {
             switch(mode) {
-                case WorkspaceMode.Dispatcher: return german?"Fahrdienstleiter":"Dispatcher";
+                case WorkspaceMode.Dispatcher: return german?"Stellwerk":"Interlocking";
                 case WorkspaceMode.Build: return german?"Baumodus":"Build mode";
                 case WorkspaceMode.Editor: return "Editor";
                 default: throw new ArgumentOutOfRangeException(nameof(mode));

@@ -375,6 +375,9 @@ namespace EnusDE.Signaltechnik {
                 if(source.Id!=request.Signal)throw new OperationCanceledException(LocalText.Select("The approaching signal has changed.","Das Signal vor dem Zug hat sich geändert."));
                 if(movement!=request.Movement)throw new OperationCanceledException(LocalText.Select("The movement type changed.","Die Fahrart hat sich geändert."));
                 var owner=SignalStation(source.Id);
+                if(run==null&&SessionAutomaticHeld(source.Id,movement==MovementRole.Shunt)) {
+                    CancelWaypointPreparation(request.Id);request.Reason=OperatorTakeoverReason();return;
+                }
                 if(Automation.PausedStations.Contains(owner.Id)&&run?.Permitted!=true) {
                     if(run!=null)throw new OperationCanceledException(LocalText.Select("The dispatcher has taken over this interlocking.","Der Fahrdienstleiter hat dieses Stellwerk übernommen."));
                     CancelWaypointPreparation(request.Id);
@@ -399,7 +402,7 @@ namespace EnusDE.Signaltechnik {
                 var expected=cars.Select(c=>c.id).ToArray();
                 bool ProveApproach() {
                     if(!RouteWorkAvailable||!aiEnabled||!OperatingReady||(!request.DriverRequested&&!IsWaypointAutomatic(duty))||
-                        Automation.PausedStations.Contains(owner.Id))return false;
+                        Automation.PausedStations.Contains(owner.Id)||run==null&&SessionAutomaticHeld(source.Id,request.Movement==MovementRole.Shunt))return false;
                     if(!TryCurrentWaypointCar(request.Locomotive,duty,out var lead,out var currentCars)||!AutomationNative.HasUniqueWaypointDriver(lead,currentCars))return false;
                     var currentIntent=AutomationNative.Intent(lead,allowPausedWaypoint:request.DriverRequested);
                     if(currentIntent.Signature!=request.Intent||!TryWaypointStart(lead,currentCars,currentIntent,duty.Selection,out var live,out var signal,out var role,out _,request.DriverRequested,request.Signal)||

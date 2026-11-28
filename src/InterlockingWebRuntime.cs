@@ -339,7 +339,7 @@ namespace EnusDE.Signaltechnik {
                     WindowText("Several paths fit. Choose a nearer destination or select a path in the game.","Mehrere Fahrwege sind möglich. Wähle ein näheres Ziel oder einen Fahrweg im Spiel."));
                 var plan=plans[0];
                 StationAutomationPolicy.RequireControl(desks,desk.Id,plan.Routes);
-                RequireManualStation(plan.Routes.First().Entry);
+                foreach(var route in plan.Routes){RequireOperatorRoute(route);RequireManualStation(route.Entry,route.Shunting);}
                 RequireOperatingRoutes(plan.Routes);
                 var path=plan.Routes.SelectMany(r=>r.Path).Select(port=>port.Section).GroupBy(s=>s.Segment).ToDictionary(g=>g.Key,g=>g.ToArray());
                 bool OnPath(TrackSection section)=>path.TryGetValue(section.Segment,out var parts)&&parts.Any(section.Overlaps);

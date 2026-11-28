@@ -87,11 +87,11 @@ namespace EnusDE.Signaltechnik {
             if(passages.Length==0)return;
             try {
                 var index=NumberBindings(shared);
-                var linked=passages.Where(r=>Object(r.Route.Entry)?.Kind==MarkerRecord.Main&&
-                    Object(r.Route.Exit)?.Kind==MarkerRecord.Main&&index.ForSignal(r.Route.Entry)!=null&&
-                    index.ForSignal(r.Route.Exit)!=null).ToArray();
+                var linked=passages.Where(r=>Object(r.Route.Entry)?.Kind==MarkerRecord.Main&&index.ForSignal(r.Route.Entry)!=null).ToArray();
+                bool FollowTrain(RouteRun r)=>index.ForSignal(r.Route.Exit)==null||
+                    desks.FreeLines.Any(line=>line.Enabled&&(r.Route.LineTarget==null?line.ForwardStart==r.Route.Entry||line.ReverseStart==r.Route.Entry:line.Id==RouteLineTarget(r.Route)?.Line.Id));
                 if(linked.Length>0) {
-                    var completed=new HashSet<string>(shared.AdvanceFieldNumbers(linked,index.ForSignal));
+                    var completed=new HashSet<string>(shared.AdvanceFieldNumbers(linked,index.ForSignal,FollowTrain));
                     foreach(var run in linked)if(completed.Contains(run.Route.Id))run.NumberPassageHandled=true;
                 }
                 numberMoveFailed=false;
@@ -99,6 +99,18 @@ namespace EnusDE.Signaltechnik {
                 if(!numberMoveFailed)log?.Warning("Zugnummernwechsel: "+e.Message);
                 numberMoveFailed=true;
             }
+        }
+
+        bool displayVehicles;
+        void BuildNumberDisplayMode(UIPanelBuilder c) {
+            c.AddSection(WindowText("Number display","Nummernanzeige"));
+            c.AddButton(WindowText("Train reporting numbers","Zugnummernmeldeanlage"),()=>SetNumberDisplay(false));
+            c.AddButton(WindowText("Locomotive identification","Fahrzeugkennung"),()=>SetNumberDisplay(true));
+        }
+        void SetNumberDisplay(bool vehicles) {
+            displayVehicles=vehicles;
+            status=vehicles?WindowText("Locomotive identification","Fahrzeugkennung"):WindowText("Train reporting numbers","Zugnummernmeldeanlage");
+            CloseWorkspaceContext();Mode(0);
         }
 
         string NumberFieldPlace(string key) {
@@ -136,6 +148,7 @@ namespace EnusDE.Signaltechnik {
             c.AddInputField(number,v=>number=v,"00123",5);
             c.AddButton(LocalText.Get("Zugnummer speichern"),()=>Act(()=>{
                 RequireDispatcher();
+                RequireOperatorSignal(signal,false);
                 var current=panel?.At(tile.X,tile.Y);
                 if(deskId!=desk||selectedX!=tile.X||selectedY!=tile.Y||current?.Kind!=PanelTileKind.TrainNumber||
                     NumberFieldKey(current)!=signal)

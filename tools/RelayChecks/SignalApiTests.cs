@@ -103,7 +103,7 @@ public static class SignalApiTests {
         Check(Calls(window.GetMethod("SetNeedsRebuild")).Contains("Window.get_IsShown")&&
             Array.IndexOf(reopen,"CustomWindowHandle.Show")>=0&&
             Array.IndexOf(reopen,"CustomWindowHandle.Show")<Array.IndexOf(reopen,"CustomWindowHandle.SetNeedsRebuild")&&
-            reopen.Contains("SignalRuntime.CloseWorkspaceMode"),
+            reopen.Contains("SignalRuntime.ReleaseWorkspaceCanvas")&&reopen.Contains("SignalRuntime.RememberWorkspaceModeView"),
             "cached workspaces reopen before rebuild is queued because the installed game ignores rebuild requests for hidden windows");
         Check(Calls(typeof(SharedRuntime).GetMethod("FinishSandbox",local)).Contains("StateManager.get_IsSandbox")&&
             Calls(typeof(SharedRuntime).GetMethod("FinishSandbox",local)).Contains("SharedRuntime.RequireReady"),
@@ -142,11 +142,16 @@ public static class SignalApiTests {
             !References("RefreshProxies").Contains("AuxiliaryEndpoint"),
             "dispatcher auxiliary requests share the ordinary route engine, revalidate endpoint and intervening signals, and add no native signal proxy");
         var registration=References("EnsureWindow");
-        Check(!Equals(runtime.GetField("WindowId",local).GetRawConstantValue(),runtime.GetField("EditorWindowId",local).GetRawConstantValue())
-            &&registration.Contains("BuildDispatcherWindow")&&registration.Contains("BuildEditorWindow")
+        var unified=References("BuildInterlockingWindow");
+        Check(runtime.GetField("EditorWindowId",local)==null&&registration.Contains("BuildInterlockingWindow")
+            &&unified.Contains("BuildDispatcherWindow")&&unified.Contains("BuildEditorWindow")&&unified.Contains("BuildMasterLayout")
             &&References("BuildDispatcherWindow").Contains("BuildDispatcherFields")
-            &&References("BuildEditorWindow").Contains("BuildEditorPanelContent")&&!References("BuildEditorWindow").Contains("CreateWorkspaceSurface")
-            &&References("BuildEditorPanelContent").Contains("BuildEditorFields")&&References("BuildEditorPanelContent").Contains("BuildEditorCatalogue"),"editor and dispatcher register different native windows and use different control builders");
+            &&References("BuildEditorWindow").Contains("BuildEditorPanelContent")&&References("BuildEditorWindow").Contains("CoverGameViewport")
+            &&Calls(runtime.GetMethod("BuildEditorPanelContent",local)).Contains("EditorSurface.get_Details")&&References("BuildInlineEditorTools").Contains("BuildEditorFields"),
+            "one fullscreen window hosts dispatcher, editor properties and master module layout");
+        Check(Calls(runtime.GetMethod("MinimizeWorkspace",local)).Contains("WindowManager.CloseWindow")&&!References("MinimizeWorkspace").Contains("ReleaseOperatorScope")&&
+            References("EndWorkspaceSession").Contains("ReleaseOperatorScope")&&References("EndWorkspaceSession").Contains("CloseWorkspaceMode")&&
+            !Calls(runtime.GetMethod("EndWorkspaceSession",local)).Contains("InterlockingEngine.HaltAll"),"minimizing keeps the takeover, ending returns it while the engine supervises existing journeys");
         var entryCalls=Calls(typeof(Entry).GetMethod("OnModLoad"));
         var picker=typeof(Entry).Assembly.GetType("EnusDE.Signaltechnik.ModePicker",true);
         var settingsWindow=typeof(Entry).Assembly.GetType("EnusDE.Signaltechnik.SettingsWindow",true);

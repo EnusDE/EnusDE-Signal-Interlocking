@@ -19,7 +19,7 @@ namespace EnusDE.Signaltechnik {
             if(anchor==null)throw new InvalidOperationException("Editor window anchor is missing.");
             ReleaseWorkspaceCanvas();
             var root=WorkspaceSurface.Rect(anchor.transform,"EnusDE editor workspace");
-            WorkspaceSurface.Fill(root,8,34,8,16);
+            CoverGameViewport(anchor,root);
             root.SetAsLastSibling();
             var surface=editorSurface=root.gameObject.AddComponent<EditorSurface>();
             bool catalogue=panelPage==4;
@@ -41,21 +41,28 @@ namespace EnusDE.Signaltechnik {
                 BuildWorkspaceDiagram(surface.ViewportFrame,()=>editorSurface==surface,true);
             }
             BuildEditorPanelContent(builder,surface,catalogue);
+            BuildWorkspaceCommands(surface.Header,true);
         }
 
         void BuildEditorPanelContent(UIPanelBuilder builder,EditorSurface surface,bool catalogue) {
-            if(!catalogue)return; // Object tools live in their own window, never beside the diagram.
-            Action<UIPanelBuilder> fields=catalogue?BuildEditorCatalogue:BuildEditorFields;
-            var content=builder.VScrollView(c=>catalogueInspector=c.AddRebuildableSection(fields));
-            content.SetParent(surface.Content,false);
-            WorkspaceSurface.Fill(content,catalogue?14:0,catalogue?14:0,catalogue?14:0,catalogue?14:0);
+            if(catalogue) {
+                var catalogueContent=builder.VScrollView(c=>catalogueInspector=c.AddRebuildableSection(BuildEditorCatalogue));
+                catalogueContent.SetParent(surface.Content,false);
+                WorkspaceSurface.Fill(catalogueContent,14,14,14,14);
+                (catalogueContent.GetComponent<LayoutElement>()??catalogueContent.gameObject.AddComponent<LayoutElement>()).ignoreLayout=true;
+                catalogueInspector.OnRebuild+=surface.ThemeSoon;
+            }
+            var content=builder.VScrollView(c=>inspector=c.AddRebuildableSection(BuildInlineEditorTools));
+            content.SetParent(surface.Details,false);
+            WorkspaceSurface.Fill(content,8,8,8,8);
             (content.GetComponent<LayoutElement>()??content.gameObject.AddComponent<LayoutElement>()).ignoreLayout=true;
-            catalogueInspector.OnRebuild+=surface.ThemeSoon;
+            inspector.OnRebuild+=surface.ThemeSoon;
+            surface.ShowDetails(editorDetailsOpen||editorCatalogueForm!=null||pendingDeskRemoval!=null);
             surface.ThemeSoon();
         }
 
         void OpenEditorCatalogue() {
-            if(manager?.GetCustomWindow(EditorToolsWindowId)!=null)manager.CloseWindow(EditorToolsWindowId);
+            editorDetailsOpen=false;
             if(panelScroll!=null){RememberPanelScroll();SaveEditorView();}
             editorCatalogueForm=null;
             pendingDeskRemoval=null;
@@ -91,7 +98,7 @@ namespace EnusDE.Signaltechnik {
         void BuildEditorZoom(EditorSurface owner) {
             var strip=WorkspaceSurface.Rect(owner.Header,"Editor zoom");
             strip.anchorMin=strip.anchorMax=strip.pivot=new Vector2(1,.5f);
-            strip.sizeDelta=new Vector2(250,32);strip.anchoredPosition=new Vector2(-12,0);
+            strip.sizeDelta=new Vector2(250,32);strip.anchoredPosition=new Vector2(-WorkspaceCommandsWidth-12,0);
             string[] labels={"−","+","100 %",WindowText("Fit diagram","Tafel einpassen")};
             int[] widths={30,30,58,114};
             Action[] actions={ ()=>ChangeZoom(panelZoom/1.25f),()=>ChangeZoom(panelZoom*1.25f),()=>ChangeZoom(1),FitEditor };

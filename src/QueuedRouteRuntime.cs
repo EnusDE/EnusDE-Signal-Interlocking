@@ -26,11 +26,12 @@ namespace EnusDE.Signaltechnik {
             c.AddButton(WindowText("Cancel pending preparations","Ausstehende Vorbereitungen abbrechen"),()=>{foreach(var request in automaticRequests.Where(r=>preparedAutomaticRoutes.ContainsKey(r.Id)||r.Waypoint&&r.Stage==AutomaticRequestStage.Waiting).ToArray())WithdrawAutomaticRequest(request,WindowText("Preparation cancelled.","Vorbereitung abgebrochen."));CancelRouteWork();status=WindowText("Pending preparations cancelled. Existing route locks remain supervised.","Ausstehende Vorbereitungen abgebrochen. Bestehende Fahrstraßenverschlüsse bleiben überwacht.");RefreshWorkspaceFields();});
         }
         void QueueDestination(string start,string destination,RouteKind kind) {
-            RequireDispatcher();string selectedWorld=scope,selectedDesk=deskId;
+            RequireDispatcher();RequireOperatorSignal(start,kind==RouteKind.Shunt);
+            string selectedWorld=scope,selectedDesk=deskId;
             ResolveLineDestination(start,destination,kind);
             string sourceAnchor=SignalWorldBridge.AnchorKey(Object(start)),targetAnchor=SignalWorldBridge.AnchorKey(RouteEndpoint(destination));
             string key=RouteWorkKey(start,destination,kind),label=SignalCaption(start)+" → "+SignalCaption(destination);
-            bool current()=>RouteWorkAvailable&&scope==selectedWorld&&deskId==selectedDesk&&!editingWorkspace&&
+            bool current()=>RouteWorkAvailable&&scope==selectedWorld&&deskId==selectedDesk&&!editingWorkspace&&(PanelVisible||workspaceMinimized)&&
                 Object(start)?.Anchor!=null&&RouteEndpoint(destination)?.Anchor!=null&&SignalWorldBridge.AnchorKey(Object(start))==sourceAnchor&&SignalWorldBridge.AnchorKey(RouteEndpoint(destination))==targetAnchor;
             bool added=routeWork.Enqueue(key,()=>PrepareDestination(start,destination,kind,label).GetEnumerator(),current,error=>{
                 RoutePreparationFailed(label,error);Entry.RecordSignalEvent("route_queue_failed",new{start,destination,error=error.Message});
@@ -53,9 +54,12 @@ namespace EnusDE.Signaltechnik {
                     routeWorkProgress=label+" · "+(copy.Routes.Count+1)+" / "+definitions.Length;copy.Routes.Add(definition.Clone());yield return false;
                 }
                 if(version!=Entry.Shared.ConfigurationVersion)throw new InvalidOperationException(WindowText("Saved route changed. Select it again.","Gespeicherter Fahrweg geändert. Erneut auswählen."));
-                ApplyRoutePlan(copy);
+                FinishOrDeferRoute(()=>{
+                    if(version!=Entry.Shared.ConfigurationVersion)throw new InvalidOperationException(WindowText("Saved route changed. Select it again.","Gespeicherter Fahrweg geändert. Erneut auswählen."));
+                    ApplyRoutePlan(copy);
+                });
             }
-            bool added=routeWork.Enqueue(key,()=>Prepare().GetEnumerator(),()=>RouteWorkAvailable&&scope==selectedWorld&&deskId==selectedDesk&&!editingWorkspace,error=>{RoutePreparationFailed(label,error);Entry.RecordSignalEvent("route_queue_failed",new{key,error=error.Message});});
+            bool added=routeWork.Enqueue(key,()=>Prepare().GetEnumerator(),()=>RouteWorkAvailable&&scope==selectedWorld&&deskId==selectedDesk&&!editingWorkspace&&(PanelVisible||workspaceMinimized),error=>{RoutePreparationFailed(label,error);Entry.RecordSignalEvent("route_queue_failed",new{key,error=error.Message});});
             status=label+" · "+(added?WindowText("Queued for preparation","Zur Vorbereitung eingereiht"):WindowText("Already queued","Bereits eingereiht"));RefreshWorkspaceFields();
         }
         void RoutePreparationFailed(string label,Exception error){workspaceActionError=status=label+": "+LocalText.Get(error.Message);if(error is RouteConflictException conflict)OpenBlockingRoutes(conflict);}
@@ -64,7 +68,11 @@ namespace EnusDE.Signaltechnik {
             var plans=new List<RouteChainPlan>();
             foreach(bool step in PrepareRoutePlans(start,destination,kind,plans,phase=>routeWorkProgress=label+" · "+phase))yield return step;
             yield return false;
-            SelectAutomaticPlans(plans,destination,start);
+            var preparedVersion=Entry.Shared.ConfigurationVersion;
+            FinishOrDeferRoute(()=>{
+                if(preparedVersion!=Entry.Shared.ConfigurationVersion)throw new InvalidOperationException(WindowText("Prepared route changed. Select it again.","Der vorbereitete Fahrweg wurde geändert. Wähle ihn erneut."));
+                SelectAutomaticPlans(plans,destination,start);
+            });
         }
         // Unity/native reads and protection design stay on the main thread. Only isolated DTOs enter workers.
         IEnumerable<bool> PrepareRoutePlans(string start,string destination,RouteKind kind,List<RouteChainPlan> result,Action<string> progress,bool discoverOnly=false,AutomationContact contact=null) {

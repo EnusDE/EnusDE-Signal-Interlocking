@@ -212,7 +212,7 @@ namespace EnusDE.Signaltechnik {
                     !request.Reachable.TryGetValue(request.Destination,out string anchor)||
                     !WorldSignalDestinations(source,owner,movement).Any(row=>row.Id==request.Destination&&SignalWorldBridge.AnchorKey(row)==anchor))
                     throw new InvalidOperationException(WindowText("Select an available destination for this movement.","Ein verfügbares Ziel für diese Fahrart auswählen."));
-                RequireManualStation(source.Id);
+                RequireManualStation(source.Id,movement==RouteKind.Shunt);
                 if(automaticChoices.Count>0||deskId!=owner.Id&&routeWork.Count>0)
                     throw new InvalidOperationException(WindowText("Finish the pending route selection in Dispatcher first.","Zuerst die ausstehende Fahrwegauswahl im Fahrdienstleiter abschließen."));
                 if(editingWorkspace||!PanelVisible)ShowWorkspace(false,0,false);

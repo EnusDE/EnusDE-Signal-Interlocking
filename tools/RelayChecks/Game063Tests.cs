@@ -22,6 +22,6 @@ static class Game063Tests {
         Check(Reject(()=>RailroaderPaths.Directory(name=>name=="Game.HomeDirectory.UserPaths"?typeof(ThrowingPaths):name=="Game.UserPaths"?typeof(OldPaths):null))&&OldPaths.Reads==1,"a failing new native path getter does not fall back to an unrelated legacy directory");
         var actual=RailroaderPaths.ApiType();var getter=actual.GetProperty("RailroaderDirectory",BindingFlags.Public|BindingFlags.Static);
         Check(getter?.PropertyType==typeof(string)&&getter.GetGetMethod()!=null,"installed game-library user-path metadata matches the adapter contract · "+actual.FullName);
-        Check(Entry.Version=="0.7.76","new compatibility package reports mod version 0.7.76");
+        Check(Entry.Version=="0.7.77","new compatibility package reports mod version 0.7.77");
     }
 }

@@ -55,7 +55,7 @@ namespace EnusDE.Signaltechnik {
             var layout=WorkspaceLayout.For(size.x,size.y,large,px,py,compactPopup);
             Place(Header,layout.Header);Place(Status,layout.Status);Place(ViewFrame,layout.Diagram);Place(Popup,layout.Popup);px=layout.Popup.X;py=layout.Popup.Y;
             Place(PopupHeader,new WorkspaceBox(0,0,layout.Popup.Width,34));Place(PopupBody,new WorkspaceBox(8,42,layout.Popup.Width-16,layout.Popup.Height-50));
-            Place(PopupTitle.rectTransform,new WorkspaceBox(8,0,layout.Popup.Width-90,34));Place(Title.rectTransform,new WorkspaceBox(0,0,Math.Max(100,layout.Header.Width-310),36));Place(State.rectTransform,new WorkspaceBox(0,0,layout.Status.Width,25));Place(Selection.rectTransform,new WorkspaceBox(0,26,layout.Status.Width,22));Place(Hint.rectTransform,new WorkspaceBox(68,layout.Canvas.Height-88,Math.Min(660,layout.Canvas.Width-90),28));
+            Place(PopupTitle.rectTransform,new WorkspaceBox(8,0,layout.Popup.Width-90,34));Place(Title.rectTransform,new WorkspaceBox(0,0,Math.Max(0,layout.Header.Width-590),36));Place(State.rectTransform,new WorkspaceBox(0,0,layout.Status.Width,25));Place(Selection.rectTransform,new WorkspaceBox(0,26,layout.Status.Width,22));Place(Hint.rectTransform,new WorkspaceBox(68,layout.Canvas.Height-88,Math.Min(660,layout.Canvas.Width-90),28));
         }
         void Update(){if(Root==null)return;Layout();if(Time.realtimeSinceStartup<next)return;next=Time.realtimeSinceStartup+.15;Set(Title,ReadTitle?.Invoke());Set(State,ReadStatus?.Invoke());Set(Selection,ReadSelection?.Invoke());Set(PopupTitle,ReadPopupTitle?.Invoke());}
         static void Set(TMP_Text text,string value){value=value??"";if(text!=null&&text.text!=value)text.text=value;}

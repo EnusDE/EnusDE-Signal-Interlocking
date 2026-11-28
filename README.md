@@ -2,7 +2,7 @@
 
 [Deutsche Zusammenfassung](#deutsch) · [Build from source](docs/BUILD.md) · [Development status](docs/DEVELOPMENT.md)
 
-**Current source: 0.7.76 — Early Alpha for Railroader 0.6.3.** Get an installable package from the author's distribution channel or build from `main`.
+**Current source: 0.7.77 — Early Alpha for Railroader 0.6.3.** Get an installable package from the author's distribution channel or build from `main`.
 
 The optional browser interlocking shows the loaded diagram and uses the game's existing route checks. The host can enable it from the clock launcher gear for this PC or a trusted home network. [Browser setup and controls](docs/BROWSER.md)
 
@@ -48,7 +48,7 @@ Optional **Runenwacht 0.2.2** requires main **0.7.64 or later** with compatible 
 
 ## Compatibility and validation
 
-The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.76**.
+The manifest requires **Railroader 0.6.3**. The mod uses the game's built-in mod system; no additional mod is required. The optional EnusDE translation mod can supply language/unit preferences. Host and every client must use **the same mod version, 0.7.77**.
 
 The complete offline build/check run on 24 November 2026 passed **2,097 checks** against the local Railroader 0.6.3 libraries. Actual waypoint operation, the locomotive controls and multiplayer still need in-game verification. [Development status and continuation](docs/DEVELOPMENT.md)
 
@@ -77,7 +77,7 @@ See [Third-party notices](THIRD_PARTY_NOTICES.md) and the included MIT component
 
 ## Deutsch
 
-**Aktueller Quellstand: 0.7.76, Early Alpha für Railroader 0.6.3.** Installationspakete gibt es über den Vertriebskanal des Autors. Der Quellstand zum Selbstbauen liegt auf `main`.
+**Aktueller Quellstand: 0.7.77, Early Alpha für Railroader 0.6.3.** Installationspakete gibt es über den Vertriebskanal des Autors. Der Quellstand zum Selbstbauen liegt auf `main`.
 
 0.7.71 ergänzt eine nach Stellwerk geordnete Host-/Editorübersicht: betroffenes Modul, Problem im Klartext, Auswirkung und nächster Schritt. Technische Einzelheiten sind zuschaltbar; gescheiterte Prüfungen bleiben als ungeklärt gekennzeichnet. [Bedienung und Grenzen](mod/EnusDE-Signaltechnik/Guides/MODULE-PROBLEMS-0.7.71.de.md).
 

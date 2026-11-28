@@ -81,7 +81,9 @@ namespace EnusDE.Signaltechnik {
         string RouteCircuitError(IReadOnlyList<RouteDefinition> plan,out TrackOccupancy conflict)=>
             StationRouteProtection.CircuitError(plan,desks.Blocks.Values,CircuitUsable,b=>world.Block(b,out _),
                 b=>BoundaryCaption(b.BoundaryA)+" ↔ "+BoundaryCaption(b.BoundaryB),world.Occupancy,out conflict);
-        void RequireManualStation(string source) {
+        void RequireManualStation(string source,bool shunting=false) {
+            RequireOperatorSignal(source,shunting);
+            if(SessionAutomaticHeld(source,shunting))return;
             if(desks?.Desks.Any(d=>!d.IsMaster&&d.AutomaticOnly)==true&&SignalStation(source)?.AutomaticOnly==true&&!Automation.PausedStations.Contains(SignalStation(source).Id))throw new InvalidOperationException("Dieses Stellwerk ist auf Automatikbetrieb eingestellt. Im Editor umstellen, bevor dort manuell angefordert wird.");
         }
         void RequireMonitoredPlan(RouteChainPlan plan) {

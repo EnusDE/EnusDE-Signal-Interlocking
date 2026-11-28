@@ -122,8 +122,8 @@ public static class SettingsWindowFixture {
         var picker=new ModePicker(()=>new ModePickerAccess(false,true,true,true,true),_=>modes++,window.Open);
         picker.Update();UI.Builder.UIBuilderAssets.Buttons.Clear();BuildToolbar.Toggle();
         var buttons=UI.Builder.UIBuilderAssets.Buttons.ToArray();
-        Check(buttons.Length==4&&buttons.Take(3).All(b=>!b.interactable)&&buttons[3].interactable,"before milestone unlock the three workspaces are disabled while the settings gear remains interactive for a client");
-        manager.CloseWindow(id);buttons[3].Press();
+        Check(buttons.Length==3&&buttons.Take(2).All(b=>!b.interactable)&&buttons[2].interactable,"before milestone unlock the interlocking and build entries are disabled while the settings gear remains interactive");
+        manager.CloseWindow(id);buttons[2].Press();
         Check(manager.IsOpen(id)&&!manager.IsOpen("enusde.signaltechnik.modes")&&modes==0,"the real settings button opens the separate window without unlocking or entering a workspace");
         int ensures=BuildToolbar.Ensures;picker.Update();
         Check(BuildToolbar.Ensures==ensures+1,"the picker keeps its toolbar entry reachable independently of the old hide-button setting");

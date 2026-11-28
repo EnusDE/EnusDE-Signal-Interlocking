@@ -14,6 +14,8 @@ namespace EnusDE.Signaltechnik {
             BuildRouteWorkControls(c);
             if(panelPage==4){BuildDeskPicker(c);return;}
             if(panelPage==9){BuildFreeLines(c);return;}
+            if(panelPage==10){BuildOperatorScope(c);return;}
+            if(panelPage==11){BuildNumberDisplayMode(c);return;}
             if(panelPage==8){BuildMasterMenu(c);return;}
             if(panelPage==5){BuildHelp(c);return;}
             if(panelPage==6){BuildAllActive(c);return;}

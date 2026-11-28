@@ -153,13 +153,24 @@ namespace EnusDE.Signaltechnik {
             return (previous,cars);
         }
 
-        internal string[] AdvanceFieldNumbers(IReadOnlyList<RouteRun> movements,Func<string,string> fieldFor) {
+        internal string[] AdvanceFieldNumbers(IReadOnlyList<RouteRun> movements,Func<string,string> fieldFor,Func<RouteRun,bool> followTrain) {
             RequireReady();
             var numbers=new Dictionary<string,string>(installation.SignalNumberFields);
             var completed=new HashSet<string>();
-            if(TrainNumbers.AdvanceSignalNumbers(numbers,movements,fieldFor,completed)) {
+            var trainMoves=movements.Where(followTrain).ToArray();
+            bool changed=TrainNumbers.AdvanceSignalNumbers(numbers,movements.Except(trainMoves),fieldFor,completed);
+            Dictionary<string,string> registry=null;
+            foreach(var movement in trainMoves) {
+                string field=fieldFor(movement.Route.Entry);
+                if(field==null||!numbers.ContainsKey(field)){completed.Add(movement.Route.Id);continue;}
+                registry??=new Dictionary<string,string>(installation.TrainNumbers);
+                if(!TrainNumbers.MoveFieldNumberToTrain(numbers,registry,field,movement))continue;
+                completed.Add(movement.Route.Id);changed=true;
+            }
+            if(changed) {
                 var next=installation.Clone();
                 next.SignalNumberFields=numbers;
+                if(registry!=null)next.TrainNumbers=registry;
                 CommitInstall(next,false);
             }
             return completed.ToArray();

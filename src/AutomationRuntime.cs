@@ -109,6 +109,7 @@ namespace EnusDE.Signaltechnik {
                     request.LastHead=double.IsNaN(request.LastHead)?head:Math.Max(head,request.LastHead);
                     if(request.Stage==AutomaticRequestStage.Submitted){request.Reason=string.Join(" · ",active.Select(r=>r.Route.Code+": "+r.Reason));continue;}
                     var owner=SignalStation(request.Signal);
+                    if(SessionAutomaticHeld(request.Signal,false)){request.Reason=OperatorTakeoverReason();continue;}
                     if(owner!=null&&Automation.PausedStations.Contains(owner.Id)){request.Reason=LocalText.Get("Selbststellbetrieb zentral pausiert: ")+owner.Code;continue;}
                     if(admittedThisTick)continue;
                     bool prepared=preparedAutomaticRoutes.TryGetValue(request.Id,out var preparation);
@@ -130,7 +131,10 @@ namespace EnusDE.Signaltechnik {
                             choices=AutomaticRoutePlanner.PreferCurrent(choices,id=>world.SwitchPosition(id,out bool thrown)?(bool?)thrown:null);
                             if(choices.Count!=1)throw new InvalidOperationException(choices.Count==0?"Kein durchgehender Fahrweg.":"Mehrere Fahrwege; eindeutiges Ziel / Weichenweg konfigurieren.");
                             var plan=choices[0];RequireMonitoredPlan(plan);
-                            foreach(var part in plan.Routes){var station=SignalStation(part.Entry);if(station!=null&&Automation.PausedStations.Contains(station.Id))throw new InvalidOperationException(LocalText.Select("Automatic operation paused: ","Selbststellbetrieb pausiert: ")+station.Code);}
+                            foreach(var part in plan.Routes){
+                                if(SessionAutomaticHeld(part.Entry,part.Shunting))throw new InvalidOperationException(OperatorTakeoverReason());
+                                var station=SignalStation(part.Entry);if(station!=null&&Automation.PausedStations.Contains(station.Id))throw new InvalidOperationException(LocalText.Select("Automatic operation paused: ","Selbststellbetrieb pausiert: ")+station.Code);
+                            }
                             foreach(var route in plan.Routes){RoutePointProtection.RequireCalculated(route);FlankProtection.RequireCalculated(route);if(!world.PathValid(route))throw new InvalidOperationException("Fahrweg geändert.");}
                             PrepareRequestedPlan(plan);
                             world.BeginRead();engine.RequestChain(plan.Routes,world,Entry.SettingsSnapshot().Markers.ProtectionWaitSeconds);

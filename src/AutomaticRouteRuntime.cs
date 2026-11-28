@@ -62,6 +62,7 @@ namespace EnusDE.Signaltechnik {
                     return (state,reason);
                 });
             }
+            foreach(var route in plan.Routes)RequireOperatorRoute(route);
             PrepareRequestedPlan(plan);
             AdmitRoutePlan(plan,operatingDesk);
         }

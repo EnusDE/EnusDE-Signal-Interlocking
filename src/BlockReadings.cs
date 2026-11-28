@@ -64,6 +64,7 @@ namespace EnusDE.Signaltechnik {
             var blocks=ids.Distinct().Where(id=>desks.Blocks.ContainsKey(id)).Select(id=>{var b=desks.Blocks[id];try{return ReadPointDefinition(b);}catch{invalidPoints.Add(id);return b;}}).ToArray();
             var sections=related.Where(t=>t.Section!=null).Select(t=>t.Section).GroupBy(s=>s.Key).Select(g=>g.First()).ToArray();
             var keep=new HashSet<string>(sections.Select(s=>s.Key));foreach(var block in blocks)if(block.Point!=null||block.IsCircuit)keep.UnionWith(block.Sections.Select(s=>s.Key));else keep.Add("block:"+block.Id);panelWorld.PruneSpans(keep);panelWorld.BeginRead();blockCars.Clear();
+            vehicleCaptions.Clear();
             foreach(var section in sections){string[] cars;panelReadings[section.Key]=panelWorld.SectionWithCars(section,out cars);blockCars[section.Key]=cars;}
             foreach(var block in blocks) {
                 panelReadings["block:"+block.Id]=panelWorld.Block(block,out var cars);
@@ -102,12 +103,15 @@ namespace EnusDE.Signaltechnik {
         string NumberCaption(PanelTile tile) {
             if(!Game.State.StateManager.IsHost&&Entry.Shared?.LiveFresh!=true)return "?";
             if(NumberMirrors.IsMirror(tile))return NumberMirrorBindings().Caption(tile,NumberCaption);
+            if(displayVehicles)return Time.realtimeSinceStartup-panelReadTime>=5?"?":VehicleNumberCaption(tile);
             if(Entry.Shared!=null&&NumberBindings(Entry.Shared).ConflictingField(tile))return "?";
+            if(Time.realtimeSinceStartup-panelReadTime<5&&!numberDisplayOverflow&&NativeNumberCaption(tile) is string scheduled)
+                return numberDisplayOwners.Caption(NumberDisplayKey(tile),scheduled);
             string field=NumberFieldKey(tile);
             if(!string.IsNullOrEmpty(field)) {
                 string assigned=TrainNumbers.DisplayFieldNumber(Entry.Shared?.NumberFields(),field);
-                if(assigned!="")return assigned;
-                if(tile.Reference!="")return editingWorkspace&&tile.Number!=""?(tile.Prefix??"")+tile.Number:"-----";
+                if(assigned!=""&&(Time.realtimeSinceStartup-panelReadTime>=5||!numberDisplayOwners.HasTimetableNumber(assigned)))return assigned;
+                if(editingWorkspace&&tile.Number!="")return (tile.Prefix??"")+tile.Number;
             }
             if(Time.realtimeSinceStartup-panelReadTime>=5||numberDisplayOverflow)return "?";
             if(tile.Section==null&&!TileBlocks(tile).Any())return editingWorkspace?(tile.Prefix??"")+(tile.Number??""):"-----";

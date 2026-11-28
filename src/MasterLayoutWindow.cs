@@ -10,8 +10,6 @@ using UnityEngine.UI;
 
 namespace EnusDE.Signaltechnik {
     public sealed partial class SignalRuntime {
-        const string MasterLayoutWindowId="enusde.signaltechnik.master-layout";
-        CustomWindowDefinition masterLayoutDefinition;
         RectTransform masterLayoutRoot;
         PanelView masterLayoutView;ScrollRect masterLayoutScroll;
         PopupMenu masterLayoutPopup;
@@ -20,28 +18,28 @@ namespace EnusDE.Signaltechnik {
         void OpenMasterLayout() {
             RequireEdit();if(!editingWorkspace)throw new InvalidOperationException(WindowText("Open the editor first.","Zuerst den Editor öffnen."));
             masterLayoutDesk=CurrentDesk?.IsMaster==true?CurrentDesk.Id:desks.Desks.Single(d=>d.Global).Id;masterLayoutFit=true;masterLayoutMessage=null;
-            EnsureWindow();if(masterLayoutDefinition==null) {
-                masterLayoutDefinition=new CustomWindowDefinition{Identifier=MasterLayoutWindowId,Title=WindowText("Master interlocking · arrange modules","ESTW · Module anordnen"),BuilderAction=BuildMasterLayout,
-                    Config=WindowConfig.Resizable(new Vector2Int(1100,850),new Vector2Int(800,700),new Vector2Int(3840,2160),Window.Position.CenterRight)};
-                manager.RegisterCustomWindow(masterLayoutDefinition);
-            }
-            var handle=CustomWindowHandle.Create(MasterLayoutWindowId);handle?.Show();handle?.SetNeedsRebuild();
+            Mode(16);
         }
-        void BuildMasterLayout(UIPanelBuilder builder) {
+        void ReleaseMasterLayoutSurface() {
             masterLayoutPopup?.Dismiss();masterLayoutPopup=null;
             if(masterLayoutRoot!=null){masterLayoutRoot.gameObject.SetActive(false);Destroy(masterLayoutRoot.gameObject);}
+            masterLayoutRoot=null;masterLayoutView=null;masterLayoutScroll=null;
+        }
+        void BuildMasterLayout(UIPanelBuilder builder) {
+            ReleaseWorkspaceCanvas();
             var master=desks?.Desks.FirstOrDefault(d=>d.IsMaster&&d.Id==masterLayoutDesk);
             if(master==null||!editingWorkspace){builder.AddLabel(WindowText("Reopen the module view from the editor.","Modultafel erneut aus dem Editor öffnen."));return;}
             string target=master.Id,worldScope=scope;long version=Entry.Shared.ConfigurationVersion;
             var window=builder.VStack(_=>{}).GetComponentInParent<Window>();
-            var root=masterLayoutRoot=WorkspaceSurface.Rect(window.transform,"Master module layout");WorkspaceSurface.Fill(root,8,34,8,16);root.SetAsLastSibling();
+            var root=masterLayoutRoot=WorkspaceSurface.Rect(window.transform,"Master module layout");CoverGameViewport(window,root);root.SetAsLastSibling();
             bool Alive()=>editingWorkspace&&scope==worldScope&&root==masterLayoutRoot&&root.gameObject.activeInHierarchy&&target==masterLayoutDesk;
             void Check(){RequireEdit();if(!Alive()||Entry.Shared.ConfigurationVersion!=version)throw new InvalidOperationException(WindowText("The module layout changed. Refresh this view before editing.","Modulanordnung wurde geändert. Vor dem Bearbeiten die Ansicht aktualisieren."));}
-            void Refresh(){if(masterLayoutView!=null)masterLayoutZoom=masterLayoutView.Zoom;if(masterLayoutScroll!=null)masterLayoutPosition=masterLayoutScroll.normalizedPosition;CustomWindowHandle.Create(MasterLayoutWindowId)?.SetNeedsRebuild();}
-            void Edit(string id)=>Act(()=>{Check();manager.CloseWindow(MasterLayoutWindowId);OpenEditorCatalogue();EnterEditorDesk(id);});
+            void Refresh(){if(masterLayoutView!=null)masterLayoutZoom=masterLayoutView.Zoom;if(masterLayoutScroll!=null)masterLayoutPosition=masterLayoutScroll.normalizedPosition;CustomWindowHandle.Create(WindowId)?.SetNeedsRebuild();}
+            void Edit(string id)=>Act(()=>{Check();OpenEditorCatalogue();EnterEditorDesk(id);});
             void Unlink(string id)=>Act(()=>{Check();SaveAutomation(d=>d.Modules.RemoveAll(m=>m.Desk==id&&MasterDiagram.Owner(d,m)==target));masterLayoutMessage=WindowText("Module unlinked; its local diagram is retained.","Modul gelöst; das örtliche Gleisbild bleibt erhalten.");Refresh();});
             var surface=root.gameObject.AddComponent<MasterLayoutSurface>();
             surface.Initialize(root,master.Code+" · "+master.Name,WindowText("Drag modules to move them. Right-click a module to edit it. Drag empty space to pan.","Module zum Verschieben ziehen. Rechtsklick auf ein Modul zum Bearbeiten. Leere Fläche ziehen verschiebt die Ansicht."));
+            BuildWorkspaceCommands(surface.Header,true);
             surface.Notice=()=>workspaceActionError??masterLayoutMessage??WindowText("Select or insert a local interlocking.","Örtliches Stellwerk auswählen oder einfügen.");
             var controls=builder.VScrollView(c=>{
                 c.AddSection(WindowText("Local interlocking","Örtliches Stellwerk"));
@@ -55,6 +53,7 @@ namespace EnusDE.Signaltechnik {
                 c.AddButton(WindowText("Edit local diagram","Örtliches Gleisbild bearbeiten"),()=>Edit(local));
                 if(linked)c.AddButton(WindowText("Unlink module","Modul lösen"),()=>Unlink(local));
                 c.AddButton(WindowText("Refresh module view","Modultafel aktualisieren"),Refresh);
+                c.AddButton(WindowText("Back to the editor diagram","Zurück zur Editortafel"),()=>WorkspacePage(8));
             });
             controls.SetParent(surface.Sidebar,false);WorkspaceSurface.Fill(controls,8,8,8,8);(controls.GetComponent<LayoutElement>()??controls.gameObject.AddComponent<LayoutElement>()).ignoreLayout=true;surface.ThemeSoon();
             var document=MasterDiagram.Project(desks,target,true);surface.Document=document;
@@ -71,6 +70,7 @@ namespace EnusDE.Signaltechnik {
                     MenuItem.Action(WindowText("Edit local diagram","Örtliches Gleisbild bearbeiten"),()=>Edit(id)),MenuItem.Action(WindowText("Unlink module","Modul lösen"),()=>Unlink(id))},"enusde.master.module");
             }
             view.Initialize(document,Read,(x,y,half)=>{var module=Hit(x,y);if(module!=null&&Alive()){masterLayoutModule=module.Desk;Refresh();}},Alive,Context,v=>view.SetZoom(Mathf.Clamp(v,.025f,2)),()=>null,Selection,true);
+            MasterLinkGraphic.Attach(view,desks,target,true);
             scroll.content=drawing;view.SetZoom(masterLayoutZoom);view.AttachScroll(scroll);scroll.horizontalScrollbar=WorkspaceBar(surface.Frame,false);scroll.verticalScrollbar=WorkspaceBar(surface.Frame,true);
             surface.View=view;surface.Scroll=scroll;surface.RestoreView=()=>{if(Alive())scroll.normalizedPosition=masterLayoutPosition;};surface.SetInitialView(masterLayoutFit);masterLayoutFit=false;
             var drag=drawing.gameObject.AddComponent<MasterModuleDrag>();drag.View=view;drag.Scroll=scroll;drag.Find=Hit;drag.Alive=()=>Alive()&&Entry.Shared.ConfigurationVersion==version;drag.Local=id=>desks.Desks.FirstOrDefault(d=>d.Id==id)?.Panel;

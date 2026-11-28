@@ -20,6 +20,7 @@ namespace EnusDE.Signaltechnik {
         Vector2 lastSize;
         bool fitPending=true;
         public RectTransform Sidebar,Frame;
+        internal RectTransform Header=>header;
         public PanelView View;
         public ScrollRect Scroll;
         public PanelDocument Document;
@@ -29,9 +30,9 @@ namespace EnusDE.Signaltechnik {
             root=value;root.gameObject.AddComponent<Image>().color=WorkspaceSurface.Background;
             header=WorkspaceSurface.Rect(root,"Module header");footer=WorkspaceSurface.Rect(root,"Module status");
             Sidebar=WorkspaceSurface.Rect(root,"Module controls",WorkspaceSurface.Panel);Frame=WorkspaceSurface.Rect(root,"Module diagram",WorkspaceSurface.Panel);
-            var label=WorkspaceSurface.Text(header,"Title",title,17);WorkspaceSurface.Fill(label.rectTransform,0,0,300,36);
+            var label=WorkspaceSurface.Text(header,"Title",title,17);WorkspaceSurface.Fill(label.rectTransform,0,0,SignalRuntime.WorkspaceCommandsWidth+300,36);
             var instructions=WorkspaceSurface.Text(header,"Help",hint,13);WorkspaceSurface.Fill(instructions.rectTransform,0,38,0,0);
-            var zoom=WorkspaceSurface.Rect(header,"Module zoom");zoom.anchorMin=zoom.anchorMax=zoom.pivot=new Vector2(1,1);zoom.sizeDelta=new Vector2(290,32);zoom.anchoredPosition=new Vector2(0,-2);
+            var zoom=WorkspaceSurface.Rect(header,"Module zoom");zoom.anchorMin=zoom.anchorMax=zoom.pivot=new Vector2(1,1);zoom.sizeDelta=new Vector2(290,32);zoom.anchoredPosition=new Vector2(-SignalRuntime.WorkspaceCommandsWidth,-2);
             string[] names={"−","+","100 %",LocalText.Select("Fit diagram","Tafel einpassen")};int[] widths={30,30,58,148};int left=0;
             for(int i=0;i<names.Length;i++){int action=i;var button=EditorSurface.Button(zoom,names[i],()=>{if(View==null)return;if(action==3)Fit();else View.SetZoom(action==2?1:View.Zoom*(action==0?.8f:1.25f));});WorkspaceSurface.Place(button.GetComponent<RectTransform>(),new WorkspaceBox(left,0,widths[i],32));left+=widths[i]+6;}
             notice=WorkspaceSurface.Text(footer,"Status","",13);

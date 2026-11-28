@@ -79,6 +79,9 @@ namespace EnusDE.Signaltechnik {
             RequireDispatcher();RefreshLineDirections();world.BeginRead();
             var line=desks.FreeLines.FirstOrDefault(l=>l.Id==id)??throw new InvalidOperationException(WindowText("Line missing","Strecke fehlt."));
             if(CurrentDesk?.IsMaster!=true&&deskId!=station||station!=line.StationA&&station!=line.StationB)throw new InvalidOperationException(WindowText("Operate from the selected neighbouring interlocking.","An der ausgewählten Nachbarbetriebsstelle bedienen."));
+            if(SessionRequiresExplicitScope&&!LineSignalGroups.Get(line,station==line.StationA?LineSignalGroup.ADepartures:LineSignalGroup.BDepartures)
+                .Any(signal=>SessionAutomaticHeld(signal,false)))
+                throw new InvalidOperationException(WindowText("Take over train movements at this line end first.","Übernimm zuerst die Zugfahrten an diesem Streckenende."));
             if(operation=="request")lineDirections.RequestPermission(id,station,revision);
             else if(operation=="give")lineDirections.GivePermission(id,station,revision,engine.Active);
             else if(operation=="cancel")lineDirections.CancelRequest(id,station,revision);

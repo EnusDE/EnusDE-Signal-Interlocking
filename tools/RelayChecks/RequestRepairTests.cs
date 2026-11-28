@@ -61,6 +61,29 @@ static class RequestRepairTests {
         display.Refresh(readings.Reverse(),Array.Empty<string>());Check(display.Caption(owner,"00123")!="-----","number display ownership stays stable when detector enumeration order changes");
         display.Refresh(readings,new[]{"900123"});Check(readings.All(r=>display.Caption(r.Field,r.Number)=="-----"),"an explicitly registered field owns its number and suppresses additional car-derived copies");
         display.Refresh(new[]{readings[0]},Array.Empty<string>());Check(display.Caption("west","00123")=="00123","display ownership transfers after the previous detector no longer contains the train");
+        display.Refresh(new[]{new NumberDisplayReading{Field="line",Number="00123",Timetable=true},readings[0]},new[]{"900123"});
+        Check(display.Caption("line","00123")=="00123"&&display.Caption("west","00123")=="-----"&&display.HasTimetableNumber("900123"),
+            "observed timetable identity takes precedence over stale ordinary display copies");
+        Check(TrainNumbers.TimetableNumber("145")=="00145"&&TrainNumbers.TimetableNumber("P-12")=="P-12","native timetable symbols keep their identity and short digits use the established width");
+        var crossing=Passed("A","B");fields=new(){{"A","00123"}};var registry=new Dictionary<string,string>();
+        Check(TrainNumbers.MoveFieldNumberToTrain(fields,registry,"A",crossing)&&fields.Count==0&&crossing.TrainCars.All(id=>registry[id]=="00123"),
+            "a proven departure moves the field number to the train rather than leaving it at the origin");
+        fields["A"]="00124";
+        Check(!TrainNumbers.MoveFieldNumberToTrain(fields,registry,"A",crossing)&&fields["A"]=="00124",
+            "a field-to-train handover preserves conflicting identities for review");
+        var workingDesk=new DeskDefinition{Code="WHB",Panel=new PanelDocument{Tiles=new(){
+            new PanelTile{X=0,Kind=PanelTileKind.Signal,Reference="local",AlternateSignal="yard"},
+            new PanelTile{X=1,Kind=PanelTileKind.Switch,Reference="point"},
+            new PanelTile{X=2,Kind=PanelTileKind.Signal,Reference="neighbour",ReadOnlySignal=true},
+            new PanelTile{X=4,Kind=PanelTileKind.Signal,Reference="outside"}
+        }}};
+        var area=new PanelArea{Width=3,Height=2};
+        var yardOnly=OperatorScope.From(workingDesk,area,OperatorDuty.Shunt);
+        var allMoves=OperatorScope.From(workingDesk,area,OperatorDuty.Manual);
+        Check(yardOnly.Accepts("yard",true)&&!yardOnly.Accepts("local",false)&&yardOnly.AcceptsPoint("point"),"shunting takeover leaves train movements under automation");
+        Check(allMoves.Accepts("local",false)&&!allMoves.Accepts("outside",false)&&!allMoves.Accepts("neighbour",false),"full manual takeover obeys named-area and neighbour boundaries");
+        Check(allMoves.AcceptsRoute(new RouteDefinition{Entry="local",Exit="neighbour"})&&!allMoves.AcceptsRoute(new RouteDefinition{Entry="local",Exit="outside"}),
+            "a named takeover accepts a displayed boundary destination and refuses a route ending beyond the area");
 
         var target=new AuxiliaryTarget{Name="Turnback",Shunt=true,Train=false,Anchor=new MarkerAnchor{Segment="s",Meters=50}};
         var linked=new[]{new PanelTile{Kind=PanelTileKind.Signal,Reference="main",AlternateSignal="shunt",LinkedAuxiliary=target.Id},new PanelTile{Kind=PanelTileKind.AuxiliaryTarget,Target=target}};

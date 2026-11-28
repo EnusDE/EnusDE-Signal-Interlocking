@@ -155,6 +155,7 @@ namespace EnusDE.Signaltechnik {
         }
         void SwitchBound(string node,bool? target,string expectedScope,string expectedDesk) {
             RequireDispatcher();if(scope!=expectedScope||deskId!=expectedDesk)throw new InvalidOperationException(WindowText("Interlocking changed. Select the point again.","Stellwerk gewechselt. Weiche erneut auswählen."));
+            RequireOperatorPoint(node);
             if(!panel.Tiles.Any(t=>t.Kind==PanelTileKind.Switch&&t.Reference==node))throw new InvalidOperationException(WindowText("Point assignment changed. Select it again.","Weichenzuordnung geändert. Erneut auswählen."));
             var result=SwitchOperation.Execute(node,target,id=>world.SwitchPosition(id,out bool position)?(bool?)position:null,(id,desired)=>engine.Locked(id,desired),(id,desired)=>world.SetSwitch(id,desired));
             ClearAutomaticRouteChoices();status=PointAssignments.Caption(desks,node)+": "+(result.Target?WindowText("− reverse","− Abzweig"):WindowText("+ normal","+ Grundstellung"))+" · "+(result.Changed?WindowText("movement confirmed","Umstellung bestätigt"):WindowText("already in position","bereits in Stellung"));

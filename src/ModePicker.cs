@@ -74,6 +74,7 @@ namespace EnusDE.Signaltechnik {
             icons=new RawImage[4];
             hovered=null;
             for(int i=0;i<buttons.Length;i++) {
+                if(i==(int)WorkspaceMode.Editor)continue;
                 int index=i;
                 var created=UIBuilderAssets.Shared.CreateButton(UIBuilderAssets.ButtonStyle.Compact,row,()=>Select(index));
                 var rect=created.Item1;

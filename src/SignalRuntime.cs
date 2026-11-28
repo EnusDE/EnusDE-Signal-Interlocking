@@ -16,7 +16,6 @@ using Railroader.Modding;
 namespace EnusDE.Signaltechnik {
     public sealed partial class SignalRuntime : MonoBehaviour {
         const string WindowId="enusde.signaltechnik.interlocking";
-        const string EditorWindowId="enusde.signaltechnik.editor";
         readonly InterlockingEngine engine=new InterlockingEngine();
         RouteRun[] clientRuns=new RouteRun[0];
         long clientConfiguration=-1;
@@ -90,6 +89,7 @@ namespace EnusDE.Signaltechnik {
             return NativeSignalAuthority.For(Aspect(id),engine.ForViaSignal(id),id);
         }
         void Update() {
+            CheckWorkspaceSession();
             try{TickWeb();}catch(Exception error){Cleanup(StopWeb);log?.Warning("Interlocking browser: "+error.Message);}
             if(lampTest.Active&&(lampTest.Expired(Time.realtimeSinceStartup)||stopped||backupSuspended||loadFailed||StateManager.IsUnloading||Entry.Shared?.WorldKey!=scope||!Entry.BuildModeActive||Entry.SelectedBuildSignal!=lampTest.PhysicalId||!StateManager.IsHost))EndLampTest();
             if(stopped||backupSuspended||StateManager.IsUnloading){CancelRouteWork();return;}
@@ -227,6 +227,10 @@ namespace EnusDE.Signaltechnik {
             RequireDispatcher();CancelAdmittedRoute(routeId);
         }
         void CancelAdmittedRoute(string id) {
+            var selected=engine.Active.FirstOrDefault(run=>run.Route.Id==id);
+            if(selected!=null)
+                foreach(var run in engine.Active.Where(run=>run==selected||selected.ChainId!=null&&run.ChainId==selected.ChainId))
+                    RequireOperatorSignal(run.Route.Entry,run.Route.Shunting);
             world.BeginRead();engine.CancelChain(id,world);status=LocalText.Get("Fahrstraße / Folge sicher aufgelöst.");Entry.RecordSignalEvent("route_cancel",new{id});
         }
         void DeleteRoute() {
@@ -234,14 +238,11 @@ namespace EnusDE.Signaltechnik {
             var next=routes.Where(r=>r.Id!=routeId).ToList();store.Save(next);routes=next;routeId=routes.FirstOrDefault()?.Id;status=LocalText.Get("Fahrstraßendefinition entfernt.");Rebuild();
         }
         void Act(Action action){bool fromUi=WorldPointerInput.OverUi();workspaceActionError=null;try{action();}catch(Exception e){workspaceActionError=status=e.Message;if(e is RouteConflictException conflict)OpenBlockingRoutes(conflict);try{log?.Warning("Stellwerkaktion: "+e.Message);Entry.RecordSignalEvent("interlocking_action_failed",new{error=e.Message,entry=entryId,exit=exitId,route=routeId});}catch{}}finally{if(fromUi)worldSelectionInput.Complete();nativeDirty=true;PublishNativeAspects();}}
-        CustomWindowDefinition editorDefinition;
         void EnsureWindow() {
             if(manager==null)manager=WindowManager.Shared;
             if(manager==null)return;
             if(definition==null||!ReferenceEquals(manager.GetDefinition(WindowId),definition))
-                definition=RegisterWorkspace(WindowId,WindowText("EnusDE · Dispatcher","EnusDE · Fahrdienstleiter"),BuildDispatcherWindow);
-            if(StateManager.IsHost&&(editorDefinition==null||!ReferenceEquals(manager.GetDefinition(EditorWindowId),editorDefinition)))
-                editorDefinition=RegisterWorkspace(EditorWindowId,WindowText("EnusDE · Interlocking editor","EnusDE · Stellwerkseditor"),BuildEditorWindow);
+                definition=RegisterWorkspace(WindowId,WindowText("EnusDE · Interlocking","EnusDE · Stellwerk"),BuildInterlockingWindow);
         }
         CustomWindowDefinition RegisterWorkspace(string id,string title,Action<UIPanelBuilder> builder) {
             var next=new CustomWindowDefinition{Identifier=id,Title=title,BuilderAction=builder,Config=WindowConfig.Resizable(new Vector2Int(1280,850),new Vector2Int(800,550),new Vector2Int(3840,2160),Window.Position.CenterRight)};
@@ -249,14 +250,15 @@ namespace EnusDE.Signaltechnik {
             return next;
         }
         void Rebuild(bool rememberScroll=true){if(rememberScroll)RememberPanelScroll();if(manager!=null&&!StateManager.IsUnloading){CustomWindowHandle.Create(ActiveWindowId)?.SetNeedsRebuild();RebuildEditorToolsWindow();}}
-        public void Open(bool choose=true)=>ShowWorkspace(false,choose?4:0,choose);
+        public void Open(bool choose=true){if(!RestoreMinimizedWorkspace())ShowWorkspace(false,choose?4:0,choose);}
         public void Shutdown() {
+            ReleaseOperatorScope();
             Cleanup(StopWeb);
             lampTest.Clear();
             stockHooks?.Dispose();Cleanup(()=>automationHooks?.Dispose());Cleanup(()=>contactScene?.Dispose());Cleanup(RestoreSwitchModels);
             StopNetwork();
             if(stopped)return;stopped=true;CancelRouteWork();engine.HaltAll();lastRead=-100;Cleanup(PublishNativeAspects);Cleanup(RemoveProxies);Cleanup(()=>hooks?.Dispose());Cleanup(()=>world?.Dispose());Cleanup(()=>panelWorld?.Dispose());Cleanup(RemoveWindow);
-            manager=null;definition=null;editorDefinition=null;inventory.Clear();lastStates.Clear();lastAi.Clear();routes.Clear();
+            manager=null;definition=null;inventory.Clear();lastStates.Clear();lastAi.Clear();routes.Clear();
         }
         void Cleanup(Action action){try{action();}catch(Exception e){log?.Warning("Stellwerk-Bereinigung: "+e.Message);}}
         void RemoveWindow() {
@@ -269,10 +271,7 @@ namespace EnusDE.Signaltechnik {
             masterLayoutPopup?.Dismiss();masterLayoutPopup=null;
             ReleaseWorkspaceCanvas();
             Cleanup(()=>UnregisterWorkspace(WindowId,definition));
-            Cleanup(()=>UnregisterWorkspace(EditorWindowId,editorDefinition));
-            Cleanup(()=>UnregisterWorkspace(EditorToolsWindowId,editorToolsDefinition));editorToolsDefinition=null;
             Cleanup(()=>UnregisterWorkspace(RecognitionPreviewWindowId,recognitionPreviewDefinition));recognitionPreviewDefinition=null;
-            Cleanup(()=>UnregisterWorkspace(MasterLayoutWindowId,masterLayoutDefinition));masterLayoutDefinition=null;
         }
         void UnregisterWorkspace(string id,CustomWindowDefinition owned) {
             if(manager==null||owned==null||!ReferenceEquals(manager.GetDefinition(id),owned))return;

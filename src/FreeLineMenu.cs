@@ -42,7 +42,12 @@ namespace EnusDE.Signaltechnik {
                 c.AddSearchChoice(WindowText("Line / track","Strecke / Gleis"),labels,Math.Max(0,Array.FindIndex(choices,l=>l.Id==selectedLine)+offset),i=>{if(i>=offset)SelectLine(choices[i-offset].Id);});
             }
             if(editingWorkspace&&StateManager.IsHost) {
-                c.AddButton(WindowText("Create block / line connection","Block-/Streckenverbindung anlegen"),()=>Act(NewLineDraft));
+                if(CurrentDesk?.IsMaster==true)
+                    c.AddButton(WindowText("Connect two signals","Zwei Signale verbinden"),()=>Act(StartMasterSignalConnection));
+                else c.AddButton(WindowText("Connect in master interlocking","Im ESTW verbinden"),()=>Act(()=>{
+                    ShowWorkspace(true,4,false);
+                    EnterEditorDesk(desks.Desks.Single(d=>d.Global).Id);OpenFreeLines();
+                }));
                 c.AddButton(guidedLineSetup?WindowText("Switch to manual setup","Zur manuellen Einrichtung wechseln"):WindowText("Start guided setup","Geführte Einrichtung starten"),()=>{guidedLineSetup=!guidedLineSetup;guidedLineStep=0;guidedLineHelp=null;guidedControlPreview=null;workspaceActionError=null;RefreshWorkspaceFields();});
                 if(lineDraft!=null)BuildLineEditor(c,lineDraft);
             } else {
@@ -55,6 +60,14 @@ namespace EnusDE.Signaltechnik {
         void BuildLineEditor(UIPanelBuilder c,LineTrackDefinition draft) {
             string worldScope=scope;int step=guidedLineStep;bool guided=guidedLineSetup;bool current()=>ReferenceEquals(draft,lineDraft)&&selectedLine==draft.Id&&scope==worldScope&&editingWorkspace&&panelPage==9&&guided==guidedLineSetup&&(!guided||step==guidedLineStep);
             if(desks.FreeLines.Exists(l=>l.Id==draft.Id))c.AddButton(WindowText("Delete this line connection…","Diese Streckenverbindung löschen …"),()=>Act(()=>{if(current())PreviewLineRemoval(draft.Id);}));
+            if(draft.Mode==LineTrackMode.Directional&&CurrentDesk?.IsMaster==true&&!guidedLineSetup)
+                c.AddButton(WindowText("Extend with opposite direction / GWB","Gegenrichtung / GWB ergänzen"),()=>Act(()=>{
+                    if(!current())return;
+                    draft.Mode=LineTrackMode.Gleiswechselbetrieb;
+                    ResetLineDetection(draft);
+                    status=WindowText("Assign the opposite end signals, then verify the path.","Gegenrichtung zuordnen und anschließend den Gleisweg prüfen.");
+                    RefreshWorkspaceFields();
+                }));
             if(BlockDiagram.Area(panel,draft.Id)!=null)c.AddButton(WindowText("Edit block assembly view…","Ansicht des Blockverbunds bearbeiten …"),()=>{if(current())OpenBlockViewEditor(draft.Id,deskId);});
             if(guidedLineSetup){BuildGuidedLineEditor(c,draft,current);return;}
             if(!guidedLineSetup)c.AddLabel(WindowText("1. Choose neighbouring interlockings. 2. Assign their departure/entry signals. 3. Detect the track and review detection. 4. Apply; the selected indicator is linked automatically.","1. Nachbarstellwerke wählen. 2. Aus-/Einfahrsignale zuordnen. 3. Gleisweg erkennen und GFM prüfen. 4. Übernehmen; der gewählte Melder wird automatisch verknüpft."));
@@ -144,6 +157,37 @@ namespace EnusDE.Signaltechnik {
                 lineForwardChoice=pair.Forward;lineReverseChoice=pair.Reverse;
             }
             CaptureLineDetection(draft);
+        }
+        void StartMasterSignalConnection() {
+            RequirePanelEdit();
+            if(CurrentDesk?.IsMaster!=true)return;
+            string master=deskId,selectedWorld=scope;
+            guidedLineSetup=false;
+            NewLineDraft();
+            var draft=lineDraft;
+            draft.Mode=LineTrackMode.Directional;
+            bool Current()=>selectedWorld==scope&&deskId==master&&editingWorkspace&&panelPage==9&&ReferenceEquals(lineDraft,draft);
+            bool Main(string id)=>Object(id) is MarkerRecord signal&&signal.Kind==MarkerRecord.Main&&!signal.Planned&&signal.Anchor!=null;
+            bool Allowed(string id,SignalDuty forbidden) => Current()&&Main(id)&&SignalStation(id)?.IsMaster==false&&
+                SignalRolePolicy.Current(desks,id)!=forbidden;
+            PickSignalInDiagram(draft.StationA,WindowText("Choose the departure signal","Ausfahrsignal wählen"),id=>Allowed(id,SignalDuty.Entry),start=>{
+                if(!Allowed(start,SignalDuty.Entry))return;
+                var from=SignalStation(start);
+                var next=desks.Desks.First(d=>!d.IsMaster&&d.Id!=from.Id);
+                PickSignalInDiagram(next.Id,WindowText("Choose the receiving signal on the other interlocking","Einfahrsignal am anderen Stellwerk wählen"),
+                    id=>Allowed(id,SignalDuty.Exit)&&SignalStation(id)?.Id!=from.Id,end=>{
+                        if(!Allowed(end,SignalDuty.Exit)||SignalStation(end)?.Id==from.Id)return;
+                        var to=SignalStation(end);
+                        draft.StationA=from.Id;draft.StationB=to.Id;draft.Name=from.Code+" – "+to.Code;
+                        LineSignalGroups.Put(draft,LineSignalGroup.ADepartures,new[]{start});
+                        LineSignalGroups.Put(draft,LineSignalGroup.BArrivals,new[]{end});
+                        int track=1;
+                        while(LineSetupWorkflow.Connections(desks,from.Id,to.Id,track.ToString()).Length>0)track++;
+                        draft.Track=track.ToString();
+                        status=WindowText("Endpoints assigned. Detect and review the actual track path.","Endsignale zugeordnet. Tatsächlichen Gleisweg erkennen und prüfen.");
+                        RefreshWorkspaceFields();
+                    });
+            });
         }
         void CaptureLineDetection(LineTrackDefinition draft) {
             draft.Topology="";draft.Anchors.Clear();

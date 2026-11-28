@@ -20,11 +20,13 @@ namespace EnusDE.Signaltechnik {
 
         internal bool WorkspaceAvailable=>!stopped&&!StateManager.IsUnloading&&panel!=null&&Entry.Shared?.ConstructionUnlocked==true;
         internal bool WorkspaceEditable=>WorkspaceAvailable&&StateManager.IsHost&&!loadFailed&&store!=null&&panelStore!=null&&panelError==null;
-        string ActiveWindowId=>editingWorkspace?EditorWindowId:WindowId;
+        string ActiveWindowId=>WindowId;
         string WindowText(string english,string german)=>LocalText.Select(english,german);
 
         internal void OpenMode(bool editing) {
             if(!WorkspaceAvailable||editing&&!WorkspaceEditable)return;
+            operatorControlRequested=true;
+            if(!editing&&RestoreMinimizedWorkspace())return;
             ShowWorkspace(editing,editing?4:0,editing);
         }
 
@@ -35,11 +37,16 @@ namespace EnusDE.Signaltechnik {
             if(manager==null)return;
             if(!editing&&CurrentDesk!=null&&!CurrentDesk.Global&&!CurrentDesk.ShowInDispatcher)SelectDesk(desks.Desks.Single(d=>d.Global).Id,false);
             if(editingWorkspace!=editing) {
-                CloseWorkspaceMode();
+                CloseRouteChoiceWindow();
+                bool keepView=CurrentDesk?.IsMaster==false&&panelScroll!=null;
+                RememberWorkspaceModeView();
+                var zoom=panelZoom;
+                var scroll=panelScrollPosition;
+                ReleaseWorkspaceCanvas();
                 editingWorkspace=editing;
-                panelZoom=editing?editorZoom:dispatcherZoom;
-                panelScrollPosition=editing?editorScroll:dispatcherScroll;
-                workspaceFit=editing?!editorViewSaved:!dispatcherViewSaved;
+                panelZoom=keepView?zoom:editing?editorZoom:dispatcherZoom;
+                panelScrollPosition=keepView?scroll:editing?editorScroll:dispatcherScroll;
+                workspaceFit=!keepView&&(editing?!editorViewSaved:!dispatcherViewSaved);
                 selectedX=selectedY=-1;
                 region=null;
                 workspaceActionError=null;
@@ -51,31 +58,35 @@ namespace EnusDE.Signaltechnik {
                 editorCatalogueForm=null;
                 pendingDeskRemoval=null;
                 editorLinksAfterSelection=page==3;
-                page=page==7?7:4;editorDetailsOpen=showTools&&page==7;
+                page=page==1||page==7?page:4;editorDetailsOpen=showTools&&page==7;
             }
             ResetWorkspacePage(page);
             var window=CustomWindowHandle.Create(ActiveWindowId);
             bool cached=manager.GetCustomWindow(ActiveWindowId)!=null;
             window?.Show();
+            workspaceSessionOpen=true;workspaceMinimized=false;workspaceVisibleSince=Time.frameCount;
             if(cached)window?.SetNeedsRebuild();
             if(editing&&editorDetailsOpen)OpenEditorToolsWindow();
         }
 
         internal void CloseWorkspaceMode() {
+            workspaceSessionOpen=false;workspaceMinimized=false;
             CloseRouteChoiceWindow();
             masterLayoutPopup?.Dismiss();masterLayoutPopup=null;
-            if(manager?.GetCustomWindow(MasterLayoutWindowId)!=null)manager.CloseWindow(MasterLayoutWindowId);
-            if(manager?.GetCustomWindow(EditorToolsWindowId)!=null)manager.CloseWindow(EditorToolsWindowId);
-            if(panelScroll!=null) {
-                RememberPanelScroll();
-                if(editingWorkspace)SaveEditorView();
-                else {dispatcherZoom=panelZoom;dispatcherScroll=panelScrollPosition;dispatcherViewSaved=true;}
-            }
+            RememberWorkspaceModeView();
             if(manager!=null&&CustomWindowHandle.Create(ActiveWindowId)?.IsOpen()==true)manager.CloseWindow(ActiveWindowId);
             ReleaseWorkspaceCanvas();
         }
 
+        void RememberWorkspaceModeView() {
+            if(panelScroll==null)return;
+            RememberPanelScroll();
+            if(editingWorkspace)SaveEditorView();
+            else {dispatcherZoom=panelZoom;dispatcherScroll=panelScrollPosition;dispatcherViewSaved=true;}
+        }
+
         void ReleaseWorkspaceCanvas() {
+            ReleaseMasterLayoutSurface();
             DismissEditorMenu();
             if(catalogueInspector!=null&&editorSurface!=null)catalogueInspector.OnRebuild-=editorSurface.ThemeSoon;
             catalogueInspector=null;
@@ -111,7 +122,13 @@ namespace EnusDE.Signaltechnik {
 
         void OpenWorkspaceContext(){workspaceContext=true;workspace?.ShowContext(true);if(editingWorkspace){editorDetailsOpen=true;OpenEditorToolsWindow();}RefreshWorkspaceFields();}
         void WorkspacePage(int page){workspaceContext=true;if(editingWorkspace)editorDetailsOpen=true;Mode(page);if(editingWorkspace)OpenEditorToolsWindow();}
-        void CloseWorkspaceContext(){workspaceContext=false;workspace?.ShowContext(false);if(editingWorkspace){editorDetailsOpen=false;if(manager?.GetCustomWindow(EditorToolsWindowId)!=null)manager.CloseWindow(EditorToolsWindowId);}}
+        void CloseWorkspaceContext(){workspaceContext=false;workspace?.ShowContext(false);if(editingWorkspace){editorDetailsOpen=false;editorSurface?.ShowDetails(false);}}
+
+        void BuildInterlockingWindow(UIPanelBuilder builder) {
+            if(editingWorkspace&&WorkspaceEditable&&panelPage==16){BuildMasterLayout(builder);return;}
+            if(editingWorkspace&&WorkspaceEditable)BuildEditorWindow(builder);
+            else {editingWorkspace=false;BuildDispatcherWindow(builder);}
+        }
 
         void BuildDispatcherWindow(UIPanelBuilder builder) {
             if(editingWorkspace)return;
@@ -121,6 +138,8 @@ namespace EnusDE.Signaltechnik {
             if(!OnDemandRoutes)AddWorkspaceTool("FS",WindowText("Operate stored routes","Gespeicherte Fahrstraßen bedienen"),()=>WorkspacePage(2),()=>panelPage==2);
             AddWorkspaceTool("LOCK",WindowText("All routes and retained locks","Festlegungen – alle Stellwerke"),()=>WorkspacePage(6),()=>panelPage==6);
             AddWorkspaceTool("REQUESTS",WindowText("Automatic requests","Automatische Anfragen"),()=>WorkspacePage(7),()=>panelPage==7);
+            AddWorkspaceTool("DUTY",WindowText("Operating responsibility","Bedienzuständigkeit"),()=>WorkspacePage(10),()=>panelPage==10);
+            AddWorkspaceTool("NUMBERS",WindowText("Number display","Nummernanzeige"),()=>WorkspacePage(11),()=>panelPage==11);
             AddWorkspaceTool("MODULES",WindowText("Master modules and central takeover","ESTW-Module und zentrale Übernahme"),()=>WorkspacePage(8),()=>panelPage==8);
             AddWorkspaceTool("↔",WindowText("Open line / GWB permissions","Freie Strecke / GWB-Erlaubnisse"),OpenFreeLines,()=>panelPage==9);
             if(StateManager.IsHost)AddWorkspaceTool("!",WindowText("Check module problems (editor)","Modulprobleme prüfen (Editor)"),()=>Act(OpenProblemsFromDispatcher),()=>false);
@@ -133,6 +152,7 @@ namespace EnusDE.Signaltechnik {
                 (stop.targetGraphic as Image).color=new Color(.48f,.09f,.08f);
             }
             CompleteWorkspace(builder,BuildDispatcherFields,WorkspacePaneTitle);
+            BuildWorkspaceCommands(workspace.Header,false);
         }
 
         void CreateWorkspaceSurface(UIPanelBuilder builder) {
@@ -141,7 +161,7 @@ namespace EnusDE.Signaltechnik {
             if(nativeWindow==null)throw new InvalidOperationException("Interlocking window anchor is missing.");
             ReleaseWorkspaceCanvas();
             var root=WorkspaceSurface.Rect(nativeWindow.transform,"EnusDE Dispatcher");
-            WorkspaceSurface.Fill(root,8,34,8,18);
+            CoverGameViewport(nativeWindow,root);
             root.SetAsLastSibling();
             workspace=root.gameObject.AddComponent<WorkspaceSurface>();
             workspace.Initialize(root);
@@ -169,6 +189,8 @@ namespace EnusDE.Signaltechnik {
             7=>WindowText("Automatic requests","Automatische Anfragen"),
             8=>WindowText("Master modules and central takeover","ESTW-Module und zentrale Übernahme"),
             9=>WindowText("Open line / GWB permissions","Freie Strecke / GWB-Erlaubnisse"),
+            10=>WindowText("Operating responsibility","Bedienzuständigkeit"),
+            11=>WindowText("Number display","Nummernanzeige"),
             _=>WindowText("Selection","Auswahl")
         };
 
@@ -176,6 +198,7 @@ namespace EnusDE.Signaltechnik {
             var zoom=WorkspaceSurface.Rect(workspace.Header,"Zoom");
             zoom.anchorMin=zoom.anchorMax=zoom.pivot=new Vector2(1,.5f);
             zoom.sizeDelta=new Vector2(298,32);
+            zoom.anchoredPosition=new Vector2(-WorkspaceCommandsWidth,0);
             string[] labels={"−","+","100 %",WindowText("Fit","Einpassen"),WindowText("Selection","Auswahl")};
             float[] widths={30,30,62,80,76};
             Action[] actions={ ()=>ChangeZoom(panelZoom/1.25f),()=>ChangeZoom(panelZoom*1.25f),()=>ChangeZoom(1),FitWorkspace,OpenWorkspaceContext };
@@ -220,6 +243,7 @@ namespace EnusDE.Signaltechnik {
             var drawing=WorkspaceSurface.Rect(content!=null?content:viewport,"Track diagram");
             panelView=drawing.gameObject.AddComponent<PanelView>();
             panelView.Initialize(panel,Visual,PressCell,()=>!stopped&&isCurrent()&&PanelVisible,CellContext,ChangeZoom,PreviewTile,SelectedRegion,editor);
+            if(!editor&&CurrentDesk?.IsMaster==true)MasterLinkGraphic.Attach(panelView,desks,deskId,false);
             if(editor){var surface=content.gameObject.AddComponent<EditorCanvasSurface>();surface.Initialize(panelView);panelView.ConfigureCanvas(surface);}
             if(editor)panelView.ConfigureMove(()=>editingWorkspace&&panelPage==1&&(editorMode==1||editorMode==2)&&regionAction==0&&pendingDelete==null&&!assigningPoint&&!HasPendingSignal,
                 pending=>Act(()=>{

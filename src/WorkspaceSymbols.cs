@@ -36,6 +36,8 @@ namespace EnusDE.Signaltechnik {
             else if(kind=="BAU"){line(8,5,21,22);line(5,8,18,25);line(16,27,24,19);line(18,29,27,20);line(24,19,27,20);line(16,27,18,29);}
             else if(kind=="ID"){line(3,6,29,6);line(29,6,29,26);line(29,26,3,26);line(3,26,3,6);line(9,10,9,22);line(16,10,16,22);line(16,22,22,19);line(22,19,22,13);line(22,13,16,10);}
             else if(kind=="REQUESTS"){line(4,7,18,7);line(4,14,18,14);line(4,21,24,21);line(24,21,20,17);line(24,21,20,25);}
+            else if(kind=="DUTY"){line(6,5,26,5);line(6,16,26,16);line(6,27,26,27);line(11,2,11,8);line(21,13,21,19);line(15,24,15,30);}
+            else if(kind=="NUMBERS"){line(12,26,8,6);line(24,26,20,6);line(5,13,27,13);line(7,20,29,20);}
             else if(kind=="MODULES"){line(4,13,4,27);line(4,27,17,27);line(17,27,17,13);line(17,13,4,13);line(15,9,15,5);line(15,5,28,5);line(28,5,28,19);line(28,19,21,19);}
             else if(kind=="↔"){line(4,20,28,20);line(28,20,23,25);line(28,20,23,15);line(28,11,4,11);line(4,11,9,16);line(4,11,9,6);}
             else{line(10,23,13,27);line(13,27,22,25);line(22,25,24,20);line(24,20,16,15);line(16,15,16,11);line(16,5,16,7);}return result;
